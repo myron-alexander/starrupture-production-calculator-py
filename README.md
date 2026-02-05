@@ -10,6 +10,9 @@ to the raw materials that start the chain.
 > database is only complete up to the point I have played. If you are further on in the game, you
 > can add the missing items to the data files.
 
+> [!IMPORTANT]
+> Developed using Python version 3.12 on Linux. Ran successfully on Windows 11 in command terminal.
+
 ## Command line
 ```
 usage: StarRupture Calculator [-h] (-i ITEM NAME | -s FILENAME | --dump_items)
