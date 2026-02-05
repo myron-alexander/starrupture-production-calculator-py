@@ -1,8 +1,14 @@
 # StarRupture Production Calculator
 
 A python 3 program that can be used to determine what inputs, and machines are necessary to craft a specific item with a specific rate.
-The output of the program is a summary of required items as well as a production tree starting with the requested item and working backwards 
+The output of the program is a summary of required items as well as a production tree starting with the requested item and working backwards
 to the raw materials that start the chain.
+
+> [!NOTE]
+> The item database is not complete. I wrote this program to help me when playing the game and I
+> have compiled the database by hand from the game as I unlocked items and buildings. As such, the
+> database is only complete up to the point I have played. If you are further on in the game, you
+> can add the missing items to the data files.
 
 ## Command line
 ```
@@ -64,8 +70,8 @@ outputs
 ║                             ║
 ╚═════════════════════════════╝
 
-                     Provided   Required   Num            
-Item                 IPM        IPM        Machines        Machine              Heat Cost      
+                     Provided   Required   Num
+Item                 IPM        IPM        Machines        Machine              Heat Cost
 ---------------------------------------------------------------------------------------------------
 calcium block                60      13.33       0.22 ( 1) smelter                 3    100 bbm
 calcium ore                 120      13.33       0.11 ( 1) ore excavator           3     80 bbm
@@ -105,6 +111,11 @@ helium-3                    240      20.00       0.08 ( 1) helium-3 extractor   
 |   └────────────────────────────────────────────────┘
 ```
 
+> [!IMPORTANT]
+> The game has multiple variants for raw materials that provide a different rate of production.
+> My data file contains the rates for each variant: impure, pure and the unnamed one which I call
+> normal. The calculations are made with only the production rate of "normal" ores.
+
 ### Summary section of output
 The summary table provides the total requirements for each item in alphabetical order.
 | Column | Description |
@@ -142,8 +153,8 @@ python3 srcalc.py -i glass --count 35
 ║                             ║
 ╚═════════════════════════════╝
 
-                     Provided   Required   Num            
-Item                 IPM        IPM        Machines        Machine              Heat Cost      
+                     Provided   Required   Num
+Item                 IPM        IPM        Machines        Machine              Heat Cost
 ---------------------------------------------------------------------------------------------------
 calcium block                60      23.33       0.39 ( 1) smelter                 3    100 bbm
 calcium ore                 120      23.33       0.19 ( 1) ore excavator           3     80 bbm
@@ -200,8 +211,8 @@ Results in a rate of 140 ipm, from 7 times 20:
 ║                              ║
 ╚══════════════════════════════╝
 
-                     Provided   Required   Num            
-Item                 IPM        IPM        Machines        Machine              Heat Cost      
+                     Provided   Required   Num
+Item                 IPM        IPM        Machines        Machine              Heat Cost
 ---------------------------------------------------------------------------------------------------
 calcium block                60      93.33       1.56 ( 2) smelter                 6    200 bbm
 calcium ore                 120      93.33       0.78 ( 1) ore excavator           3     80 bbm
@@ -627,8 +638,8 @@ glass.json
 ║                             ║
 ╚═════════════════════════════╝
 
-                     Provided   Required   Num            
-Item                 IPM        IPM        Machines        Machine              Heat Cost      
+                     Provided   Required   Num
+Item                 IPM        IPM        Machines        Machine              Heat Cost
 ---------------------------------------------------------------------------------------------------
 calcium block                60       8.00       0.13 ( 1) smelter                 3    100 bbm
 calcium ore                 120       8.00       0.07 ( 1) ore excavator           3     80 bbm
@@ -692,7 +703,7 @@ glass.json
 }
 ```
 The summary changes to list only the items crafted in the production chain and excludes the items
-provided as inputs. 
+provided as inputs.
 ```
 ╔═════════════════════════════╗
 ║                             ║
@@ -700,8 +711,8 @@ provided as inputs.
 ║                             ║
 ╚═════════════════════════════╝
 
-                     Provided   Required   Num            
-Item                 IPM        IPM        Machines        Machine              Heat Cost      
+                     Provided   Required   Num
+Item                 IPM        IPM        Machines        Machine              Heat Cost
 ---------------------------------------------------------------------------------------------------
 calcium powder               60      40.00       0.67 ( 1) furnace                 8    200 bbm
 glass                        20      20.00       1.00 ( 1) furnace                 8    200 bbm
@@ -777,8 +788,8 @@ python3 srcalc.py --spec ceramics.json
 ║                                 ║
 ╚═════════════════════════════════╝
 
-                     Provided   Required   Num            
-Item                 IPM        IPM        Machines        Machine              Heat Cost      
+                     Provided   Required   Num
+Item                 IPM        IPM        Machines        Machine              Heat Cost
 ---------------------------------------------------------------------------------------------------
 ceramics                     60     120.00       2.00 ( 2) furnace                16    400 bbm
 wolfram powder               90      60.00       0.67 ( 1) furnace                 8    200 bbm
@@ -844,8 +855,8 @@ for the additional 40 IPM.
 ║                                 ║
 ╚═════════════════════════════════╝
 
-                     Provided   Required   Num            
-Item                 IPM        IPM        Machines        Machine              Heat Cost      
+                     Provided   Required   Num
+Item                 IPM        IPM        Machines        Machine              Heat Cost
 ---------------------------------------------------------------------------------------------------
 calcite sheets               60      40.00       0.67 ( 1) fabricator              5    140 bbm
 calcium block                60      20.00       0.33 ( 1) smelter                 3    100 bbm
@@ -894,3 +905,135 @@ wolfram powder               90      60.00       0.67 ( 1) furnace              
 |   |   │ prov: 20                                       │
 |   |   └────────────────────────────────────────────────┘
 ```
+
+## Items and buildings data
+
+The program reads 4 files to build it's item database:
+| File | Description |
+|------|-------------|
+| starrupture_recipe_items.csv | Master list of items that defines the name, the machine used to craft, and the rate that the machine is capable of outputting. |
+| starrupture_recipe_input.csv | Links the inputs required for crafting an item, to the item, as well as the consumption rate. |
+| starrupture_recipe_raw.csv | Master list of special items that are not crafted but are the starting inputs into the production chain. |
+| starrupture_recipe_buildings.csv | Master list of buildings that defines the costs. |
+
+### starrupture_recipes.ods
+
+There is an additional file in the code repo which is not used by the program but is the mechanism
+I use to produce the data files. File "starrupture_recipes.ods" is a LibreOffice Calc file with a
+sheet for each data file. The sheets include some simple formula to populate some rate columns.
+To modify the item data, you don't need to use this file as the *.csv files can be edited directly.
+
+#### Adding an item to the sheet
+To add an item, in the next available row of sheet "Items", enter the name into the _Item_ column,
+the amount crafted as specified by the recipe in _NumProduced_, and the number of seconds per item
+in _PeriodSeconds_. The name of the machine is entered into column _Factory_ and finally the formula
+in _ItemsPerMinute_ is copied from an existing row.
+
+| Column | Data |
+|--------|------|
+| Item | Item name as specified by the recipe. |
+| NumProduced | The amount crafted as specified by the recipe. |
+| PeriodSeconds | The number of seconds per item as specified by the recipe. |
+| Factory | The name of the machine crafting the item. |
+| ItemsPerMinute | Formula copied from an existing row. |
+
+* The names must be lowercase.
+* The machine must exist in sheet "buildings". If not, capture the building details first.
+* The sheet must be sorted on column _Item_.
+
+#### Adding the item inputs to the sheet
+After adding the item to sheet "Items", switch to sheet "Input" and add a row for each input required
+to craft the item. The item name as entered in sheet "Items" must be entered into the column _Item_.
+The item name for the input is entered into column _Input_. The amount of items for that input, as
+specified by the recipe, is entered into _NumRequired_. The columns _PeriodSeconds_ and
+_RequiredPerMinute_ are formulas that are copied from an existing row.
+
+| Column | Data |
+|--------|------|
+| Item | Name of item being crafted. |
+| Input | Name of an item required as input to the recipe. |
+| NumRequired | The input item amount as specified by the recipe.  |
+| PeriodSeconds | Formula copied from an existing row. |
+| RequiredPerMinute | Formula copied from an existing row. |
+
+* The names must be lowercase.
+* The formula in _PeriodSeconds_ is a VLOOKUP that searches the "Items" sheet up to row 50.
+  If you have added rows beyond 50 in sheet "Items", you will have to update the formula.
+* The sheet must be sorted on columns _Item_ and _Input_.
+
+
+#### Adding a raw item to the sheet
+The raw item is added for each variant. If the raw item doesn't have variants, then the _Variant_
+column is set to "normal".
+
+| Column | Data |
+|--------|------|
+| Item | Ore / gas item name as specified by the recipe. |
+| Variant | From the recipe when named: either "impure" or "pure". When the recipe omits the name, then "normal". |
+| NumProduced | The amount produced as specified by the recipe. |
+| PeriodSeconds | The time, in seconds, to produce items as specified by the recipe. |
+| Factory | The name of the building extracting the item.  |
+| ItemsPerMinute | Formula copied from an existing row. |
+
+* The names must be lowercase.
+* The building entered into _Factory_ must exist in sheet "buildings". If not, capture the building
+  details first.
+* The sheet must be sorted on columns _Item_ and _Variant_.
+
+#### Adding a building to the sheet
+
+| Column | Data |
+|--------|------|
+| building | Name of machine or building. |
+| heat | The amount of heat added, or removed by constructing the building. Negative numbers represent buildings that remove heat. |
+| bbm cost | Basic building material cost. The cell must only be populated if the cost requires basic building materials. |
+| ibm cost | Intermediate building material cost. The cell must only be populated if the cost requires intermediate building materials. |
+| qbm cost | Quartz building material cost. The cell must only be populated if the cost requires quartz building materials. |
+
+* The names must be lowercase.
+* The sheet must be sorted on column _building_.
+
+#### Creating the CSV files from the sheet
+
+Each CSV file is written by selecting the sheet to write, then using menu option "File" -> "Save a Copy...".
+
+* Sheet Items is written to "starrupture_recipe_items.csv"
+* Sheet Input is written to "starrupture_recipe_input.csv"
+* Sheet raw is written to "starrupture_recipe_raw.csv"
+* Sheet building is written to "starrupture_recipe_buildings.csv"
+* File format must be changed to "Text CSV (.csv)"
+* Character set is UTF-8.
+* The Field delimiter must be a semicolon ;
+* String delimiter is double quotes "
+* Option "Save cell contents as shown" must be the only one enabled.
+
+### Adding an item directly to the CSV files
+
+If you wish to add an item without using "starrupture_recipes.ods", then the process is almost
+identical to the one outlined for adding to the sheet except that the calculations must be performed
+manually.
+
+* Character set is UTF-8.
+* The Field delimiter must be a semicolon ;
+
+#### Adding an item to file "starrupture_recipe_items.csv"
+Follow the instruction as per [adding the item to the sheet "Item"](#adding-an-item-to-the-sheet) for each column except:
+* The item must be inserted into the row which retains item name alphabetic order.
+* Column _ItemsPerMinute_ is calculated using formula: 60/_PeriodSeconds_*_NumProduced_
+
+#### Adding an item to file "starrupture_recipe_input.csv"
+Follow the instruction as per [adding the item inputs to the sheet "Input"](#adding-the-item-inputs-to-the-sheet) for each column except:
+* The item must be inserted into the row which retains item name and input name alphabetic order.
+* Column _PeriodSeconds_ is copied from "starrupture_recipe_items.csv" column _PeriodSeconds_
+  for the crafted item.
+* Column _RequiredPerMinute_ is calculated using formula 60/_PeriodSeconds_*_NumRequired_
+
+#### Adding an item to file "starrupture_recipe_raw.csv"
+Follow the instruction as per [adding the item inputs to the sheet "raw"](#adding-a-raw-item-to-the-sheet) for each column except:
+* The item must be inserted into the row which retains item name and variant alphabetic order.
+* Column _ItemsPerMinute_ is calculated using formula: 60/_PeriodSeconds_*_NumProduced_
+
+#### Adding an item to file "starrupture_recipe_buildings.csv"
+Follow the instruction as per [adding the item inputs to the sheet "buildings"](#adding-a-building-to-the-sheet) for each column
+except:
+* The building must be inserted into the row which retains building name alphabetic order.
