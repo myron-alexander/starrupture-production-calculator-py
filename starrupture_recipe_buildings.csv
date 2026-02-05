@@ -1,0 +1,23 @@
+building;heat;bbm cost;ibm cost;qbm cost
+assembler;150;;200;
+base core amplifier v.1;-20;;140;
+cargo dispatcher;40;;50;
+cargo receiver;40;;120;
+compounder;150;;180;
+defense turret;20;200;;
+fabricator;5;140;;
+furnace;8;200;;
+habitat;5;20;;
+helium-3 extractor;60;250;;
+large habitat;20;;;40
+mega press;15;;80;
+orbital cargo launcher;5;120;;
+ore excavator;3;80;;
+refinery;60;;150;
+smelter;3;100;;
+solar generator v.1;5;40;;
+storage depot v.1;5;100;;
+storage depot v.2;40;;150;
+sulfur extractor;60;;120;
+teleporter;0;;;500
+wind turbine v.1;20;400;;

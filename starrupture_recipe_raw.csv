@@ -1,0 +1,11 @@
+Item;Variant;NumProduced;PeriodSeconds;Factory;ItemsPerMinute
+calcium ore;impure;2;2;ore excavator;60
+calcium ore;normal;4;2;ore excavator;120
+helium-3;normal;8;2;helium-3 extractor;240
+sulfur ore;normal;8;2;sulfur extractor;240
+titanium ore;impure;2;2;ore excavator;60
+titanium ore;normal;4;2;ore excavator;120
+titanium ore;pure;8;2;ore excavator;240
+wolfram ore;impure;2;2;ore excavator;60
+wolfram ore;normal;4;2;ore excavator;120
+wolfram ore;pure;8;2;ore excavator;240
