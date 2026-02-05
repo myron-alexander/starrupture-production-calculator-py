@@ -599,9 +599,10 @@ and would result in an error if used in the actual spec file.
     // Optional list of available items that can be fed into the production chain.
     "inputs": [
         {
-            // Provided items are intended to be used as an input for crafting a specific item.
-            // The array is the names starting at the machine producing the requested item, and
-            // working backwards down the manufacturing chain.
+            // Provided items are intended to be used as an input for a specific node in the
+            // production chain. The array identifies the node in the chain by the item names
+            // starting at the machine producing the requested item, and working backwards down the
+            // manufacturing chain.
             //
             // For example, when crafting 'electronics' and existing supply of inductors is
             // available, then "for_item" will be: ["electronics"]. However, if a certain amount
@@ -609,7 +610,7 @@ and would result in an error if used in the actual spec file.
             // "for_item" will be: ["electronics", "synthetic silicon", "ceramics"]
             // Required.
             "for_item": [""],
-            // The item that is provided from an existing manufacturing site.
+            // The item that is provided as an input from an existing manufacturing site.
             // Required.
             "provided_item": "",
             // The items per minute that can be provided.
