@@ -71,7 +71,7 @@ class Building:
 
 @dataclass
 class RequiredItem:
-    machine_name: str = None
+    machine_name: str = None # type: ignore
     provided_ipm: int = 0
     required_ipm: float = 0.0
 
@@ -217,7 +217,7 @@ def main():
         generate_spec_file(aparser, args, items)
         return
 
-    requested_item = None
+    requested_item:str = None # type: ignore
     requested_count = None
 
     if args.item is not None:
@@ -245,9 +245,6 @@ def main():
     global requesting
     requesting = [requested_item, requested_count]
     #print(requesting)
-
-    if requesting is None:
-        raise ValueError("The requested item must be specified.")
 
     #
     # Do calculation
@@ -400,8 +397,8 @@ def walk_item_chain(    item_name: str,
                         required_ipm: float,
                         source_list: int = 0,
                         walk_depth: int = 0,
-                        current_machine: Machine = None,
-                        production_chain_key: str = None) -> Machine:
+                        current_machine: Machine = None, # type: ignore
+                        production_chain_key: str = None) -> Machine: # type: ignore
 
     #print(f"S:{source_list}, I:{item_name}, PCK:{production_chain_key}")
 
@@ -419,8 +416,8 @@ def walk_item_chain(    item_name: str,
                 .add_provided(found_item.items_per_minute) \
                 .set_machine_name(found_item.factory)
             crafting_items[found_item.item_name] = ci
-            if(item_name == requesting[0]):
-                ci.add_required(requesting[1])
+            if(item_name == requesting[0]): # type: ignore
+                ci.add_required(requesting[1]) # type: ignore
             machine = Machine(found_item.factory, found_item.item_name, found_item.items_per_minute, required_ipm)
             if current_machine is not None:
                 current_machine.add_input(machine)
@@ -548,8 +545,8 @@ def load_data() -> tuple[list[Item], list[RecipeInput], list[RawItem], list[Buil
         return o
 
     def building_conv(row):
-        mat_type: str = None
-        build_cost: int = None
+        mat_type: str = None # type: ignore
+        build_cost: int = None # type: ignore
         if 0 < len(str.strip(row[2])):
             mat_type = "bbm"
             build_cost = int(row[2])
@@ -663,7 +660,7 @@ def write_out_spec_template(spec_filename:str, item_name:str, ipm:int, include_i
 
 #---------------------------------------------------------------------------------------------------
 
-def parse_request_spec(spec_filename: str) -> tuple[str, int, dict[str, tuple[str, int]]]:
+def parse_request_spec(spec_filename: str) -> tuple[str, int, dict[str, dict[str, int]]]:
     with open(spec_filename) as jsf:
         spec = json.load(jsf)
     return get_spec_request(spec)
