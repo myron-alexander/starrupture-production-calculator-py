@@ -127,3 +127,770 @@ A machine block consists of 4 lines:
 3. The amount, in items per minute, that the number of machines are capable of producing. The number within the parenthesis is the amount produced per machine.
 4. The amount, in items per minute, required by the parent machine. The number within the parenthesis is the ratio of the required to the provided amounts.
 
+## Calculating the production chain of an item for a specific rate
+
+The following command will calculate the requirements to produce "glass" at a specific rate.
+The rate is specified by the `--count` option.
+```sh
+python3 srcalc.py -i glass --count 35
+```
+
+```
+╔═════════════════════════════╗
+║                             ║
+║ REQUESTING: 35 ipm of glass ║
+║                             ║
+╚═════════════════════════════╝
+
+                     Provided   Required   Num            
+Item                 IPM        IPM        Machines        Machine              Heat Cost      
+---------------------------------------------------------------------------------------------------
+calcium block                60      23.33       0.39 ( 1) smelter                 3    100 bbm
+calcium ore                 120      23.33       0.19 ( 1) ore excavator           3     80 bbm
+calcium powder               60      70.00       1.17 ( 2) furnace                16    400 bbm
+glass                        20      35.00       1.75 ( 2) furnace                16    400 bbm
+helium-3                    240      35.00       0.15 ( 1) helium-3 extractor     60    250 bbm
+
+┌────────────────────────────────────────────────┐
+│ furnace (x2)  [heat 16] [400 bbm]              │
+│ glass                                          │
+│ prov: 40    (20/machine)                       │
+│ req:  35.00 (1.750 machines)                   │
+└────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ furnace (x2)  [heat 16] [400 bbm]              │
+|   │ calcium powder                                 │
+|   │ prov: 120    (60/machine)                      │
+|   │ req:  70.00 (1.167 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ smelter (x1)  [heat 3] [100 bbm]               │
+|   |   │ calcium block                                  │
+|   |   │ prov: 60    (60/machine)                       │
+|   |   │ req:  23.33 (0.389 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ ore excavator (x1)  [heat 3] [80 bbm]          │
+|   |   |   │ calcium ore                                    │
+|   |   |   │ prov: 120    (120/machine)                     │
+|   |   |   │ req:  23.33 (0.194 machines)                   │
+|   |   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ helium-3 extractor (x1)  [heat 60] [250 bbm]   │
+|   │ helium-3                                       │
+|   │ prov: 240    (240/machine)                     │
+|   │ req:  35.00 (0.146 machines)                   │
+|   └────────────────────────────────────────────────┘
+```
+
+## Calculating the production chain of an item for a specific number of machines
+
+The following command will calculate the requirements to produce "glass" using a specific number
+of machines. The number of machines is specified by the `--machines` option. This will result
+in an item rate set by multiplying the rate of a single machine by the number of machines.
+The option `--machines` is mutually exclusive with `--count`.
+```sh
+python3 srcalc.py -i glass --machines 7
+```
+Results in a rate of 140 ipm, from 7 times 20:
+```
+╔══════════════════════════════╗
+║                              ║
+║ REQUESTING: 140 ipm of glass ║
+║                              ║
+╚══════════════════════════════╝
+
+                     Provided   Required   Num            
+Item                 IPM        IPM        Machines        Machine              Heat Cost      
+---------------------------------------------------------------------------------------------------
+calcium block                60      93.33       1.56 ( 2) smelter                 6    200 bbm
+calcium ore                 120      93.33       0.78 ( 1) ore excavator           3     80 bbm
+calcium powder               60     280.00       4.67 ( 5) furnace                40   1000 bbm
+glass                        20     140.00       7.00 ( 7) furnace                56   1400 bbm
+helium-3                    240     140.00       0.58 ( 1) helium-3 extractor     60    250 bbm
+
+┌────────────────────────────────────────────────┐
+│ furnace (x7)  [heat 56] [1400 bbm]             │
+│ glass                                          │
+│ prov: 140    (20/machine)                      │
+│ req:  140.00 (7.000 machines)                  │
+└────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ furnace (x5)  [heat 40] [1000 bbm]             │
+|   │ calcium powder                                 │
+|   │ prov: 300    (60/machine)                      │
+|   │ req:  280.00 (4.667 machines)                  │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ smelter (x2)  [heat 6] [200 bbm]               │
+|   |   │ calcium block                                  │
+|   |   │ prov: 120    (60/machine)                      │
+|   |   │ req:  93.33 (1.556 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ ore excavator (x1)  [heat 3] [80 bbm]          │
+|   |   |   │ calcium ore                                    │
+|   |   |   │ prov: 120    (120/machine)                     │
+|   |   |   │ req:  93.33 (0.778 machines)                   │
+|   |   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ helium-3 extractor (x1)  [heat 60] [250 bbm]   │
+|   │ helium-3                                       │
+|   │ prov: 240    (240/machine)                     │
+|   │ req:  140.00 (0.583 machines)                  │
+|   └────────────────────────────────────────────────┘
+```
+
+## Limiting the depth of the tree graph output
+
+When planning the production of an item, you may want to only see the direct
+inputs of a few levels. This option doesn't affect the calculation and only
+stops the tree output at the specified level. The option to set a depth limit
+is `--depth`.
+```sh
+python3 srcalc.py -i glass --depth 1
+```
+outputs
+```
+┌────────────────────────────────────────────────┐
+│ furnace (x1)  [heat 8] [200 bbm]               │
+│ glass                                          │
+│ prov: 20    (20/machine)                       │
+│ req:  20.00 (1.000 machines)                   │
+└────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   │ calcium powder                                 │
+|   │ prov: 60    (60/machine)                       │
+|   │ req:  40.00 (0.667 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ helium-3 extractor (x1)  [heat 60] [250 bbm]   │
+|   │ helium-3                                       │
+|   │ prov: 240    (240/machine)                     │
+|   │ req:  20.00 (0.083 machines)                   │
+|   └────────────────────────────────────────────────┘
+```
+and
+```sh
+python3 srcalc.py -i glass --depth 2
+```
+outputs
+```
+┌────────────────────────────────────────────────┐
+│ furnace (x1)  [heat 8] [200 bbm]               │
+│ glass                                          │
+│ prov: 20    (20/machine)                       │
+│ req:  20.00 (1.000 machines)                   │
+└────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   │ calcium powder                                 │
+|   │ prov: 60    (60/machine)                       │
+|   │ req:  40.00 (0.667 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ smelter (x1)  [heat 3] [100 bbm]               │
+|   |   │ calcium block                                  │
+|   |   │ prov: 60    (60/machine)                       │
+|   |   │ req:  13.33 (0.222 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ helium-3 extractor (x1)  [heat 60] [250 bbm]   │
+|   │ helium-3                                       │
+|   │ prov: 240    (240/machine)                     │
+|   │ req:  20.00 (0.083 machines)                   │
+|   └────────────────────────────────────────────────┘
+```
+Here's an example for a more complex item:
+```sh
+python3 srcalc.py -i valve --depth 1
+```
+```
+┌────────────────────────────────────────────────┐
+│ mega press (x1)  [heat 15] [80 ibm]            │
+│ valve                                          │
+│ prov: 6    (6/machine)                         │
+│ req:  6.00 (1.000 machines)                    │
+└────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ mega press (x1)  [heat 15] [80 ibm]            │
+|   │ nozzle                                         │
+|   │ prov: 12    (12/machine)                       │
+|   │ req:  6.00 (0.500 machines)                    │
+|   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   │ titanium beam                                  │
+|   │ prov: 20    (20/machine)                       │
+|   │ req:  18.00 (0.900 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   │ titanium housing                               │
+|   │ prov: 30    (30/machine)                       │
+|   │ req:  6.00 (0.200 machines)                    │
+|   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   │ titanium rod                                   │
+|   │ prov: 30    (30/machine)                       │
+|   │ req:  12.00 (0.400 machines)                   │
+|   └────────────────────────────────────────────────┘
+```
+```sh
+python3 srcalc.py -i valve --depth 2
+```
+```
+┌────────────────────────────────────────────────┐
+│ mega press (x1)  [heat 15] [80 ibm]            │
+│ valve                                          │
+│ prov: 6    (6/machine)                         │
+│ req:  6.00 (1.000 machines)                    │
+└────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ mega press (x1)  [heat 15] [80 ibm]            │
+|   │ nozzle                                         │
+|   │ prov: 12    (12/machine)                       │
+|   │ req:  6.00 (0.500 machines)                    │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   |   │ heat resistant sheet                           │
+|   |   │ prov: 15    (15/machine)                       │
+|   |   │ req:  12.00 (0.800 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ helium-3 extractor (x1)  [heat 60] [250 bbm]   │
+|   |   │ helium-3                                       │
+|   |   │ prov: 240    (240/machine)                     │
+|   |   │ req:  6.00 (0.025 machines)                    │
+|   |   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ fabricator (x2)  [heat 10] [280 bbm]           │
+|   |   │ stabilizer                                     │
+|   |   │ prov: 20    (10/machine)                       │
+|   |   │ req:  12.00 (1.200 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   │ titanium beam                                  │
+|   │ prov: 20    (20/machine)                       │
+|   │ req:  18.00 (0.900 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ smelter (x1)  [heat 3] [100 bbm]               │
+|   |   │ titanium bar                                   │
+|   |   │ prov: 60    (60/machine)                       │
+|   |   │ req:  18.00 (0.300 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   │ titanium housing                               │
+|   │ prov: 30    (30/machine)                       │
+|   │ req:  6.00 (0.200 machines)                    │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   |   │ titanium beam                                  │
+|   |   │ prov: 20    (20/machine)                       │
+|   |   │ req:  6.00 (0.300 machines)                    │
+|   |   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   |   │ titanium sheet                                 │
+|   |   │ prov: 60    (60/machine)                       │
+|   |   │ req:  12.00 (0.200 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   │ titanium rod                                   │
+|   │ prov: 30    (30/machine)                       │
+|   │ req:  12.00 (0.400 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ smelter (x1)  [heat 3] [100 bbm]               │
+|   |   │ titanium bar                                   │
+|   |   │ prov: 60    (60/machine)                       │
+|   |   │ req:  12.00 (0.200 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+```
+```sh
+python3 srcalc.py -i valve --depth 3
+```
+```
+┌────────────────────────────────────────────────┐
+│ mega press (x1)  [heat 15] [80 ibm]            │
+│ valve                                          │
+│ prov: 6    (6/machine)                         │
+│ req:  6.00 (1.000 machines)                    │
+└────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ mega press (x1)  [heat 15] [80 ibm]            │
+|   │ nozzle                                         │
+|   │ prov: 12    (12/machine)                       │
+|   │ req:  6.00 (0.500 machines)                    │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   |   │ heat resistant sheet                           │
+|   |   │ prov: 15    (15/machine)                       │
+|   |   │ req:  12.00 (0.800 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   |   |   │ glass                                          │
+|   |   |   │ prov: 20    (20/machine)                       │
+|   |   |   │ req:  12.00 (0.600 machines)                   │
+|   |   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   |   |   │ titanium sheet                                 │
+|   |   |   │ prov: 60    (60/machine)                       │
+|   |   |   │ req:  24.00 (0.400 machines)                   │
+|   |   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   |   |   │ wolfram plate                                  │
+|   |   |   │ prov: 60    (60/machine)                       │
+|   |   |   │ req:  12.00 (0.200 machines)                   │
+|   |   |   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ helium-3 extractor (x1)  [heat 60] [250 bbm]   │
+|   |   │ helium-3                                       │
+|   |   │ prov: 240    (240/machine)                     │
+|   |   │ req:  6.00 (0.025 machines)                    │
+|   |   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ fabricator (x2)  [heat 10] [280 bbm]           │
+|   |   │ stabilizer                                     │
+|   |   │ prov: 20    (10/machine)                       │
+|   |   │ req:  12.00 (1.200 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ fabricator (x2)  [heat 10] [280 bbm]           │
+|   |   |   │ rotor                                          │
+|   |   |   │ prov: 20    (10/machine)                       │
+|   |   |   │ req:  12.00 (1.200 machines)                   │
+|   |   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   |   |   │ titanium rod                                   │
+|   |   |   │ prov: 30    (30/machine)                       │
+|   |   |   │ req:  24.00 (0.800 machines)                   │
+|   |   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   │ titanium beam                                  │
+|   │ prov: 20    (20/machine)                       │
+|   │ req:  18.00 (0.900 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ smelter (x1)  [heat 3] [100 bbm]               │
+|   |   │ titanium bar                                   │
+|   |   │ prov: 60    (60/machine)                       │
+|   |   │ req:  18.00 (0.300 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ ore excavator (x1)  [heat 3] [80 bbm]          │
+|   |   |   │ titanium ore                                   │
+|   |   |   │ prov: 120    (120/machine)                     │
+|   |   |   │ req:  18.00 (0.150 machines)                   │
+|   |   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   │ titanium housing                               │
+|   │ prov: 30    (30/machine)                       │
+|   │ req:  6.00 (0.200 machines)                    │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   |   │ titanium beam                                  │
+|   |   │ prov: 20    (20/machine)                       │
+|   |   │ req:  6.00 (0.300 machines)                    │
+|   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ smelter (x1)  [heat 3] [100 bbm]               │
+|   |   |   │ titanium bar                                   │
+|   |   |   │ prov: 60    (60/machine)                       │
+|   |   |   │ req:  6.00 (0.100 machines)                    │
+|   |   |   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   |   │ titanium sheet                                 │
+|   |   │ prov: 60    (60/machine)                       │
+|   |   │ req:  12.00 (0.200 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ smelter (x1)  [heat 3] [100 bbm]               │
+|   |   |   │ titanium bar                                   │
+|   |   |   │ prov: 60    (60/machine)                       │
+|   |   |   │ req:  6.00 (0.100 machines)                    │
+|   |   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   │ titanium rod                                   │
+|   │ prov: 30    (30/machine)                       │
+|   │ req:  12.00 (0.400 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ smelter (x1)  [heat 3] [100 bbm]               │
+|   |   │ titanium bar                                   │
+|   |   │ prov: 60    (60/machine)                       │
+|   |   │ req:  12.00 (0.200 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ ore excavator (x1)  [heat 3] [80 bbm]          │
+|   |   |   │ titanium ore                                   │
+|   |   |   │ prov: 120    (120/machine)                     │
+|   |   |   │ req:  12.00 (0.100 machines)                   │
+|   |   |   └────────────────────────────────────────────────┘
+```
+
+## Printing the list of known items
+
+To print the names of the known items, use the `--dump_items` option. This
+option is mutually exclusive with `--item` and `--spec`.
+```sh
+python3 srcalc.py --dump_items
+```
+This outputs a single column list of item names in alphabetical order.
+
+## Using a specification file
+
+Instead of specifying the item name on the command line, you can read a
+specification file that includes the requested item name, optionally includes
+the requested IPM, and optionally provides a set of existing inputs into the
+production chain.
+
+### Specification file format
+The specification file is a JSON text file. Comments within the file are not
+supported and the comments in the example are only for documentation purposes
+and would result in an error if used in the actual spec file.
+
+```json
+{
+    "request": {
+        // Name of item to be crafted.
+        // Required.
+        "item": "",
+
+        // Optional number of items to craft per minute. This can be overridden by the
+        // value specified on the program command line. When set to a value less than 1,
+        // or not provided, the default is to use the number of items that can be produced
+        // by a single machine per minute.
+        "items_per_minute": 0
+    },
+
+    // Optional list of available items that can be fed into the production chain.
+    "inputs": [
+        {
+            // Provided items are intended to be used as an input for crafting a specific item.
+            // The array is the names starting at the machine producing the requested item, and
+            // working backwards down the manufacturing chain.
+            //
+            // For example, when crafting 'electronics' and existing supply of inductors is
+            // available, then "for_item" will be: ["electronics"]. However, if a certain amount
+            // of calcite sheets are available to produce ceramics for synthetic silicon, then
+            // "for_item" will be: ["electronics", "synthetic silicon", "ceramics"]
+            // Required.
+            "for_item": [""],
+            // The item that is provided from an existing manufacturing site.
+            // Required.
+            "provided_item": "",
+            // The items per minute that can be provided.
+            // Required.
+            "provided_ipm": 0
+        }
+    ]
+}
+```
+
+### Using a specification file to calculate a production chain
+```sh
+python3 srcalc.py --spec glass.json
+```
+glass.json
+```json
+{
+    "request": {
+        "item": "glass",
+        "items_per_minute": 12
+    }
+}
+```
+
+```
+╔═════════════════════════════╗
+║                             ║
+║ REQUESTING: 12 ipm of glass ║
+║                             ║
+╚═════════════════════════════╝
+
+                     Provided   Required   Num            
+Item                 IPM        IPM        Machines        Machine              Heat Cost      
+---------------------------------------------------------------------------------------------------
+calcium block                60       8.00       0.13 ( 1) smelter                 3    100 bbm
+calcium ore                 120       8.00       0.07 ( 1) ore excavator           3     80 bbm
+calcium powder               60      24.00       0.40 ( 1) furnace                 8    200 bbm
+glass                        20      12.00       0.60 ( 1) furnace                 8    200 bbm
+helium-3                    240      12.00       0.05 ( 1) helium-3 extractor     60    250 bbm
+
+┌────────────────────────────────────────────────┐
+│ furnace (x1)  [heat 8] [200 bbm]               │
+│ glass                                          │
+│ prov: 20    (20/machine)                       │
+│ req:  12.00 (0.600 machines)                   │
+└────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   │ calcium powder                                 │
+|   │ prov: 60    (60/machine)                       │
+|   │ req:  24.00 (0.400 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ smelter (x1)  [heat 3] [100 bbm]               │
+|   |   │ calcium block                                  │
+|   |   │ prov: 60    (60/machine)                       │
+|   |   │ req:  8.00 (0.133 machines)                    │
+|   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ ore excavator (x1)  [heat 3] [80 bbm]          │
+|   |   |   │ calcium ore                                    │
+|   |   |   │ prov: 120    (120/machine)                     │
+|   |   |   │ req:  8.00 (0.067 machines)                    │
+|   |   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ helium-3 extractor (x1)  [heat 60] [250 bbm]   │
+|   │ helium-3                                       │
+|   │ prov: 240    (240/machine)                     │
+|   │ req:  12.00 (0.050 machines)                   │
+|   └────────────────────────────────────────────────┘
+```
+
+### Using a specification file to calculate a production chain with existing inputs
+In this example, the "calcium block" input into the machine crafting "calcium powder" is being
+supplied from an existing production facility. The existing production facility can provide
+100 items of "calcium block" per minute which is more than the required input into
+"calcium powder" so no further calculations are required for that input.
+```sh
+python3 srcalc.py --spec glass.json
+```
+glass.json
+```json
+{
+    "request": {
+        "item": "glass"
+    },
+    "inputs":[
+      {
+        "for_item":["glass", "calcium powder"],
+        "provided_item": "calcium block",
+        "provided_ipm": 100
+      }
+    ]
+}
+```
+The summary changes to list only the items crafted in the production chain and excludes the items
+provided as inputs. 
+```
+╔═════════════════════════════╗
+║                             ║
+║ REQUESTING: 20 ipm of glass ║
+║                             ║
+╚═════════════════════════════╝
+
+                     Provided   Required   Num            
+Item                 IPM        IPM        Machines        Machine              Heat Cost      
+---------------------------------------------------------------------------------------------------
+calcium powder               60      40.00       0.67 ( 1) furnace                 8    200 bbm
+glass                        20      20.00       1.00 ( 1) furnace                 8    200 bbm
+helium-3                    240      20.00       0.08 ( 1) helium-3 extractor     60    250 bbm
+
+┌────────────────────────────────────────────────┐
+│ furnace (x1)  [heat 8] [200 bbm]               │
+│ glass                                          │
+│ prov: 20    (20/machine)                       │
+│ req:  20.00 (1.000 machines)                   │
+└────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   │ calcium powder                                 │
+|   │ prov: 60    (60/machine)                       │
+|   │ req:  40.00 (0.667 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ INPUT                                          │
+|   |   │ calcium block                                  │
+|   |   │ prov: 100                                      │
+|   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ helium-3 extractor (x1)  [heat 60] [250 bbm]   │
+|   │ helium-3                                       │
+|   │ prov: 240    (240/machine)                     │
+|   │ req:  20.00 (0.083 machines)                   │
+|   └────────────────────────────────────────────────┘
+```
+
+The provided input is shown in the tree as a special block with machine name
+"INPUT". This block only has three lines:
+1. INPUT
+2. Provided item name
+3. Number of items provided per minute
+```
+┌────────────────────────────────────────────────┐
+│ INPUT                                          │
+│ calcium block                                  │
+│ prov: 100                                      │
+└────────────────────────────────────────────────┘
+```
+
+#### Example with multiple inputs
+The order of inputs in the JSON file is not relevant.
+```sh
+python3 srcalc.py --spec ceramics.json
+```
+```json
+{
+    "request": {
+        "item": "ceramics",
+        "items_per_minute": 120
+    },
+    "inputs":[
+      {
+        "for_item":["ceramics", "wolfram powder"],
+        "provided_item": "wolfram bar",
+        "provided_ipm": 20
+      },
+      {
+        "for_item":["ceramics"],
+        "provided_item": "calcite sheets",
+        "provided_ipm": 77
+      }
+    ]
+}
+```
+```
+╔═════════════════════════════════╗
+║                                 ║
+║ REQUESTING: 120 ipm of ceramics ║
+║                                 ║
+╚═════════════════════════════════╝
+
+                     Provided   Required   Num            
+Item                 IPM        IPM        Machines        Machine              Heat Cost      
+---------------------------------------------------------------------------------------------------
+ceramics                     60     120.00       2.00 ( 2) furnace                16    400 bbm
+wolfram powder               90      60.00       0.67 ( 1) furnace                 8    200 bbm
+
+┌────────────────────────────────────────────────┐
+│ furnace (x2)  [heat 16] [400 bbm]              │
+│ ceramics                                       │
+│ prov: 120    (60/machine)                      │
+│ req:  120.00 (2.000 machines)                  │
+└────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ INPUT                                          │
+|   │ calcite sheets                                 │
+|   │ prov: 77                                       │
+|   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   │ wolfram powder                                 │
+|   │ prov: 90    (90/machine)                       │
+|   │ req:  60.00 (0.667 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ INPUT                                          │
+|   |   │ wolfram bar                                    │
+|   |   │ prov: 20                                       │
+|   |   └────────────────────────────────────────────────┘
+```
+
+### Using a specification file with existing inputs that are insufficient to cover input requirements
+If the existing manufacturing capacity is insufficient to cover all the needs of a machine in the
+production chain, the amount above what is provided by the existing input is calculated.
+
+In this specification file, the provided 20 "calcite sheets" per minute is below the required
+rate of 60. The calculation will then proceed to add a production chain for the remaining
+40 IPM.
+```json
+{
+    "request": {
+        "item": "ceramics",
+        "items_per_minute": 120
+    },
+    "inputs":[
+      {
+        "for_item":["ceramics", "wolfram powder"],
+        "provided_item": "wolfram bar",
+        "provided_ipm": 20
+      },
+      {
+        "for_item":["ceramics"],
+        "provided_item": "calcite sheets",
+        "provided_ipm": 20
+      }
+    ]
+}
+```
+
+The tree output includes the provided INPUT for "calcite sheets" as well as the calculated input
+for the additional 40 IPM.
+```
+╔═════════════════════════════════╗
+║                                 ║
+║ REQUESTING: 120 ipm of ceramics ║
+║                                 ║
+╚═════════════════════════════════╝
+
+                     Provided   Required   Num            
+Item                 IPM        IPM        Machines        Machine              Heat Cost      
+---------------------------------------------------------------------------------------------------
+calcite sheets               60      40.00       0.67 ( 1) fabricator              5    140 bbm
+calcium block                60      20.00       0.33 ( 1) smelter                 3    100 bbm
+calcium ore                 120      20.00       0.17 ( 1) ore excavator           3     80 bbm
+ceramics                     60     120.00       2.00 ( 2) furnace                16    400 bbm
+wolfram powder               90      60.00       0.67 ( 1) furnace                 8    200 bbm
+
+┌────────────────────────────────────────────────┐
+│ furnace (x2)  [heat 16] [400 bbm]              │
+│ ceramics                                       │
+│ prov: 120    (60/machine)                      │
+│ req:  120.00 (2.000 machines)                  │
+└────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ INPUT                                          │
+|   │ calcite sheets                                 │
+|   │ prov: 20                                       │
+|   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ fabricator (x1)  [heat 5] [140 bbm]            │
+|   │ calcite sheets                                 │
+|   │ prov: 60    (60/machine)                       │
+|   │ req:  40.00 (0.667 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ smelter (x1)  [heat 3] [100 bbm]               │
+|   |   │ calcium block                                  │
+|   |   │ prov: 60    (60/machine)                       │
+|   |   │ req:  20.00 (0.333 machines)                   │
+|   |   └────────────────────────────────────────────────┘
+|   |   |   ┌────────────────────────────────────────────────┐
+|   |   |   │ ore excavator (x1)  [heat 3] [80 bbm]          │
+|   |   |   │ calcium ore                                    │
+|   |   |   │ prov: 120    (120/machine)                     │
+|   |   |   │ req:  20.00 (0.167 machines)                   │
+|   |   |   └────────────────────────────────────────────────┘
+|   ┌────────────────────────────────────────────────┐
+|   │ furnace (x1)  [heat 8] [200 bbm]               │
+|   │ wolfram powder                                 │
+|   │ prov: 90    (90/machine)                       │
+|   │ req:  60.00 (0.667 machines)                   │
+|   └────────────────────────────────────────────────┘
+|   |   ┌────────────────────────────────────────────────┐
+|   |   │ INPUT                                          │
+|   |   │ wolfram bar                                    │
+|   |   │ prov: 20                                       │
+|   |   └────────────────────────────────────────────────┘
+```
