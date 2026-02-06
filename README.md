@@ -161,8 +161,8 @@ Item                 IPM        IPM        Machines        Machine              
 ---------------------------------------------------------------------------------------------------
 calcium block                60      23.33       0.39 ( 1) smelter                 3    100 bbm
 calcium ore                 120      23.33       0.19 ( 1) ore excavator           3     80 bbm
-calcium powder               60      70.00       1.17 ( 2) furnace                16    400 bbm
-glass                        20      35.00       1.75 ( 2) furnace                16    400 bbm
+calcium powder              120      70.00       1.17 ( 2) furnace                16    400 bbm
+glass                        40      35.00       1.75 ( 2) furnace                16    400 bbm
 helium-3                    240      35.00       0.15 ( 1) helium-3 extractor     60    250 bbm
 
 ┌────────────────────────────────────────────────┐
@@ -217,10 +217,10 @@ Results in a rate of 140 ipm, from 7 times 20:
                      Provided   Required   Num
 Item                 IPM        IPM        Machines        Machine              Heat Cost
 ---------------------------------------------------------------------------------------------------
-calcium block                60      93.33       1.56 ( 2) smelter                 6    200 bbm
+calcium block               120      93.33       1.56 ( 2) smelter                 6    200 bbm
 calcium ore                 120      93.33       0.78 ( 1) ore excavator           3     80 bbm
-calcium powder               60     280.00       4.67 ( 5) furnace                40   1000 bbm
-glass                        20     140.00       7.00 ( 7) furnace                56   1400 bbm
+calcium powder              300     280.00       4.67 ( 5) furnace                40   1000 bbm
+glass                       140     140.00       7.00 ( 7) furnace                56   1400 bbm
 helium-3                    240     140.00       0.58 ( 1) helium-3 extractor     60    250 bbm
 
 ┌────────────────────────────────────────────────┐
@@ -795,7 +795,7 @@ python3 srcalc.py --spec ceramics.json
                      Provided   Required   Num
 Item                 IPM        IPM        Machines        Machine              Heat Cost
 ---------------------------------------------------------------------------------------------------
-ceramics                     60     120.00       2.00 ( 2) furnace                16    400 bbm
+ceramics                    120     120.00       2.00 ( 2) furnace                16    400 bbm
 wolfram powder               90      60.00       0.67 ( 1) furnace                 8    200 bbm
 
 ┌────────────────────────────────────────────────┐
@@ -865,7 +865,7 @@ Item                 IPM        IPM        Machines        Machine              
 calcite sheets               60      40.00       0.67 ( 1) fabricator              5    140 bbm
 calcium block                60      20.00       0.33 ( 1) smelter                 3    100 bbm
 calcium ore                 120      20.00       0.17 ( 1) ore excavator           3     80 bbm
-ceramics                     60     120.00       2.00 ( 2) furnace                16    400 bbm
+ceramics                    120     120.00       2.00 ( 2) furnace                16    400 bbm
 wolfram powder               90      60.00       0.67 ( 1) furnace                 8    200 bbm
 
 ┌────────────────────────────────────────────────┐
