@@ -126,7 +126,7 @@ The summary table provides the total requirements for each item in alphabetical 
 | Item | Name of item |
 | Provided IPM | The rate, in items per minute, that is output by all the machines crafting that item. |
 | Required IPM | The rate, in items per minute, that the item is consumed by the production chain. |
-| Num Machines | The number of machines that are required to satisfy the required IPM. The value in parenthesis is the amount rounded to the next whole number. |
+| Num Machines | The number of machines that are required to satisfy the required IPM. The value in parenthesis is the number of machines that have to be built. |
 | Machine | Name of the machine crafting the item. |
 | Heat | The total heat added by constructing the number of machines. |
 | Cost | The total cost in building materials to construct the number of machines. |

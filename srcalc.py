@@ -318,6 +318,19 @@ def find_building_cost(building_name: str, num_buildings: int, buildings: list[B
 
 #--------------------------------------------------------------------------------------------------
 
+# The summary table provides the total requirements for each item in alphabetical order.
+#
+# * Item         : Name of item
+# * Provided IPM : The rate, in items per minute, that is output by all the machines crafting that
+# *                item.
+# * Required IPM : The rate, in items per minute, that the item is consumed by the production chain.
+# * Num Machines : The number of machines that are required to satisfy the required IPM. The value
+#                  in parenthesis is the number of machines that have to be built.
+# * Machine      : Name of the machine crafting the item.
+# * Heat         : The total heat added by constructing the number of machines.
+# * Cost         : The total cost in building materials to construct the number of machines.
+
+
 def print_crafting_items(buildings: list[Building]):
     crafted_keys = list(crafting_items)
     crafted_keys.sort(key = str.lower)
@@ -331,7 +344,7 @@ def print_crafting_items(buildings: list[Building]):
         num_machines_rounded = max(1, math.ceil(num_machines))
         heat_cost, building_cost = find_building_cost(i.machine_name, num_machines_rounded, buildings)
         print(
-            f"{k:<20} {i.provided_ipm:10d} {i.required_ipm:10.2f}" +
+            f"{k:<20} {num_machines_rounded*i.provided_ipm:10d} {i.required_ipm:10.2f}" +
             f" {num_machines:10.2f} ({num_machines_rounded:2d}) {i.machine_name:<20}" +
             f" {heat_cost:4} {building_cost:>10}")
 
