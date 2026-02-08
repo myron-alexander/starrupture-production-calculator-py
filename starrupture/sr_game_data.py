@@ -36,6 +36,15 @@ from typing import TypeVar
 
 #---------------------------------------------------------------------------------------------------
 
+# Stack size and num stacks were added to support factory management, with the thought of dealing
+# with item buffering on lines with incomplete consumption, as well as calculating amounts stored
+# within the chain. This will never be accurate but can provide an approximate picture in time.
+# Can also be used to show amount stored in storage (non-buffering) buildings to support querying
+# items for collection by the player, answering the question: where can I grab n of item.
+# These ideas are aspirational and not implemented.
+
+#---------------------------------------------------------------------------------------------------
+
 @dataclass
 class Item:
     item_name: str
