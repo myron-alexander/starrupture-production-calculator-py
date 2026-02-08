@@ -31,6 +31,8 @@ __all__ = [
 
 import csv
 from dataclasses import dataclass
+from abc import ABC, abstractmethod
+from typing import TypeVar
 
 #---------------------------------------------------------------------------------------------------
 
@@ -39,6 +41,7 @@ class Item:
     item_name: str
     num_produced: int
     period_seconds: float
+    stack_size: int
     factory: str
     items_per_minute: int
 
@@ -60,6 +63,7 @@ class RawItem:
     variant: str
     num_produced: int
     period_seconds: int
+    stack_size: int
     factory: str
     items_per_minute: int
 
@@ -71,6 +75,181 @@ class Building:
     heat_cost: int
     building_material_type: str
     building_cost: int
+    num_stacks: int
+
+#---------------------------------------------------------------------------------------------------
+
+T = TypeVar('T', bound=Item|RecipeInput|RawItem|Building)
+
+class CsvRowConverter(ABC):
+    def __init__(self) -> None:
+        self._header_lookup:dict[str,int] = dict()
+
+
+    def set_headers(self, row:list[str]) -> None:
+        """
+        Set the column name to column number mapping from the read header row.
+        Columns names are converted to all uppercase.
+
+        :param row: CSV file header row.
+        :type row: list[str]
+        """
+        self._header_lookup.clear()
+        self._header_lookup.update(zip([v.upper() for v in row], range(0,len(row))))
+
+
+    @abstractmethod
+    def convert_row(self, row:list[str]) -> T:
+        """
+        Extract the data from the row into a data class.
+
+        :param row: CSV file data row.
+        :type row: list[str]
+        """
+        pass
+
+
+    def get_column_value(self, column_name:str, row:list[str]) -> str:
+        """
+        Get the row value from the specified named column. If the column doesn't exist, an
+        error is raised.
+
+        :param column_name: Column name of the row which contains the data to return.
+        :type column_name: str
+        :param row: Row data.
+        :type row: list[str]
+        :return: Data read from the row column.
+        :rtype: str
+        """
+        return row[self._header_lookup[column_name.upper()]]
+
+#---------------------------------------------------------------------------------------------------
+
+class ItemRowConverter(CsvRowConverter):
+    """
+    For version 1.0 records, expecting headers:
+        Item;NumProduced;PeriodSeconds;Factory;ItemsPerMinute
+
+    For version 1.1 records, expecting headers:
+        Item;NumProduced;PeriodSeconds;StackSize;Factory;ItemsPerMinute
+
+    When converting 1.0 records, the stack_size on Item is set to 0.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.has_stacksize = False
+
+    def set_headers(self, row:list[str]) -> None:
+        super().set_headers(row)
+        self.has_stacksize = "STACKSIZE" in self._header_lookup
+
+    def convert_row(self, row:list[str]) -> Item:
+        return Item(
+            self.get_column_value("Item", row),
+            int(self.get_column_value("NumProduced", row)),
+            float(self.get_column_value("PeriodSeconds", row)),
+            int(self.get_column_value("StackSize", row)) if self.has_stacksize else 0,
+            self.get_column_value("Factory", row),
+            int(self.get_column_value("ItemsPerMinute", row))
+        )
+
+#---------------------------------------------------------------------------------------------------
+
+class RecipeInputRowConverter(CsvRowConverter):
+    """
+    Item;Input;NumRequired;PeriodSeconds;RequiredPerMinute
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def convert_row(self, row:list[str]) -> RecipeInput:
+        return RecipeInput(
+            self.get_column_value("Item", row),
+            self.get_column_value("Input", row),
+            int(self.get_column_value("NumRequired", row)),
+            float(self.get_column_value("PeriodSeconds", row)),
+            int(self.get_column_value("RequiredPerMinute", row))
+        )
+
+#---------------------------------------------------------------------------------------------------
+
+class RawItemRowConverter(CsvRowConverter):
+    """
+    For version 1.0 records, expecting headers:
+        Item;Variant;NumProduced;PeriodSeconds;Factory;ItemsPerMinute
+
+    For version 1.1 records, expecting headers:
+        Item;Variant;NumProduced;PeriodSeconds;StackSize;Factory;ItemsPerMinute
+
+    When converting 1.0 records, the stack_size on RawItem is set to 0.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.has_stacksize = False
+
+    def set_headers(self, row:list[str]) -> None:
+        super().set_headers(row)
+        self.has_stacksize = "STACKSIZE" in self._header_lookup
+
+    def convert_row(self, row:list[str]) -> RawItem:
+        return RawItem(
+            self.get_column_value("Item", row),
+            self.get_column_value("Variant", row),
+            int(self.get_column_value("NumProduced", row)),
+            int(self.get_column_value("PeriodSeconds", row)),
+            int(self.get_column_value("StackSize", row)) if self.has_stacksize else 0,
+            self.get_column_value("Factory", row),
+            int(self.get_column_value("ItemsPerMinute", row))
+        )
+
+#---------------------------------------------------------------------------------------------------
+
+class BuildingRowConverter(CsvRowConverter):
+    """
+    For version 1.0 records, expecting headers:
+        building;heat;bbm cost;ibm cost;qbm cost
+
+    For version 1.1 records, expecting headers:
+        Building;Heat;BbmCost;IbmCost;QbmCost;NumStacks
+
+    When converting 1.0 records, the num_stacks on Building is set to 0.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.has_numstacks = False
+
+    def set_headers(self, row:list[str]) -> None:
+        super().set_headers(row)
+        self.has_numstacks = "NUMSTACKS" in self._header_lookup
+
+    def convert_row(self, row:list[str]) -> Building:
+        building = self.get_column_value("Building", row)
+        heat = int(self.get_column_value("Heat", row))
+        num_stacks = 0
+        if self.has_numstacks:
+            bbm_cost = self.get_column_value("BbmCost", row)
+            ibm_cost = self.get_column_value("IbmCost", row)
+            qbm_cost = self.get_column_value("QbmCost", row)
+            num_stacks = int(self.get_column_value("NumStacks", row))
+        else:
+            bbm_cost = self.get_column_value("bbm cost", row)
+            ibm_cost = self.get_column_value("ibm cost", row)
+            qbm_cost = self.get_column_value("qbm cost", row)
+
+        bbm_cost = None if 0 == len(bbm_cost.strip()) else ("bbm", int(bbm_cost))
+        ibm_cost = None if 0 == len(ibm_cost.strip()) else ("ibm", int(ibm_cost))
+        qbm_cost = None if 0 == len(qbm_cost.strip()) else ("qbm", int(qbm_cost))
+
+        build_cost = next((c for c in (bbm_cost,ibm_cost,qbm_cost) if c is not None), None)
+        if build_cost is None:
+            raise ValueError(f"No building cost defined for machine '{building}'.")
+
+        return Building(building, heat, build_cost[0], build_cost[1], num_stacks)
+
 
 #---------------------------------------------------------------------------------------------------
 
@@ -95,55 +274,26 @@ def load_definitions(
     :rtype: tuple[list[Item], list[RecipeInput], list[RawItem], list[Building]]
     """
 
-    def item_conv(row):
-        o = Item(row[0], int(row[1]), float(row[2]), row[3], int(row[4]))
-        return o
-
-    def input_conv(row):
-        o = RecipeInput(row[0], row[1], int(row[2]), float(row[3]), int(row[4]))
-        return o
-
-    def raw_conv(row):
-        o = RawItem(row[0], row[1], int(row[2]), int(row[3]), row[4], int(row[5]))
-        return o
-
-    def building_conv(row):
-        mat_type: str|None = None
-        build_cost: int|None = None
-        if 0 < len(str.strip(row[2])):
-            mat_type = "bbm"
-            build_cost = int(row[2])
-        elif 0 < len(str.strip(row[3])):
-            mat_type = "ibm"
-            build_cost = int(row[3])
-        elif 0 < len(str.strip(row[4])):
-            mat_type = "qbm"
-            build_cost = int(row[4])
-        if mat_type is None or build_cost is None:
-            raise ValueError(f"No building cost defined for machine '{row[0]}'.")
-        o = Building(row[0], int(row[1]), mat_type, build_cost)
-        return o
-
-
-    items = load_file(items_filename, item_conv)
-    recipe_inputs = load_file(input_filename, input_conv)
-    raw_items = load_file(raw_filename, raw_conv)
-    buildings = load_file(buildings_filename, building_conv)
+    items = load_file(items_filename, ItemRowConverter())
+    recipe_inputs = load_file(input_filename, RecipeInputRowConverter())
+    raw_items = load_file(raw_filename, RawItemRowConverter())
+    buildings = load_file(buildings_filename, BuildingRowConverter())
 
     return (items, recipe_inputs, raw_items, buildings)
 
 #---------------------------------------------------------------------------------------------------
 
-def load_file(fname, conv_func):
-    ar = []
+def load_file(fname:str, converter:CsvRowConverter) -> list[T]:
+    ar:list[T] = []
     with open(fname, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=';')
-        skip_header = True
+        read_header = True
         for row in reader:
-            if skip_header:
-                skip_header = False
+            if read_header:
+                converter.set_headers(row)
+                read_header = False
                 continue
-            ar.append(conv_func(row))
+            ar.append(converter.convert_row(row))
     return ar
 
 #---------------------------------------------------------------------------------------------------

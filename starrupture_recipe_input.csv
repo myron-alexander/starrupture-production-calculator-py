@@ -4,6 +4,8 @@ accumulator;electronics;2;6;20
 accumulator;stator;1;6;10
 applicator;glass;2;4;30
 applicator;tube;8;4;120
+basic building material;titanium ore;1;2;30
+basic building material;wolfram ore;1;2;30
 battery;electronics;2;4;30
 battery;inductor;2;4;30
 battery;sulfuric acid;1;4;15
@@ -33,6 +35,8 @@ hardening agent;synthetic silicon;1;4;15
 heat resistant sheet;glass;1;4;15
 heat resistant sheet;titanium sheet;2;4;30
 heat resistant sheet;wolfram plate;1;4;15
+heavy ammo;basic building material;24;6;240
+heavy ammo;titanium rod;6;6;60
 impeller;heat resistant sheet;2;4;30
 impeller;stabilizer;1;4;15
 impeller;titanium rod;2;4;30
@@ -40,9 +44,14 @@ impeller;wolfram plate;1;4;15
 inductor;ceramics;2;3;40
 inductor;tube;2;3;40
 inductor;wolfram wire;1;3;20
+intermediate building material;basic building material;40;6;400
+intermediate building material;glass;2;6;20
+intermediate building material;inductor;2;6;20
+intermediate building material;titanium housing;2;6;20
 nozzle;heat resistant sheet;2;5;24
 nozzle;helium-3;1;5;12
 nozzle;stabilizer;2;5;24
+pistol ammo;basic building material;14;4;210
 pressure tank;heat resistant sheet;5;12;25
 pressure tank;pump;3;12;15
 pressure tank;titanium housing;3;12;15
@@ -55,8 +64,12 @@ pump;turbine;1;10;6
 pump;valve;1;10;6
 rotor;titanium rod;2;6;20
 rotor;wolfram wire;2;6;20
+shotgun ammo;basic building material;20;6;200
+shotgun ammo;calcium powder;5;6;50
 stabilizer;rotor;1;6;10
 stabilizer;titanium rod;2;6;20
+standard ammo;basic building material;18;6;180
+standard ammo;wolfram powder;4;6;40
 stator;titanium housing;2;3;40
 stator;wolfram wire;1;3;20
 sulfuric acid;chemicals;1;0.5;120
