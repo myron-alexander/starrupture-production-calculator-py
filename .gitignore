@@ -3,3 +3,6 @@
 
 # Miscellaneous working files.
 scratch/
+
+# Python temp files
+**/__pycache__/

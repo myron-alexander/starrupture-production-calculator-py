@@ -17,55 +17,15 @@
 
 
 import argparse
-import csv
 import json
 import math
+from starrupture.sr_game_data import *
 from dataclasses import dataclass, field
 
 #--------------------------------------------------------------------------------------------------
 
 # [item name, requested ipm]
 requesting = None
-
-#--------------------------------------------------------------------------------------------------
-
-@dataclass
-class Item:
-    item_name: str
-    num_produced: int
-    period_seconds: float
-    factory: str
-    items_per_minute: int
-
-#--------------------------------------------------------------------------------------------------
-
-@dataclass
-class RecipeInput:
-    item_name: str
-    input_name: str
-    num_required: int
-    period_seconds: float
-    required_per_minute: int
-
-#--------------------------------------------------------------------------------------------------
-
-@dataclass
-class RawItem:
-    item_name: str
-    variant: str
-    num_produced: int
-    period_seconds: int
-    factory: str
-    items_per_minute: int
-
-#--------------------------------------------------------------------------------------------------
-
-@dataclass
-class Building:
-    building_name: str
-    heat_cost: int
-    building_material_type: str
-    building_cost: int
 
 #--------------------------------------------------------------------------------------------------
 
@@ -142,7 +102,13 @@ def main():
     # Load item and machine data.
     #
 
-    items, recipe_inputs, raw_items, buildings = load_data()
+    items, recipe_inputs, raw_items, buildings = \
+        load_definitions(
+            'starrupture_recipe_items.csv',
+            'starrupture_recipe_input.csv',
+            'starrupture_recipe_raw.csv',
+            'starrupture_recipe_buildings.csv')
+    
     initialize_raw_items(raw_items)
 
     #
@@ -538,64 +504,6 @@ def find_raw(item_name: str, variant: str, raw_items: list[RawItem]) -> RawItem:
         if item_name == i.item_name and variant == i.variant:
             return i
     raise ValueError("Cannot find item '%s' in raw_items." % item_name)
-
-#--------------------------------------------------------------------------------------------------
-
-def load_data() -> tuple[list[Item], list[RecipeInput], list[RawItem], list[Building]]:
-    def item_conv(row):
-        o = Item(row[0], int(row[1]), float(row[2]), row[3], int(row[4]))
-        #print(o.item_name, o.num_produced, o.period_seconds, o.factory, o.items_per_minute)
-        return o
-
-    def input_conv(row):
-        o = RecipeInput(row[0], row[1], int(row[2]), float(row[3]), int(row[4]))
-        #print(o.item_name, o.input_name, o.num_required)
-        return o
-
-    def raw_conv(row):
-        o = RawItem(row[0], row[1], int(row[2]), int(row[3]), row[4], int(row[5]))
-        #print(o.item_name, o.variant, o.num_produced)
-        return o
-
-    def building_conv(row):
-        mat_type: str = None # type: ignore
-        build_cost: int = None # type: ignore
-        if 0 < len(str.strip(row[2])):
-            mat_type = "bbm"
-            build_cost = int(row[2])
-        elif 0 < len(str.strip(row[3])):
-            mat_type = "ibm"
-            build_cost = int(row[3])
-        elif 0 < len(str.strip(row[4])):
-            mat_type = "qbm"
-            build_cost = int(row[4])
-        if mat_type is None:
-            raise ValueError(f"No building cost defined for machine '{row[0]}'.")
-        o = Building(row[0], int(row[1]), mat_type, build_cost)
-        #print(o.building_name, o.heat_cost, o.building_cost, o.building_material_type)
-        return o
-
-
-    items = load_file('starrupture_recipe_items.csv', item_conv)
-    recipe_inputs = load_file('starrupture_recipe_input.csv', input_conv)
-    raw_items = load_file('starrupture_recipe_raw.csv', raw_conv)
-    buildings = load_file('starrupture_recipe_buildings.csv', building_conv)
-
-    return (items, recipe_inputs, raw_items, buildings)
-
-
-def load_file(fname, conv_func):
-    ar = []
-    with open(fname, newline='') as csvfile:
-        reader = csv.reader(csvfile, delimiter=';')
-        skip_header = True
-        for row in reader:
-            if skip_header:
-                skip_header = False
-                continue
-            ar.append(conv_func(row))
-    return ar
-
 
 #---------------------------------------------------------------------------------------------------
 
