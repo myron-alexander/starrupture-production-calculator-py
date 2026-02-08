@@ -1,0 +1,102 @@
+{
+    /*
+     - A factory consists of machines. Each machine has inputs and outputs.
+     - Factories can be linked.
+     - A factory has a purpose. This purpose must be stated.
+     - A factory name is unique within a site. I intentionally didn't make factory name globally
+       unique, even though that is my preference, to not put artificial limits on the user.
+     - A site has a unique name.
+     - A site has a location within the game world. This is not currently implemented as the
+       mechanism for identifying the location hasn't been determined.
+     - A site may be associated with a teleporter.
+     - A site has a heat limit.
+     - Factories are not necessarily optimal. They will have items produced that are not used.
+     - They will have insufficient inputs to produce all outputs. This will reduce the production
+     - rate.
+
+     It must be possible to search for item capacity. This search will list the factories that
+     have capacity for that item. The search result must include the heat limit.
+
+     A machine has inputs and outputs. The inputs can either be produced by another machine or be
+     an input to the factory. The outputs can either be consumed by another machine, stored, or be
+     an output of the factory.
+
+
+     Due to the nature of the game, and how it pulls items to the machines on an as-needed basis
+     with transversal latencies, the caclulated rates are very approximate and nay have a
+     high degree of error.
+
+     Due to core overlap, a factory could have machines that span cores and as such the heat
+     limit of the factory is only suggestive.
+
+     */
+    "sites": {
+        "<site id>": {
+            // When no teleporter associated with the site, the value is an empty string.
+            "teleporter": "",
+            // Minimum value is 1000.
+            "heat_limit": 1000,
+            // Minimum value is 1.
+            "heat_current": 0,
+            "factories": {
+                "<factory id>": {
+                    "purpose": "",
+                    "machines": {
+                        "<machine id>": {
+                            "item": "",
+                            // If the machine is an extractor, this is required.
+                            // Values are: "impure", "normal", "pure"
+                            "variant": "",
+                            // If the machine is not an extractor, this is required.
+                            "inputs": [
+                                {
+                                    /*
+                                    Inputs can be merged from multiple source into one connection.
+                                    */
+                                    "from_machine_id": [""],
+                                    "from_factory_input_id": [""],
+                                    // The maximum rate at which items can be transferred along this connection
+                                    "rate_limit_ipm": 0
+                                }
+                            ]
+                        }
+                    },
+                    "inputs": {
+                        "<factory input id>":{
+                            // Rates are determined from factory output. Item is identified from
+                            // output, The output may not be from this factory.
+                            "site_id": "",
+                            "factory_id": "",
+                            "factory_output_id": ""
+                        }
+                    },
+                    "outputs": {
+                        "<factory output id>": {
+                            // Item that is dispatched by this output. This was added to the spec
+                            // for validation purposes as well as allowing for the user to see
+                            // the intention when viewing the JSON.
+                            "dipatched_item": "",
+                            /*
+                            Calculate max sent rate of cargo dispatcher for various input rates:
+                            rails ipm | receive 100 | +10s  | Num batches | Max sent ipm |
+                            v.1   120 |         50s |   60s |       1.000 |      100.000 |
+                            v.2   240 |         25s |   35s |       1.714 |      171.429 |
+                            v.3   480 |       12.5s | 22.5s |       2.667 |      266.667 |
+                            */
+                            // The maximum rate that items can be transferred out of the factory
+                            "rate_limit_ipm": 0,
+                            "sources": [
+                                {
+                                    // Not supporting source from factory input is intentional.
+                                    "from_machine_id": [""],
+                                    // The maximum rate at which items can be transferred along this connection
+                                    "rate_limit_ipm": 0
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
