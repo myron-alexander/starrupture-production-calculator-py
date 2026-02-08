@@ -1,43 +1,20 @@
 import argparse
 import csv
 import json
+import sys
 import weakref
 from dataclasses import dataclass, field
 from functools import reduce
 from collections import Counter
 
+sys.path.append("..")
+
+from starrupture.sr_game_data import *
+
 #---------------------------------------------------------------------------------------------------
 
 def missing_string(s:str | None) -> bool:
     return s is None or len(s.strip()) < 1
-
-#---------------------------------------------------------------------------------------------------
-
-@dataclass
-class Item:
-    item_name: str
-    factory: str
-
-#---------------------------------------------------------------------------------------------------
-
-@dataclass
-class RecipeInput:
-    item_name: str
-    input_name: str
-
-#---------------------------------------------------------------------------------------------------
-
-@dataclass
-class RawItem:
-    item_name: str
-    variant: str
-    factory: str
-
-#---------------------------------------------------------------------------------------------------
-
-@dataclass
-class Building:
-    building_name: str
 
 #---------------------------------------------------------------------------------------------------
 
@@ -96,31 +73,12 @@ def load_data_definition_file(fname, conv_func):
 #---------------------------------------------------------------------------------------------------
 
 def load_data_definitions() -> DataDefinitions:
-    def item_conv(row):
-        o = Item(row[0], row[3])
-        #print(o.item_name, o.num_produced, o.period_seconds, o.factory, o.items_per_minute)
-        return o
-
-    def input_conv(row):
-        o = RecipeInput(row[0], row[1])
-        #print(o.item_name, o.input_name, o.num_required)
-        return o
-
-    def raw_conv(row):
-        o = RawItem(row[0], row[1], row[4])
-        #print(o.item_name, o.variant, o.num_produced)
-        return o
-
-    def building_conv(row):
-        o = Building(row[0])
-        return o
-
-    items = load_data_definition_file('../starrupture_recipe_items.csv', item_conv)
-    recipe_inputs = load_data_definition_file('../starrupture_recipe_input.csv', input_conv)
-    raw_items = load_data_definition_file('../starrupture_recipe_raw.csv', raw_conv)
-    buildings = load_data_definition_file('../starrupture_recipe_buildings.csv', building_conv)
-
-    return DataDefinitions(items, recipe_inputs, raw_items, buildings)
+    return DataDefinitions(*load_definitions(
+            '../starrupture_recipe_items.csv',
+            '../starrupture_recipe_input.csv',
+            '../starrupture_recipe_raw.csv',
+            '../starrupture_recipe_buildings.csv'        
+    ))
 
 #---------------------------------------------------------------------------------------------------
 
@@ -971,8 +929,18 @@ def indent_lines(multi_line_str:str, indent:int) -> str:
 def main():
     data_definitions = load_data_definitions()
 
-    filename = "factories_test.json"
-    #filename = "factories.json"
+    aparser = argparse.ArgumentParser(
+        description="Verifies factory management definition JSON file is valid."
+    )
+
+    aparser.add_argument(
+        "filename",
+        help="Name of factory management definition JSON file to validate."
+    )
+
+    args = aparser.parse_args()
+
+    filename = args.filename
     try:
         factory_definitions = read_factories_json(filename)
         # Order of validations is important as the validation functions make assumptions about
