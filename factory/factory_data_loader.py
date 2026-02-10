@@ -40,7 +40,7 @@ def missing_string(s:str | None) -> bool:
 
 #---------------------------------------------------------------------------------------------------
 
-class DataDefinitions:
+class GameDataDefinitions:
     def __init__(self,
                  items: list[Item],
                  recipe_inputs: list[RecipeInput],
@@ -80,8 +80,8 @@ class DataDefinitions:
 
 #---------------------------------------------------------------------------------------------------
 
-def load_data_definitions() -> DataDefinitions:
-    return DataDefinitions(*load_definitions(
+def load_data_definitions() -> GameDataDefinitions:
+    return GameDataDefinitions(*load_definitions(
             '../starrupture_recipe_items.csv',
             '../starrupture_recipe_input.csv',
             '../starrupture_recipe_raw.csv',
@@ -700,7 +700,7 @@ def visit_all_factory_storage(
 #---------------------------------------------------------------------------------------------------
 
 def validate_item_exists(
-        factory_definitions: FactoryDefinitions, data_definitions: DataDefinitions) -> None:
+        factory_definitions: FactoryDefinitions, data_definitions: GameDataDefinitions) -> None:
     """
     Ensure that every mentioned item and variant exists in the data definitions.
 
@@ -830,7 +830,7 @@ def validate_connections_exist(factory_definitions: FactoryDefinitions) -> None:
 #---------------------------------------------------------------------------------------------------
 
 def validation_correct_item_for_input(
-        factory_definitions: FactoryDefinitions, data_definitions: DataDefinitions) -> None:
+        factory_definitions: FactoryDefinitions, data_definitions: GameDataDefinitions) -> None:
     """
     Ensure inputs into a machine, storage or factory output are actually supplying an items that can
     be consumed by the machine, storage or factory output.
@@ -997,14 +997,16 @@ def indent_lines(multi_line_str:str, indent:int) -> str:
 
 #---------------------------------------------------------------------------------------------------
 
-def validate_factories_json(data_definitions:DataDefinitions, filename:str):
+def load_factories_json(
+        game_data_definitions:GameDataDefinitions, filename:str) -> FactoryDefinitions:
+
     factory_definitions = read_factories_json(filename)
     # Order of validations is important as the validation functions make assumptions about
     # valid data based on known correctness.
-    validate_item_exists(factory_definitions, data_definitions)
+    validate_item_exists(factory_definitions, game_data_definitions)
     validate_connections_exist(factory_definitions)
-    validation_correct_item_for_input(factory_definitions, data_definitions)
-
+    validation_correct_item_for_input(factory_definitions, game_data_definitions)
+    return factory_definitions
 
 #---------------------------------------------------------------------------------------------------
 
@@ -1024,7 +1026,7 @@ def main():
 
     filename = args.filename
     try:
-        validate_factories_json(data_definitions, filename)
+        load_factories_json(data_definitions, filename)
         print(f"Successfully loaded and validated factories from '{filename}'.")
     except FactoriesJsonError as e:
         print(f"\n\nERROR in '{filename}':")
@@ -1036,8 +1038,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-#---------------------------------------------------------------------------------------------------
-
 
 #---------------------------------------------------------------------------------------------------
