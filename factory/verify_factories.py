@@ -958,7 +958,7 @@ def validate_connections_exist(factory_definitions: FactoryDefinitions) -> None:
 
 #---------------------------------------------------------------------------------------------------
 
-def validation_correct_item_for_machine_input(
+def validation_correct_item_for_input(
         factory_definitions: FactoryDefinitions, data_definitions: DataDefinitions) -> None:
     """
     Ensure inputs into a machine, storage or factory output are actually supplying an items that can
@@ -1071,22 +1071,6 @@ def validation_correct_item_for_machine_input(
 
 #---------------------------------------------------------------------------------------------------
 
-def validate_correct_item_for_factory_output(
-        factory_definitions: FactoryDefinitions, data_definitions: DataDefinitions) -> None:
-    """
-    For a factory output, ensure that the item sources are providing the specified dispatched item.
-
-    Both validate_item_exists and validate_connections_exist must be run before this.
-
-    :param factory_definitions: Factory definitions to validate.
-    :type factory_definitions: FactoryDefinitions
-    :param data_definitions: Definitions for game items and buildings.
-    :type data_definitions: DataDefinitions
-    """
-    # TODO: Implement method.
-
-#---------------------------------------------------------------------------------------------------
-
 # The function assigned to object_pairs_hook will be called with every JSON object. The processing
 # order of nested objects is inner most object first IE ascending up the hierarchy.
 # The JSON object will be converted into an array of key,value tuples.
@@ -1149,6 +1133,17 @@ def indent_lines(multi_line_str:str, indent:int) -> str:
 
 #---------------------------------------------------------------------------------------------------
 
+def validate_factories_json(data_definitions:DataDefinitions, filename:str):
+    factory_definitions = read_factories_json(filename)
+    # Order of validations is important as the validation functions make assumptions about
+    # valid data based on known correctness.
+    validate_item_exists(factory_definitions, data_definitions)
+    validate_connections_exist(factory_definitions)
+    validation_correct_item_for_input(factory_definitions, data_definitions)
+
+
+#---------------------------------------------------------------------------------------------------
+
 def main():
     data_definitions = load_data_definitions()
 
@@ -1165,12 +1160,7 @@ def main():
 
     filename = args.filename
     try:
-        factory_definitions = read_factories_json(filename)
-        # Order of validations is important as the validation functions make assumptions about
-        # valid data based on known correctness.
-        validate_item_exists(factory_definitions, data_definitions)
-        validate_connections_exist(factory_definitions)
-        validation_correct_item_for_machine_input(factory_definitions, data_definitions)
+        validate_factories_json(data_definitions, filename)
         print(f"Successfully loaded and validated factories from '{filename}'.")
     except FactoriesJsonError as e:
         print(f"\n\nERROR in '{filename}':")
