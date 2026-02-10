@@ -55,12 +55,15 @@
                                     */
                                     "from_machine_id": [""],
                                     "from_factory_input_id": [""],
+                                    "from_storage_id": [""],
                                     // The maximum rate at which items can be transferred along this connection
                                     "rate_limit_ipm": 0
                                 }
                             ]
                         }
                     },
+                    // 'inputs' optional and only required when a source of items is dispatched
+                    // from another factory.
                     "inputs": {
                         "<factory input id>":{
                             // Rates are determined from factory output. Item is identified from
@@ -70,6 +73,8 @@
                             "factory_output_id": ""
                         }
                     },
+                    // 'outputs' optional and only required when this factory is the source of
+                    // items being dispatched to another factory.
                     "outputs": {
                         "<factory output id>": {
                             // Item that is dispatched by this output. This was added to the spec
@@ -89,6 +94,37 @@
                                 {
                                     // Not supporting source from factory input is intentional.
                                     "from_machine_id": [""],
+                                    "from_storage_id": [""],
+                                    // The maximum rate at which items can be transferred along this connection
+                                    "rate_limit_ipm": 0
+                                }
+                            ]
+                        }
+                    },
+                    // 'storage' is optional and is only required when the factory contains
+                    // storage buildings. A storage building is a special type of machine and thus
+                    // takes the same type of inputs as a machine.
+                    "storage": {
+                        /*
+                        Defines storage buildings that can be used as simple storage bins, when
+                        only receiving items, or buffers, when connected to the input of another
+                        factory building.
+                        */
+                        "<storage id>": {
+                            // Some storage buildings allow for storage of multiple items.
+                            "items": [""],
+                            // Number of storage stacks available.
+                            "num_stacks": 0,
+                            "inputs": [
+                                {
+                                    /*
+                                    Inputs can be merged from multiple source into one connection.
+                                    */
+                                    "from_machine_id": [""],
+                                    "from_factory_input_id": [""],
+                                    // While the game allows for looping the output of a storage
+                                    // to the input of the same storage, this program doesn't.
+                                    "from_storage_id": [""],
                                     // The maximum rate at which items can be transferred along this connection
                                     "rate_limit_ipm": 0
                                 }

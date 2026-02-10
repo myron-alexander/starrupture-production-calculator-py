@@ -6,6 +6,7 @@ import weakref
 from dataclasses import dataclass, field
 from functools import reduce
 from collections import Counter
+from collections.abc import Callable
 
 sys.path.append("..")
 
@@ -77,7 +78,7 @@ def load_data_definitions() -> DataDefinitions:
             '../starrupture_recipe_items.csv',
             '../starrupture_recipe_input.csv',
             '../starrupture_recipe_raw.csv',
-            '../starrupture_recipe_buildings.csv'        
+            '../starrupture_recipe_buildings.csv'
     ))
 
 #---------------------------------------------------------------------------------------------------
@@ -199,8 +200,17 @@ class FactoriesJsonError(Exception):
 
 @dataclass
 class FactoryMachineInput:
-    from_machine_id: list[str]
-    from_factory_input_id: list[str]
+    """
+    Sources of items consumed by the machine.
+
+    A factory storage is also a type of machine but differs from a factory machine in that is
+    doesn't craft items but it does have the same kinds of sources so FactoryMachineInput is
+    also used by FactoryStorage as the input definition.
+    """
+    from_machine_id: list[str] | None
+    from_factory_input_id: list[str] | None
+    # A factory storage may not specify itself as an input, only other storages.
+    from_storage_id: list[str] | None
     rate_limit_ipm: int
 
 #---------------------------------------------------------------------------------------------------
@@ -219,6 +229,12 @@ class FactoryMachine:
     When the machine extracts raw items, 'variant' will be populated with the resource variant and
     'input' will be set to None.
     """
+
+    factory: "Factory"
+    """
+    Link to the factory that contains the machine.
+    """
+
     machine_id: str
     item: str
     variant: str | None   # Set to None when machine has inputs.
@@ -226,13 +242,26 @@ class FactoryMachine:
 
 #---------------------------------------------------------------------------------------------------
 
-def validate_machine_input_source(path_node:JsonPathNode, source:str, value):
+def validate_source_list(path_node:JsonPathNode, description:str, source:str, value):
+    """
+    For an optional list of input IDs that point to a source of items, when the list is provided,
+    validate that the list is not empty and that the IDs are populated strings.
+
+    :param path_node: Path to the JSON element.
+    :type path_node: JsonPathNode
+    :param description: Description of the connector destination
+    :type description: str
+    :param source: JSON key providing value.
+    :type source: str
+    :param value: Value to be tested.
+    """
+
     if value is not None:
         if type(value) is not list \
             or len(value) < 1 \
             or not reduce(lambda x,y: x and type(y) is str and 0 < len(y.strip()), value, True):
             raise FactoriesJsonError(
-                f"When '{source}' is specified by a factory machine input, it must be a"
+                f"When '{source}' is specified by a {description}, it must be a"
                 " list of strings.", path_node)
 
 
@@ -242,31 +271,37 @@ def new_factory_machine_input(
         path_node:JsonPathNode, input_spec:dict) -> FactoryMachineInput:
     from_machine_id = input_spec.get("from_machine_id")
     from_factory_input_id = input_spec.get("from_factory_input_id")
+    from_storage_id = input_spec.get("from_storage_id")
     rate_limit_ipm = input_spec.get("rate_limit_ipm")
 
-    if from_machine_id is None and from_factory_input_id is None:
+    if from_machine_id is None and from_factory_input_id is None and from_storage_id is None:
         raise FactoriesJsonError(
-            "A factory machine input must specify either one or both of"
-            " 'from_machine_id', 'from_factory_input_id'.", path_node)
+            "A factory machine input must specify at least one of"
+            " 'from_machine_id', 'from_factory_input_id', 'from_storage_id'.", path_node)
     if type(rate_limit_ipm) is not int or rate_limit_ipm < 1:
         raise FactoriesJsonError(
             "A factory machine input must specify the 'rate_limit_ipm' with an integer value"
             " of at least 1.",
             path_node)
-    validate_machine_input_source(path_node, "from_machine_id", from_machine_id)
-    validate_machine_input_source(path_node, "from_factory_input_id", from_factory_input_id)
+    d = "factory machine input"
+    validate_source_list(path_node, d, "from_machine_id", from_machine_id)
+    validate_source_list(path_node, d, "from_factory_input_id", from_factory_input_id)
+    validate_source_list(path_node, d, "from_storage_id", from_storage_id)
 
-    return FactoryMachineInput(from_machine_id, from_factory_input_id, int(rate_limit_ipm)) # type: ignore
+    return FactoryMachineInput(
+        from_machine_id, from_factory_input_id, from_storage_id, int(rate_limit_ipm))
 
 #---------------------------------------------------------------------------------------------------
 
 def new_factory_machine(
-        path_node:JsonPathNode, machine_id:str, machine_spec:dict) -> FactoryMachine:
+        path_node:JsonPathNode,
+        factory:"Factory",
+        machine_id:str,
+        machine_spec:dict) -> FactoryMachine:
+
     item = machine_spec.get("item")
     variant = machine_spec.get("variant")
     inputs = machine_spec.get("inputs")
-
-    #print(f"              item: {item}")
 
     if type(item) is not str or missing_string(item):
         raise FactoriesJsonError(
@@ -279,7 +314,7 @@ def new_factory_machine(
         raise FactoriesJsonError(
             "A factory machine must define at least one of 'variant' or 'inputs'.", path_node)
     if variant is not None:
-        return FactoryMachine(machine_id, item, variant, None)
+        return FactoryMachine(factory, machine_id, item, variant, None)
     else:
         if type(inputs) is not list or len(inputs) < 1:
             raise FactoriesJsonError(
@@ -287,11 +322,73 @@ def new_factory_machine(
                 path_node)
         inputs_path_node = path_node.set_next("inputs")
         return FactoryMachine(
+            factory,
             machine_id,
             item,
             None,
             [new_factory_machine_input(inputs_path_node, ii) for ii in inputs]
         )
+
+#---------------------------------------------------------------------------------------------------
+
+@dataclass
+class FactoryStorage:
+
+    factory: "Factory"
+    """
+    Link to the factory that contains the machine.
+    """
+
+    storage_id: str
+    items: list[str]
+    num_stacks: int
+    inputs: list[FactoryMachineInput]
+
+#---------------------------------------------------------------------------------------------------
+
+def new_factory_storage(
+        path_node:JsonPathNode,
+        factory:"Factory",
+        storage_id:str,
+        storage_spec:dict) -> FactoryStorage:
+
+    items = storage_spec.get("items")
+    num_stacks = storage_spec.get("num_stacks")
+    inputs = storage_spec.get("inputs")
+
+    if type(items) is not list or len(items) < 1:
+        raise FactoriesJsonError(
+            "A factory storage must define 'items' as a non-empty list.",
+            path_node)
+    if 0 < len([ii for ii in items if type(ii) is not str or missing_string(ii)]):
+        raise FactoriesJsonError(
+            "A factory storage must define 'items' as a list of non-empty strings.",
+            path_node)
+    if type(num_stacks) is not int or num_stacks < 1:
+        raise FactoriesJsonError(
+            "A factory storage must specify the 'num_stacks' with an integer value"
+            " of at least 1.",
+            path_node)
+    if type(inputs) is not list or len(inputs) < 1:
+        raise FactoriesJsonError(
+            "A factory storage must define 'inputs' as a non-empty list.",
+            path_node)
+    inputs_path_node = path_node.set_next("inputs")
+    factory_machine_inputs = [new_factory_machine_input(inputs_path_node, ii) for ii in inputs]
+    for fmi in factory_machine_inputs:
+        if fmi.from_storage_id is not None and storage_id in fmi.from_storage_id:
+            raise FactoriesJsonError(
+                "A factory storage may not define itself as an input.",
+                path_node)
+    inputs_path_node.truncate()
+
+    return FactoryStorage(
+        factory,
+        storage_id,
+        items,
+        num_stacks,
+        factory_machine_inputs
+    )
 
 #---------------------------------------------------------------------------------------------------
 
@@ -346,13 +443,19 @@ def new_factory_input(path_node:JsonPathNode, factory_input_id:str, input_spec:d
 
 @dataclass
 class FactoryOutputSource:
-    from_machine_id: list[str]
+    from_machine_id: list[str] | None
+    from_storage_id: list[str] | None
     rate_limit_ipm: int
 
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
 class FactoryOutput:
+    factory: "Factory"
+    """
+    Link to the factory that contains the machine.
+    """
+
     dispatched_item: str
     factory_output_id: str
     rate_limit_ipm: int
@@ -363,25 +466,33 @@ class FactoryOutput:
 
 def new_factory_output_source(path_node:JsonPathNode, source_spec:dict) -> FactoryOutputSource:
     from_machine_id = source_spec.get("from_machine_id")
+    from_storage_id = source_spec.get("from_storage_id")
     rate_limit_ipm = source_spec.get("rate_limit_ipm")
 
-    if type(from_machine_id) is not list \
-        or len(from_machine_id) < 1 \
-        or not reduce(lambda x,y: x and type(y) is str and 0 < len(y.strip()), from_machine_id, True):
+    if from_machine_id is None and from_storage_id is None:
         raise FactoriesJsonError(
-            "A factory output source must define 'from_machine_id' as a non-empty list of strings.",
-            path_node)
+            "A factory output source must specify at least one of"
+            " 'from_machine_id', 'from_storage_id'.", path_node)
+
     if type(rate_limit_ipm) is not int or rate_limit_ipm < 1:
         raise FactoriesJsonError(
             "A factory output source must define 'rate_limit_ipm' with an integer value of at"
             " least 1.",
             path_node)
-    return FactoryOutputSource(from_machine_id, rate_limit_ipm)
+
+    validate_source_list(path_node, "factory output source", "from_machine_id", from_machine_id)
+    validate_source_list(path_node, "factory output source", "from_storage_id", from_storage_id)
+
+    return FactoryOutputSource(from_machine_id, from_storage_id, rate_limit_ipm)
 
 #---------------------------------------------------------------------------------------------------
 
 def new_factory_output(
-        path_node:JsonPathNode, factory_output_id:str, output_spec:dict) -> FactoryOutput:
+        path_node:JsonPathNode,
+        factory:"Factory",
+        factory_output_id:str,
+        output_spec:dict) -> FactoryOutput:
+
     dispatched_item = output_spec.get("dispatched_item")
     rate_limit_ipm = output_spec.get("rate_limit_ipm")
     sources = output_spec.get("sources")
@@ -399,6 +510,7 @@ def new_factory_output(
             "A factory output must define 'sources' as a non-empty list.", path_node)
     source_path_node = path_node.set_next("sources")
     return FactoryOutput(
+        factory,
         dispatched_item,
         factory_output_id,
         rate_limit_ipm,
@@ -409,79 +521,39 @@ def new_factory_output(
 
 class Factory:
 
-    def __init__(self, site_id: str, factory_id: str, purpose: str ) -> None:
-        self.site_id: str = site_id
+    def __init__(self, site:"Site", factory_id: str, purpose: str ) -> None:
+        self.site: "Site" = site
+        """
+        Link to site that contains this factory.
+        """
+
         self.factory_id: str = factory_id
         self.purpose: str = purpose
         self.factory_machines: list[FactoryMachine] = list()
         self.factory_inputs: list[FactoryInput] = list()
         self.factory_outputs: list[FactoryOutput] = list()
+        self.factory_storage: list[FactoryStorage] = list()
 
-        # Duplication check lists
-        self.__machine_ids: list[str] = list()
-        self.__input_ids: list[str] = list()
-        self.__output_ids: list[str] = list()
+    def add_machine(self, machine: FactoryMachine) -> None:
+        self.factory_machines.append(machine)
 
+    def add_input(self, factory_input: FactoryInput) -> None:
+        self.factory_inputs.append(factory_input)
 
-    def add_machine(self, path_node:JsonPathNode, machine: FactoryMachine) -> None:
-        is_unique: bool = Factory.__validate_unique_name(self.__machine_ids, machine.machine_id)
-        if is_unique:
-            self.factory_machines.append(machine)
-            self.__machine_ids.append(machine.machine_id)
-        else:
-            raise FactoriesJsonError(
-                f"Machine ID '{machine.machine_id}' is duplicate within"
-                f" factory '{self.factory_id}'.", path_node)
+    def add_output(self, factory_output: FactoryOutput) -> None:
+        self.factory_outputs.append(factory_output)
 
-
-    def add_input(self, path_node:JsonPathNode, factory_input: FactoryInput) -> None:
-        is_unique: bool = Factory.__validate_unique_name(
-            self.__input_ids, factory_input.factory_input_id)
-        if is_unique:
-            self.factory_inputs.append(factory_input)
-            self.__input_ids.append(factory_input.factory_input_id)
-        else:
-            raise FactoriesJsonError(
-                f"Factory input ID '{factory_input.factory_input_id}' is duplicate within"
-                f" factory '{self.factory_id}'.", path_node)
-
-
-    def add_output(self, path_node:JsonPathNode, factory_output: FactoryOutput) -> None:
-        is_unique: bool = Factory.__validate_unique_name(
-            self.__output_ids, factory_output.factory_output_id)
-        if is_unique:
-            self.factory_outputs.append(factory_output)
-            self.__output_ids.append(factory_output.factory_output_id)
-        else:
-            raise FactoriesJsonError(
-                f"Factory output ID '{factory_output.factory_output_id}' is duplicate within"
-                f" factory '{self.factory_id}'.", path_node)
-
-
-    @staticmethod
-    def __validate_unique_name(names: list[str], check_name: str) -> bool:
-        """
-        Check if provided name is unique in names. JSON spec actually allows for duplicate keys
-        but most parsers either fail on the duplicate, ignore the duplicate or the duplicate
-        replaces the one in the collection. The current JSON parser in Python3 defaults to
-        replacement so only the last duplicate in the list is kept. There is a mechanism that
-        can be used to handle this case but it requires implementation of a handler function.
-
-        This function exists in case the code is modified in such a way that duplicates could be
-        added to the list.
-
-        :param names: List of known names.
-        :type names: list[str]
-        :param check_name: Name to test if already exists in names list.
-        :type check_name: str
-        :return: True when check_name is unique.
-        :rtype: bool
-        """
-        return check_name not in names
+    def add_storage(self, storage: FactoryStorage) -> None:
+        self.factory_storage.append(storage)
 
 #---------------------------------------------------------------------------------------------------
 
-def new_factory(path_node:JsonPathNode, site_id:str, factory_id:str, factory_values:dict) -> Factory:
+def new_factory(
+        path_node:JsonPathNode,
+        site:"Site",
+        factory_id:str,
+        factory_values:dict) -> Factory:
+
     purpose = factory_values.get("purpose")
 
     if type(purpose) is not str or missing_string(purpose):
@@ -489,7 +561,7 @@ def new_factory(path_node:JsonPathNode, site_id:str, factory_id:str, factory_val
             "JSON mandatory entry is either missing, or value isn't a populated string,"
             f" for value of entry 'purpose'.", path_node)
 
-    factory = Factory(site_id, factory_id, purpose)
+    factory = Factory(site, factory_id, purpose)
 
     machines = factory_values.get("machines")
     if not isinstance(machines, dict):
@@ -504,8 +576,9 @@ def new_factory(path_node:JsonPathNode, site_id:str, factory_id:str, factory_val
         if missing_string(k):
             raise FactoriesJsonError(
                 f'JSON mandatory machine ID entry "{k}" invalid.', machines_path_node)
-        machine = new_factory_machine(machines_path_node.set_next(k) , k, v)
-        factory.add_machine(machines_path_node.truncate(), machine)
+        machine = new_factory_machine(machines_path_node.set_next(k), factory, k, v)
+        machines_path_node.truncate()
+        factory.add_machine(machine)
 
     # Finished with machines node so remove it from the path.
     path_node.truncate()
@@ -525,12 +598,13 @@ def new_factory(path_node:JsonPathNode, site_id:str, factory_id:str, factory_val
                     factory_input_path_node)
             factory_input = new_factory_input(factory_input_path_node.set_next(k), k, v)
             if factory.factory_id == factory_input.factory_id \
-                    and factory.site_id == factory_input.site_id:
+                    and factory.site.site_id == factory_input.site_id:
                 raise FactoriesJsonError(
                     f"Factory input '{factory_input.factory_input_id}' specifies a connection to"
                     f" an output within it's own factory. Only links to other factories are"
                     " allowed.", factory_input_path_node)
-            factory.add_input(factory_input_path_node.truncate(), factory_input)
+            factory_input_path_node.truncate()
+            factory.add_input(factory_input)
 
     factory_outputs = factory_values.get("outputs")
     # Factory outputs are optional.
@@ -545,8 +619,26 @@ def new_factory(path_node:JsonPathNode, site_id:str, factory_id:str, factory_val
                 raise FactoriesJsonError(
                     f'JSON mandatory factory output ID entry "{k}" invalid.',
                     factory_output_path_node)
-            factory_output = new_factory_output(factory_output_path_node.set_next(k), k, v)
-            factory.add_output(factory_output_path_node.truncate(), factory_output)
+            factory_output = new_factory_output(factory_output_path_node.set_next(k), factory, k, v)
+            factory_output_path_node.truncate()
+            factory.add_output(factory_output)
+
+    factory_storage = factory_values.get("storage")
+    # Factory storage is optional
+    if factory_storage is not None:
+        if not isinstance(factory_storage, dict):
+            raise FactoriesJsonError(
+                "JSON optional entry value isn't a valid dict, for value of entry 'storage'.",
+                path_node)
+        factory_storage_path_node = path_node.set_next("storage")
+        for k,v in factory_storage.items():
+            if missing_string(k):
+                raise FactoriesJsonError(
+                    f'JSON mandatory factory storage ID entry "{k}" invalid.',
+                    factory_storage_path_node)
+            fs = new_factory_storage(factory_storage_path_node.set_next(k), factory, k, v)
+            factory_storage_path_node.truncate()
+            factory.add_storage(fs)
 
     return factory
 
@@ -602,13 +694,9 @@ def new_site(path_node:JsonPathNode, site_id:str, site_values:dict) -> Site:
         if missing_string(k):
             raise FactoriesJsonError(
                 f'JSON mandatory factory ID entry "{k}" invalid.', factory_path_node)
-        site.add_factory(new_factory(factory_path_node.set_next(k), site.site_id, k, v))
+        site.add_factory(new_factory(factory_path_node.set_next(k), site, k, v))
 
     return site
-
-#---------------------------------------------------------------------------------------------------
-
-#class DispatchedItem:
 
 #---------------------------------------------------------------------------------------------------
 
@@ -668,6 +756,67 @@ class FactoryDefinitions:
 
 #---------------------------------------------------------------------------------------------------
 
+def visit_all_machines(
+        factory_definitions: FactoryDefinitions,
+        machine_visitor: Callable[[JsonPathNode, FactoryMachine], None]) -> None:
+    """
+    Call method machine_visitor for every machine in the definitions.
+
+    :param factory_definitions: Factory definitions to validate.
+    :type factory_definitions: FactoryDefinitions
+    """
+
+    path = JsonPath("sites")
+    for site in factory_definitions.sites:
+        factories_path = path.set_next(site.site_id).set_next("factories")
+        for factory in site.factories:
+            machines_path = factories_path.set_next(factory.factory_id).set_next("machines")
+            for machine in factory.factory_machines:
+                m_path = machines_path.set_next(machine.machine_id)
+                machine_visitor(m_path, machine)
+
+#---------------------------------------------------------------------------------------------------
+
+def visit_all_factory_outputs(
+        factory_definitions: FactoryDefinitions,
+        factory_output_visitor: Callable[[JsonPathNode, FactoryOutput], None]) -> None:
+    """
+    Call method factory_output_visitor for every factory output in the definitions.
+
+    :param factory_definitions: Factory definitions to validate.
+    :type factory_definitions: FactoryDefinitions
+    """
+    path = JsonPath("sites")
+    for site in factory_definitions.sites:
+        factories_path = path.set_next(site.site_id).set_next("factories")
+        for factory in site.factories:
+            factory_outputs_path = factories_path.set_next(factory.factory_id).set_next("outputs")
+            for factory_output in factory.factory_outputs:
+                o_path = factory_outputs_path.set_next(factory_output.factory_output_id)
+                factory_output_visitor(o_path, factory_output)
+
+#---------------------------------------------------------------------------------------------------
+
+def visit_all_factory_storage(
+        factory_definitions: FactoryDefinitions,
+        factory_storage_visitor: Callable[[JsonPathNode, FactoryStorage], None]) -> None:
+    """
+    Call method factory_storage_visitor for every factory storage in the definitions.
+
+    :param factory_definitions: Factory definitions to validate.
+    :type factory_definitions: FactoryDefinitions
+    """
+    path = JsonPath("sites")
+    for site in factory_definitions.sites:
+        factories_path = path.set_next(site.site_id).set_next("factories")
+        for factory in site.factories:
+            factory_storage_path = factories_path.set_next(factory.factory_id).set_next("storage")
+            for factory_storage in factory.factory_storage:
+                s_path = factory_storage_path.set_next(factory_storage.storage_id)
+                factory_storage_visitor(s_path, factory_storage)
+
+#---------------------------------------------------------------------------------------------------
+
 def validate_item_exists(
         factory_definitions: FactoryDefinitions, data_definitions: DataDefinitions) -> None:
     """
@@ -675,43 +824,41 @@ def validate_item_exists(
 
     This validation is run first.
 
-    :param factory_definitions: Description
+    :param factory_definitions: Factory definitions to validate.
     :type factory_definitions: FactoryDefinitions
-    :param data_definitions: Description
+    :param data_definitions: Definitions for game items and buildings.
     :type data_definitions: DataDefinitions
     """
 
     raw_items = set([f"{ri.item_name};{ri.variant}" for ri in data_definitions.raw_items])
     items = set([i.item_name for i in data_definitions.items])
 
-    for site in factory_definitions.sites:
-        for factory in site.factories:
-            for machine in factory.factory_machines:
-                if machine.variant is not None:
-                    # Raw item
-                    raw_item = f"{machine.item};{machine.variant}"
-                    if raw_item not in raw_items:
-                        raise FactoriesJsonError(
-                            f"Site '{site.site_id}'"
-                            f" Factory '{factory.factory_id}' machine '{machine.machine_id}'"
-                            f" specifies item '{machine.item}' with variant '{machine.variant}'"
-                            " that does not exist in the data definitions.")
-                else:
-                    # Crafted item
-                    if machine.item not in items:
-                        raise FactoriesJsonError(
-                            f"Site '{site.site_id}'"
-                            f" Factory '{factory.factory_id}' machine '{machine.machine_id}'"
-                            f" specifies item '{machine.item}' that does not exist in the data"
-                            " definitions.")
+    def validator(path:JsonPathNode, machine:FactoryMachine) -> None:
+        if machine.variant is not None:
+            # Raw item
+            raw_item = f"{machine.item};{machine.variant}"
+            if raw_item not in raw_items:
+                raise FactoriesJsonError(
+                    f"Machine '{machine.machine_id}'"
+                    f" specifies raw item '{machine.item}' with variant '{machine.variant}'"
+                    " that does not exist in the data definitions.", path)
+        else:
+            # Crafted item
+            if machine.item not in items:
+                raise FactoriesJsonError(
+                    f"Machine '{machine.machine_id}'"
+                    f" specifies item '{machine.item}' that does not exist in the data"
+                    " definitions.", path)
+
+    visit_all_machines(factory_definitions, validator)
 
 #---------------------------------------------------------------------------------------------------
 
 def validate_connections_exist(factory_definitions: FactoryDefinitions) -> None:
     """
-    Validate that all connections between factory machines, factory inputs and factory outputs are
-    valid. For example, a factory machine input that specifies a from_machine_id must specify an
-    ID that exists in the same factory.
+    Validate that all connections between factory machines, factory inputs, factory outputs and
+    storage are valid. For example, a factory machine input that specifies a from_machine_id must
+    specify an ID that exists in the same factory.
 
     Run validate_item_exists before this.
 
@@ -719,59 +866,85 @@ def validate_connections_exist(factory_definitions: FactoryDefinitions) -> None:
     :type factory_definitions: FactoryDefinitions
     """
 
+    def validate_machine_inputs(
+            i_path:JsonPathNode,
+            machine_ids:set[str],
+            input_ids:set[str],
+            storage_ids:set[str],
+            input:FactoryMachineInput|FactoryOutputSource) -> None:
+        if input.from_machine_id is not None:
+            for from_machine_id in input.from_machine_id:
+                if from_machine_id not in machine_ids:
+                    raise FactoriesJsonError(
+                        f"Connection specified by from_machine_id '{from_machine_id}'"
+                        " references a machine that doesn't exist within the same"
+                        " factory.", i_path)
+        if input.from_storage_id is not None:
+            for storage_id in input.from_storage_id:
+                if storage_id not in storage_ids:
+                    raise FactoriesJsonError(
+                        f"Connection specified by from_storage_id '{storage_id}'"
+                        " references a storage that does not exist within the"
+                        " same factory.", i_path)
+        if type(input) is FactoryMachineInput:
+            if input.from_factory_input_id is not None:
+                for from_factory_input_id in input.from_factory_input_id:
+                    if from_factory_input_id not in input_ids:
+                        raise FactoriesJsonError(
+                            "Connection specified by from_factory_input_id"
+                            f" '{from_factory_input_id}' references a factory input"
+                            " that does not exist within the same factory.", i_path)
+
     # "site id;factory id;factory output id" is the key for a factory output.
-    # This is used to validate that factory inputs that specify a factory output id are linked to
-    # an actual factory output.
+    # This is used to validate that factory inputs are linked to an existing factory output.
     existing_factory_outputs = set()
 
+    path = JsonPath("sites")
     for site in factory_definitions.sites:
+        factories_path = path.set_next(site.site_id).set_next("factories")
         for factory in site.factories:
+            f_path = factories_path.set_next(factory.factory_id)
             machine_ids = set([m.machine_id for m in factory.factory_machines])
             input_ids = set([i.factory_input_id for i in factory.factory_inputs])
+            storage_ids = set([s.storage_id for s in factory.factory_storage])
             for machine in factory.factory_machines:
+                m_path = f_path.set_next("machines").set_next(machine.machine_id)
                 #
                 # Validate that linked machines exist within the same factory.
                 #
                 if machine.inputs is not None:
+                    m_path.set_next("inputs")
                     for mi in machine.inputs:
-                        if mi.from_machine_id is not None:
-                            for from_machine_id in mi.from_machine_id:
-                                if from_machine_id not in machine_ids:
-                                    raise FactoriesJsonError(
-                                        f"Factory '{factory.factory_id}' machine"
-                                        f" '{machine.machine_id}' input specifies"
-                                        f" from_machine_id '{from_machine_id}'"
-                                        " that does not exist within the same factory.")
-                        if mi.from_factory_input_id is not None:
-                            for from_factory_input_id in mi.from_factory_input_id:
-                                if from_factory_input_id not in input_ids:
-                                    raise FactoriesJsonError(
-                                        f"Factory '{factory.factory_id}' machine"
-                                        f" '{machine.machine_id}' input specifies"
-                                        f" from_factory_input_id '{from_factory_input_id}'"
-                                        " that does not exist within the same factory.")
+                        validate_machine_inputs(m_path, machine_ids, input_ids, storage_ids, mi)
+
+            for storage in factory.factory_storage:
+                s_path = f_path.set_next("storage").set_next(storage.storage_id)
+                for ss in storage.inputs:
+                    validate_machine_inputs(s_path, machine_ids, input_ids, storage_ids, ss)
+
             for factory_output in factory.factory_outputs:
+                fo_path = f_path.set_next("outputs").set_next(factory_output.factory_output_id)
                 #
                 # Validate that linked machines exist within the same factory.
                 #
                 for source in factory_output.sources:
-                    for from_machine_id in source.from_machine_id:
-                        if from_machine_id not in machine_ids:
-                            raise FactoriesJsonError(
-                                f"Factory '{factory.factory_id}' output source"
-                                f" '{factory_output.factory_output_id}' specifies"
-                                f" from_machine_id '{from_machine_id}'"
-                                " that does not exist within the same factory.")
-                        key = make_factory_output_key(
-                                site.site_id,
-                                factory.factory_id,
-                                factory_output.factory_output_id
-                        )
-                        existing_factory_outputs.add(key)
+                    validate_machine_inputs(fo_path, machine_ids, input_ids, storage_ids, source)
+                key = make_factory_output_key(
+                        site.site_id,
+                        factory.factory_id,
+                        factory_output.factory_output_id
+                )
+                existing_factory_outputs.add(key)
 
+    #
+    # Validate that factory inputs are linked to an existing factory output.
+    #
     for site in factory_definitions.sites:
+        factories_path = path.set_next(site.site_id).set_next("factories")
         for factory in site.factories:
+            f_path = factories_path.set_next(factory.factory_id)
             for factory_input in factory.factory_inputs:
+                f_path.set_next("inputs").set_next(factory_input.factory_input_id)
                 key = make_factory_output_key(
                         factory_input.site_id,
                         factory_input.factory_id,
@@ -781,86 +954,136 @@ def validate_connections_exist(factory_definitions: FactoryDefinitions) -> None:
                     raise FactoriesJsonError(
                         f"Factory '{factory.factory_id}' factory input"
                         f" '{factory_input.factory_input_id}' references a factory output that"
-                        " doesn't exist.")
+                        " doesn't exist.", f_path)
 
 #---------------------------------------------------------------------------------------------------
 
 def validation_correct_item_for_machine_input(
         factory_definitions: FactoryDefinitions, data_definitions: DataDefinitions) -> None:
     """
-    Ensure that the item specified for a machine input is actually an item that is produced by a
-    machine output or factory output that is linked to the machine input.
+    Ensure inputs into a machine, storage or factory output are actually supplying an items that can
+    be consumed by the machine, storage or factory output.
 
     Both validate_item_exists and validate_connections_exist must be run before this.
 
-    :param factory_definitions: Description
+    :param factory_definitions: Factory definitions to validate.
     :type factory_definitions: FactoryDefinitions
+    :param data_definitions: Definitions for game items and buildings.
+    :type data_definitions: DataDefinitions
     """
 
-    # The first draft of this method was suggested by copilot but it got only about 30% of the
-    # implementation correct. The rest was implemented by me. The main thing that copilot got wrong
-    # was that is misunderstood the intention of the validation and assumed that the input items
-    # into the machine must match the one crafted by the machine. That is not the intent,
-    # the intent is to get the input items from the recipe and match those to the input machines.
-    #
-    # CoPilot also got confused about the relationship between factory inputs and factory outputs
-    # and thought that those inputs defined for the factory were linked to the outputs within the
-    # same factory. That might have been cause by me as I found a bug in the program error messages
-    # that stated the input must reference the output of the same factory.
+    def inputs_validator(
+            path:JsonPathNode,
+            factory:Factory,
+            input:FactoryMachineInput|FactoryOutputSource,
+            required_input_items:list[str],
+            consumer_desc:str) -> None:
 
-    path = JsonPath("sites")
-    for site in factory_definitions.sites:
-        factories_path = path.set_next(site.site_id).set_next("factories")
-        for factory in site.factories:
-            machines_path = factories_path.set_next(factory.factory_id).set_next("machines")
-            for machine in factory.factory_machines:
-                machine_path = machines_path.set_next(machine.machine_id)
-                if machine.inputs is not None:
-                    machine_path.set_next("inputs")
-                    for mi in machine.inputs:
-                        required_input_items = \
-                            data_definitions.inputs_per_item[machine.item]
+        if input.from_machine_id is not None:
+            #
+            # Validate that the source input can be consumed by the machine.
+            #
+            for from_machine_id in input.from_machine_id:
+                from_machine = next(
+                    (m for m in factory.factory_machines
+                        if m.machine_id == from_machine_id)
+                )
+                if from_machine.item not in required_input_items:
+                    raise FactoriesJsonError(
+                        f"The item produced by machine '{from_machine_id}' cannot"
+                        f" be used by {consumer_desc}."
+                        f"\nExpecting one of {required_input_items} but delivering"
+                        f" '{from_machine.item}'."
+                        , path)
 
-                        if mi.from_machine_id is not None:
-                            #
-                            # Validate that the source input can be consumed by the machine.
-                            #
-                            for from_machine_id in mi.from_machine_id:
-                                from_machine = next(
-                                    (m for m in factory.factory_machines
-                                        if m.machine_id == from_machine_id)
-                                )
-                                if from_machine.item not in required_input_items:
-                                    raise FactoriesJsonError(
-                                        f"The item produced by machine '{from_machine_id}' cannot"
-                                        f" be used by machine '{machine.machine_id}'."
-                                        f"\nExpecting one of {required_input_items} but delivering"
-                                        f" '{from_machine.item}'."
-                                        , machine_path)
+        if input.from_storage_id is not None:
+            #
+            # Validate that the item provided from storage can be consumed by the
+            # machine.
+            #
+            for from_storage_id in input.from_storage_id:
+                storage = next(
+                    (m for m in factory.factory_storage
+                        if m.storage_id == from_storage_id)
+                )
+                if set(storage.items).isdisjoint(required_input_items):
+                    raise FactoriesJsonError(
+                        f"The item supplied by storage '{from_storage_id}' cannot"
+                        f" be used by {consumer_desc}."
+                        f"\nExpecting one of {required_input_items} but delivering"
+                        f" '{storage.items}'."
+                        , path)
 
-                        if mi.from_factory_input_id is not None:
-                            #
-                            # Validate that item sent from the remote factory can be consumed by
-                            # the machine.
-                            #
-                            for from_factory_input_id in mi.from_factory_input_id:
-                                from_factory_input = next(
-                                    (i for i in factory.factory_inputs
-                                       if i.factory_input_id == from_factory_input_id))
-                                from_factory_output = \
-                                    factory_definitions.all_factory_outputs[
-                                        from_factory_input.get_output_key()]
-                                # Don't check from_factory_output for None as that should never
-                                # happen if the validation have been run in the correct order.
-                                # Allow a reference exception if not set.
-                                if from_factory_output.dispatched_item not in required_input_items:
-                                    raise FactoriesJsonError(
-                                        "The item dispatched by output"
-                                        f" '{from_factory_input.get_output_key()}' cannot"
-                                        f" be used by machine '{machine.machine_id}'."
-                                        f"\nExpecting one of {required_input_items} but delivering"
-                                        f" '{from_factory_output.dispatched_item}'."
-                                        , machine_path)
+        if type(input) is FactoryMachineInput:
+            if input.from_factory_input_id is not None:
+                #
+                # Validate that item sent from the remote factory can be consumed by
+                # the machine.
+                #
+                for from_factory_input_id in input.from_factory_input_id:
+                    output_key = next(
+                        (i for i in factory.factory_inputs
+                            if i.factory_input_id == from_factory_input_id)) \
+                        .get_output_key()
+                    factory_output = \
+                        factory_definitions.all_factory_outputs[output_key]
+                    # Don't check from_factory_output for None as that should never
+                    # happen if the validation have been run in the correct order.
+                    # Allow a reference exception if not set.
+                    if factory_output.dispatched_item not in required_input_items:
+                        raise FactoriesJsonError(
+                            "The item dispatched by output"
+                            f" '{output_key}' cannot"
+                            f" be used by {consumer_desc}."
+                            f"\nExpecting one of {required_input_items} but delivering"
+                            f" '{factory_output.dispatched_item}'."
+                            , path)
+
+    def machines_validator(path:JsonPathNode, machine:FactoryMachine) -> None:
+        if machine.inputs is not None:
+            path.set_next("inputs")
+            required_input_items = \
+                data_definitions.inputs_per_item[machine.item]
+            consumer_desc = f"machine '{machine.machine_id}'"
+            for mi in machine.inputs:
+                inputs_validator(path, machine.factory, mi, required_input_items, consumer_desc)
+            path.truncate()
+
+    def factory_outputs_validator(path:JsonPathNode, output:FactoryOutput) -> None:
+        path.set_next("sources")
+        required_input_items = [output.dispatched_item]
+        consumer_desc = f"factory output '{output.factory_output_id}'"
+        for ss in output.sources:
+            inputs_validator(path, output.factory, ss, required_input_items, consumer_desc)
+        path.truncate()
+
+    def storage_validator(path:JsonPathNode, storage:FactoryStorage) -> None:
+        path.set_next("inputs")
+        required_input_items = storage.items
+        consumer_desc = f"factory storage '{storage.storage_id}'"
+        for si in storage.inputs:
+            inputs_validator(path, storage.factory, si, required_input_items, consumer_desc)
+        path.truncate()
+
+    visit_all_machines(factory_definitions, machines_validator)
+    visit_all_factory_outputs(factory_definitions, factory_outputs_validator)
+    visit_all_factory_storage(factory_definitions, storage_validator)
+
+#---------------------------------------------------------------------------------------------------
+
+def validate_correct_item_for_factory_output(
+        factory_definitions: FactoryDefinitions, data_definitions: DataDefinitions) -> None:
+    """
+    For a factory output, ensure that the item sources are providing the specified dispatched item.
+
+    Both validate_item_exists and validate_connections_exist must be run before this.
+
+    :param factory_definitions: Factory definitions to validate.
+    :type factory_definitions: FactoryDefinitions
+    :param data_definitions: Definitions for game items and buildings.
+    :type data_definitions: DataDefinitions
+    """
+    # TODO: Implement method.
 
 #---------------------------------------------------------------------------------------------------
 
