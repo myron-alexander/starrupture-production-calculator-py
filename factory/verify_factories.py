@@ -140,6 +140,9 @@ class JsonPathNode:
         else:
             return ""
 
+    #def get_path_array(self) -> list[str]:
+
+
 #---------------------------------------------------------------------------------------------------
 
 class JsonPath:
@@ -169,22 +172,29 @@ class JsonPath:
         return current
 
 
-    def get_path_str(self) -> str:
+    def get_path_array(self) -> list[str]:
         """
-        Get all the path IDs as a string.
+        Get the list of path names.
 
-        :return: The full path represented as a string.
-        :rtype: str
+        :return: The full JSON path as a list of the key names.
+        :rtype: list[str]
         """
-        path = None
+        path_array:list[str] = []
         current = self._path
         while current is not None:
-            if path is None:
-                path = '"' + current.path_id + '"'
-            else:
-                path = path + "▹" + '"' + current.path_id + '"'
+            path_array.append(current.path_id)
             current = current.next
-        return path or ""
+        return path_array
+
+
+    def get_path_str(self) -> str:
+        """
+        Get all the path names as a string.
+
+        :return: The full JSON path represented as a string.
+        :rtype: str
+        """
+        return "▹".join(self.get_path_array())
 
 #---------------------------------------------------------------------------------------------------
 
