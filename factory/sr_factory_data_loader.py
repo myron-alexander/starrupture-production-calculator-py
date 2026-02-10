@@ -19,17 +19,26 @@ Provides functions to read and verify a factory layout definition JSON file.
 
 #---------------------------------------------------------------------------------------------------
 
+__all__ = [
+    'GameDataDefinitions',
+    'FactoriesJsonError',
+    'FactoryDefinitions',
+    'load_factories_json'
+]
+
+#---------------------------------------------------------------------------------------------------
+
 import argparse
 import json
 import sys
 import weakref
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from factories_data import *
 from functools import reduce
 
-sys.path.append("..")
+if __name__ == "__main__":
+    sys.path.append("..")
 
 from starrupture.sr_game_data import *
 
@@ -208,11 +217,9 @@ class JsonPath:
 #---------------------------------------------------------------------------------------------------
 
 class FactoriesJsonError(Exception):
-    def __init__(self, message, json_path_node:JsonPathNode|list[str]|None = None) -> None:
+    def __init__(self, message, json_path_node:list[str]|None = None) -> None:
         if type(json_path_node) is list:
             self.message = message + f'\nJSON path: {"▹".join(json_path_node)}'
-        elif type(json_path_node) is JsonPathNode:
-            self.message = message + f'\nJSON path: {json_path_node.get_path_str()}'
         else:
             self.message = message
         super().__init__(self.message)
@@ -239,7 +246,7 @@ def validate_source_list(path_node:JsonPathNode, description:str, source:str, va
             or not reduce(lambda x,y: x and type(y) is str and 0 < len(y.strip()), value, True):
             raise FactoriesJsonError(
                 f"When '{source}' is specified by a {description}, it must be a"
-                " list of strings.", path_node)
+                " list of strings.", path_node.get_path_array())
 
 
 #---------------------------------------------------------------------------------------------------
@@ -254,12 +261,13 @@ def new_factory_machine_input(
     if from_machine_id is None and from_factory_input_id is None and from_storage_id is None:
         raise FactoriesJsonError(
             "A factory machine input must specify at least one of"
-            " 'from_machine_id', 'from_factory_input_id', 'from_storage_id'.", path_node)
+            " 'from_machine_id', 'from_factory_input_id', 'from_storage_id'.",
+            path_node.get_path_array())
     if type(rate_limit_ipm) is not int or rate_limit_ipm < 1:
         raise FactoriesJsonError(
             "A factory machine input must specify the 'rate_limit_ipm' with an integer value"
             " of at least 1.",
-            path_node)
+            path_node.get_path_array())
     d = "factory machine input"
     validate_source_list(path_node, d, "from_machine_id", from_machine_id)
     validate_source_list(path_node, d, "from_factory_input_id", from_factory_input_id)
@@ -286,21 +294,23 @@ def new_factory_machine(
 
     if type(item) is not str or missing_string(item):
         raise FactoriesJsonError(
-            "A factory machine must define an 'item' with a non-empty string value.", path_node)
+            "A factory machine must define an 'item' with a non-empty string value.",
+            path_node.get_path_array())
     if variant is not None and inputs is not None:
         raise FactoriesJsonError(
             "A factory machine may only define either 'variant' or 'inputs' but not both.",
-            path_node)
+            path_node.get_path_array())
     if variant is None and inputs is None:
         raise FactoriesJsonError(
-            "A factory machine must define at least one of 'variant' or 'inputs'.", path_node)
+            "A factory machine must define at least one of 'variant' or 'inputs'.",
+            path_node.get_path_array())
     if variant is not None:
         return FactoryMachine(factory, machine_id, item, variant, None, path_node.get_path_array())
     else:
         if type(inputs) is not list or len(inputs) < 1:
             raise FactoriesJsonError(
                 "When 'inputs' is specified for a factory machine, is must be a non-empty list.",
-                path_node)
+                path_node.get_path_array())
         inputs_path_node = path_node.set_next("inputs")
         inputs = [new_factory_machine_input(inputs_path_node, ii) for ii in inputs]
         path_node.truncate()
@@ -328,27 +338,27 @@ def new_factory_storage(
     if type(items) is not list or len(items) < 1:
         raise FactoriesJsonError(
             "A factory storage must define 'items' as a non-empty list.",
-            path_node)
+            path_node.get_path_array())
     if 0 < len([ii for ii in items if type(ii) is not str or missing_string(ii)]):
         raise FactoriesJsonError(
             "A factory storage must define 'items' as a list of non-empty strings.",
-            path_node)
+            path_node.get_path_array())
     if type(num_stacks) is not int or num_stacks < 1:
         raise FactoriesJsonError(
             "A factory storage must specify the 'num_stacks' with an integer value"
             " of at least 1.",
-            path_node)
+            path_node.get_path_array())
     if type(inputs) is not list or len(inputs) < 1:
         raise FactoriesJsonError(
             "A factory storage must define 'inputs' as a non-empty list.",
-            path_node)
+            path_node.get_path_array())
     inputs_path_node = path_node.set_next("inputs")
     factory_machine_inputs = [new_factory_machine_input(inputs_path_node, ii) for ii in inputs]
     for fmi in factory_machine_inputs:
         if fmi.from_storage_id is not None and storage_id in fmi.from_storage_id:
             raise FactoriesJsonError(
                 "A factory storage may not define itself as an input.",
-                path_node)
+                path_node.get_path_array())
     inputs_path_node.truncate()
 
     return FactoryStorage(
@@ -386,14 +396,16 @@ def new_factory_input(path_node:JsonPathNode, factory_input_id:str, input_spec:d
 
     if type(site_id) is not str or missing_string(site_id):
         raise FactoriesJsonError(
-            "A factory input must define a 'site_id' with a non-empty string value.", path_node)
+            "A factory input must define a 'site_id' with a non-empty string value.",
+            path_node.get_path_array())
     if type(factory_id) is not str or missing_string(factory_id):
         raise FactoriesJsonError(
-            "A factory input must define a 'factory_id' with a non-empty string value.", path_node)
+            "A factory input must define a 'factory_id' with a non-empty string value.",
+            path_node.get_path_array())
     if type(factory_output_id) is not str or missing_string(factory_output_id):
         raise FactoriesJsonError(
             "A factory input must define a 'factory_output_id' with a non-empty string value.",
-            path_node)
+            path_node.get_path_array())
     return FactoryInput(
         factory_input_id, site_id, factory_id, factory_output_id, path_node.get_path_array())
 
@@ -407,13 +419,13 @@ def new_factory_output_source(path_node:JsonPathNode, source_spec:dict) -> Facto
     if from_machine_id is None and from_storage_id is None:
         raise FactoriesJsonError(
             "A factory output source must specify at least one of"
-            " 'from_machine_id', 'from_storage_id'.", path_node)
+            " 'from_machine_id', 'from_storage_id'.", path_node.get_path_array())
 
     if type(rate_limit_ipm) is not int or rate_limit_ipm < 1:
         raise FactoriesJsonError(
             "A factory output source must define 'rate_limit_ipm' with an integer value of at"
             " least 1.",
-            path_node)
+            path_node.get_path_array())
 
     validate_source_list(path_node, "factory output source", "from_machine_id", from_machine_id)
     validate_source_list(path_node, "factory output source", "from_storage_id", from_storage_id)
@@ -436,14 +448,15 @@ def new_factory_output(
     if type(dispatched_item) is not str or missing_string(dispatched_item):
         raise FactoriesJsonError(
             "A factory output must define a 'dispatched_item' with a non-empty string value.",
-            path_node)
+            path_node.get_path_array())
     if type(rate_limit_ipm) is not int or rate_limit_ipm < 1:
         raise FactoriesJsonError(
             "A factory output must define a 'rate_limit_ipm' with an integer value of at least 1.",
-            path_node)
+            path_node.get_path_array())
     if type(sources) is not list or len(sources) < 1:
         raise FactoriesJsonError(
-            "A factory output must define 'sources' as a non-empty list.", path_node)
+            "A factory output must define 'sources' as a non-empty list.",
+            path_node.get_path_array())
     source_path_node = path_node.set_next("sources")
     sources = [new_factory_output_source(source_path_node, ss) for ss in sources]
     source_path_node.truncate()
@@ -469,7 +482,7 @@ def new_factory(
     if type(purpose) is not str or missing_string(purpose):
         raise FactoriesJsonError(
             "JSON mandatory entry is either missing, or value isn't a populated string,"
-            f" for value of entry 'purpose'.", path_node)
+            " for value of entry 'purpose'.", path_node.get_path_array())
 
     factory = Factory(site, factory_id, purpose, path_node.get_path_array())
 
@@ -477,14 +490,15 @@ def new_factory(
     if not isinstance(machines, dict):
         raise FactoriesJsonError(
             "JSON mandatory entry is either missing, or value isn't a valid dict,"
-            " for value of entry 'machines'.", path_node)
+            " for value of entry 'machines'.", path_node.get_path_array())
 
     machines_path_node = path_node.set_next("machines")
 
     for k,v in machines.items():
         if missing_string(k):
             raise FactoriesJsonError(
-                f'JSON mandatory machine ID entry "{k}" invalid.', machines_path_node)
+                f'JSON mandatory machine ID entry "{k}" invalid.',
+                machines_path_node.get_path_array())
         machine = new_factory_machine(machines_path_node.set_next(k), factory, k, v)
         machines_path_node.truncate()
         factory.add_machine(machine)
@@ -498,20 +512,20 @@ def new_factory(
         if not isinstance(factory_inputs, dict):
             raise FactoriesJsonError(
                 "JSON optional entry value isn't a valid dict, for value of entry 'inputs'.",
-                path_node)
+                path_node.get_path_array())
         factory_input_path_node = path_node.set_next("inputs")
         for k,v in factory_inputs.items():
             if missing_string(k):
                 raise FactoriesJsonError(
                     f'JSON mandatory factory input ID entry "{k}" invalid.',
-                    factory_input_path_node)
+                    factory_input_path_node.get_path_array())
             factory_input = new_factory_input(factory_input_path_node.set_next(k), k, v)
             if factory.factory_id == factory_input.factory_id \
                     and factory.site.site_id == factory_input.site_id:
                 raise FactoriesJsonError(
                     f"Factory input '{factory_input.factory_input_id}' specifies a connection to"
                     f" an output within it's own factory. Only links to other factories are"
-                    " allowed.", factory_input_path_node)
+                    " allowed.", factory_input_path_node.get_path_array())
             factory_input_path_node.truncate()
             factory.add_input(factory_input)
 
@@ -521,13 +535,13 @@ def new_factory(
         if not isinstance(factory_outputs, dict):
             raise FactoriesJsonError(
                 "JSON optional entry value isn't a valid dict, for value of entry 'outputs'.",
-                path_node)
+                path_node.get_path_array())
         factory_output_path_node = path_node.set_next("outputs")
         for k,v in factory_outputs.items():
             if missing_string(k):
                 raise FactoriesJsonError(
                     f'JSON mandatory factory output ID entry "{k}" invalid.',
-                    factory_output_path_node)
+                    factory_output_path_node.get_path_array())
             factory_output = new_factory_output(factory_output_path_node.set_next(k), factory, k, v)
             factory_output_path_node.truncate()
             factory.add_output(factory_output)
@@ -538,13 +552,13 @@ def new_factory(
         if not isinstance(factory_storage, dict):
             raise FactoriesJsonError(
                 "JSON optional entry value isn't a valid dict, for value of entry 'storage'.",
-                path_node)
+                path_node.get_path_array())
         factory_storage_path_node = path_node.set_next("storage")
         for k,v in factory_storage.items():
             if missing_string(k):
                 raise FactoriesJsonError(
                     f'JSON mandatory factory storage ID entry "{k}" invalid.',
-                    factory_storage_path_node)
+                    factory_storage_path_node.get_path_array())
             fs = new_factory_storage(factory_storage_path_node.set_next(k), factory, k, v)
             factory_storage_path_node.truncate()
             factory.add_storage(fs)
@@ -562,15 +576,15 @@ def new_site(path_node:JsonPathNode, site_id:str, site_values:dict) -> Site:
     if type(teleporter) is not str:
         raise FactoriesJsonError(
             "JSON mandatory entry is either missing, or value isn't a populated string,"
-            " for value of entry 'teleporter'.", path_node)
+            " for value of entry 'teleporter'.", path_node.get_path_array())
     if type(heat_limit) is not int or heat_limit < 1000:
         raise FactoriesJsonError(
             "JSON mandatory entry is either missing, or value isn't a valid int,"
-            " for value of entry 'heat_limit'.", path_node)
+            " for value of entry 'heat_limit'.", path_node.get_path_array())
     if type(heat_current) is not int or heat_current < 1:
         raise FactoriesJsonError(
             "JSON mandatory entry is either missing, or value isn't a valid int,"
-            " for value of entry 'heat_current'.", path_node)
+            " for value of entry 'heat_current'.", path_node.get_path_array())
 
     # Stripping teleporter as an empty string indicates no teleporter and white space is the
     # visual equivalent of nothing entered.
@@ -581,14 +595,15 @@ def new_site(path_node:JsonPathNode, site_id:str, site_values:dict) -> Site:
     if not isinstance(factories, dict):
         raise FactoriesJsonError(
             "JSON mandatory entry is either missing, or value isn't a valid dict,"
-            " for value of entry 'factories'.", path_node)
+            " for value of entry 'factories'.", path_node.get_path_array())
 
     factory_path_node = path_node.set_next("factories")
 
     for k,v in factories.items():
         if missing_string(k):
             raise FactoriesJsonError(
-                f'JSON mandatory factory ID entry "{k}" invalid.', factory_path_node)
+                f'JSON mandatory factory ID entry "{k}" invalid.',
+                factory_path_node.get_path_array())
         site.add_factory(new_factory(factory_path_node.set_next(k), site, k, v))
 
     return site
@@ -625,11 +640,12 @@ class FactoryDefinitions:
         sites = factories_dict.get(root_path)
         if sites is None:
             raise FactoriesJsonError(
-                "JSON missing root level 'sites' entry.", current_path_node)
+                "JSON missing root level 'sites' entry.", current_path_node.get_path_array())
         for k,v in sites.items():
             if missing_string(k):
                 raise FactoriesJsonError(
-                    f'JSON mandatory site ID entry "{k}" invalid.', current_path_node)
+                    f'JSON mandatory site ID entry "{k}" invalid.',
+                    current_path_node.get_path_array())
             self.add_site(new_site(current_path_node.set_next(k), k, v))
 
         self.__index_factory_outputs()
@@ -645,7 +661,8 @@ class FactoryDefinitions:
                     if key in self.all_factory_outputs:
                         raise FactoriesJsonError(
                             f"Factory output ID '{factory_output.factory_output_id}' is duplicate"
-                            f" within factory '{factory.factory_id}' and site '{site.site_id}'.")
+                            f" within factory '{factory.factory_id}' and site '{site.site_id}'.",
+                            factory_output.json_path)
                     self.all_factory_outputs[key] = factory_output
 
 #---------------------------------------------------------------------------------------------------
