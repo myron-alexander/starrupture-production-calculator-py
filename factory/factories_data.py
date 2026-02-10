@@ -99,13 +99,66 @@ class FactoryMachine:
 
     machine_id: str
     item: str
-    variant: str | None   # Set to None when machine has inputs.
-    inputs: list[FactoryMachineInput] | None # Set to None when machine is raw extractor.
+    variant: str | None
+    """
+    When the machine extracts raw items from a resource node, 'variant' is set to the purity of the
+    resource node, otherwise it is set to None.
+    """
+    inputs: list[FactoryMachineInput] | None
+    """
+    When the machine crafts an item from other items, 'inputs' is set to the list of item suppliers,
+    otherwise it is set to None.
+    """
 
     json_path:list[str]
     """
     Path to this data in the JSON file.
     """
+
+    _enabled:bool = False
+    """
+    Machine can only provide items to the production chain when enabled is True.
+    """
+
+    _inputs_satisfied:bool = False
+    """
+    When the machine crafts an item from input items, the value of inputs_satisfied indicates,
+    when True, that all input items are available. If inputs_satisfied is False, enabled must be
+    set to False as well.
+    """
+
+    def is_enabled(self) -> bool:
+        """
+        Machine can only provide items to the production chain when enabled is True.
+        """
+        return self._enabled and self._inputs_satisfied
+
+    def has_inputs_satisfied(self) -> bool:
+        """
+        When the machine crafts an item from input items, the return value indicates,
+        when True, that all input items are available.
+
+        When the machine extracts raw items, this will always return True.
+        """
+        return self.variant is not None or self._inputs_satisfied
+
+    def set_enabled(self) -> "FactoryMachine":
+        if not self._inputs_satisfied:
+            raise ValueError("Cannot enable a machine that has unsatisfied inputs.")
+        self._enabled = True
+        return self
+
+    def set_disabled(self) -> "FactoryMachine":
+        self._enabled = False
+        return self
+
+    def set_inputs_satisfied(self) -> "FactoryMachine":
+        self._inputs_satisfied = True
+        return self
+
+    def set_inputs_unsatisfied(self) -> "FactoryMachine":
+        self._inputs_satisfied = False
+        return self.set_disabled()
 
 #---------------------------------------------------------------------------------------------------
 
@@ -126,6 +179,50 @@ class FactoryStorage:
     """
     Path to this data in the JSON file.
     """
+
+    _enabled:bool = False
+    """
+    Storage can only provide items to the production chain when enabled is True.
+    """
+
+    _inputs_satisfied:bool = False
+    """
+    Indicates, when True, that the inputs into the storage are capable of supplying all the
+    items named in the 'items' field. If only some, or none of the items are being supplied,
+    '_inputs_satisfied' must be False.
+    """
+
+    def is_enabled(self) -> bool:
+        """
+        Can only provide items to the production chain when enabled is True.
+        """
+        return self._enabled and self._inputs_satisfied
+
+    def has_inputs_satisfied(self) -> bool:
+        """
+        Indicates, when True, that the inputs into the storage are capable of supplying all the
+        items named in the 'items' field. If only some, or none of the items are being supplied,
+        will return False.
+        """
+        return self._inputs_satisfied
+
+    def set_enabled(self) -> "FactoryStorage":
+        if not self._inputs_satisfied:
+            raise ValueError("Cannot enable a storage that has unsatisfied inputs.")
+        self._enabled = True
+        return self
+
+    def set_disabled(self) -> "FactoryStorage":
+        self._enabled = False
+        return self
+
+    def set_inputs_satisfied(self) -> "FactoryStorage":
+        self._inputs_satisfied = True
+        return self
+
+    def set_inputs_unsatisfied(self) -> "FactoryStorage":
+        self._inputs_satisfied = False
+        return self.set_disabled()
 
 #---------------------------------------------------------------------------------------------------
 
