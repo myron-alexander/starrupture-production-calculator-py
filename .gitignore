@@ -6,3 +6,6 @@ scratch/
 
 # Python temp files
 **/__pycache__/
+
+# Visual Studio Code files
+.vscode/
