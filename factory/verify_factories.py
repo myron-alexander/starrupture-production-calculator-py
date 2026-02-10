@@ -140,8 +140,13 @@ class JsonPathNode:
         else:
             return ""
 
-    #def get_path_array(self) -> list[str]:
 
+    def get_path_array(self) -> list[str]:
+        jp = self._json_path_ref()
+        if jp is not None:
+            return jp.get_path_array()
+        else:
+            return []
 
 #---------------------------------------------------------------------------------------------------
 
@@ -199,8 +204,11 @@ class JsonPath:
 #---------------------------------------------------------------------------------------------------
 
 class FactoriesJsonError(Exception):
-    def __init__(self, message, json_path_node:JsonPathNode|None = None) -> None:
-        if json_path_node is not None:
+    def __init__(self, message, json_path_node:JsonPathNode|list[str]|None = None) -> None:
+        print(type(json_path_node))
+        if type(json_path_node) is list:
+            self.message = message + f'\nJSON path: {"▹".join(json_path_node)}'
+        elif type(json_path_node) is JsonPathNode:
             self.message = message + f'\nJSON path: {json_path_node.get_path_str()}'
         else:
             self.message = message
@@ -222,6 +230,11 @@ class FactoryMachineInput:
     # A factory storage may not specify itself as an input, only other storages.
     from_storage_id: list[str] | None
     rate_limit_ipm: int
+
+    json_path:list[str]
+    """
+    Path to this data in the JSON file.
+    """
 
 #---------------------------------------------------------------------------------------------------
 
@@ -249,6 +262,11 @@ class FactoryMachine:
     item: str
     variant: str | None   # Set to None when machine has inputs.
     inputs: list[FactoryMachineInput] | None # Set to None when machine is raw extractor.
+
+    json_path:list[str]
+    """
+    Path to this data in the JSON file.
+    """
 
 #---------------------------------------------------------------------------------------------------
 
@@ -299,7 +317,11 @@ def new_factory_machine_input(
     validate_source_list(path_node, d, "from_storage_id", from_storage_id)
 
     return FactoryMachineInput(
-        from_machine_id, from_factory_input_id, from_storage_id, int(rate_limit_ipm))
+        from_machine_id,
+        from_factory_input_id,
+        from_storage_id,
+        int(rate_limit_ipm),
+        path_node.get_path_array())
 
 #---------------------------------------------------------------------------------------------------
 
@@ -324,19 +346,22 @@ def new_factory_machine(
         raise FactoriesJsonError(
             "A factory machine must define at least one of 'variant' or 'inputs'.", path_node)
     if variant is not None:
-        return FactoryMachine(factory, machine_id, item, variant, None)
+        return FactoryMachine(factory, machine_id, item, variant, None, path_node.get_path_array())
     else:
         if type(inputs) is not list or len(inputs) < 1:
             raise FactoriesJsonError(
                 "When 'inputs' is specified for a factory machine, is must be a non-empty list.",
                 path_node)
         inputs_path_node = path_node.set_next("inputs")
+        inputs = [new_factory_machine_input(inputs_path_node, ii) for ii in inputs]
+        path_node.truncate()
         return FactoryMachine(
             factory,
             machine_id,
             item,
             None,
-            [new_factory_machine_input(inputs_path_node, ii) for ii in inputs]
+            inputs,
+            path_node.get_path_array()
         )
 
 #---------------------------------------------------------------------------------------------------
@@ -353,6 +378,11 @@ class FactoryStorage:
     items: list[str]
     num_stacks: int
     inputs: list[FactoryMachineInput]
+
+    json_path:list[str]
+    """
+    Path to this data in the JSON file.
+    """
 
 #---------------------------------------------------------------------------------------------------
 
@@ -397,7 +427,8 @@ def new_factory_storage(
         storage_id,
         items,
         num_stacks,
-        factory_machine_inputs
+        factory_machine_inputs,
+        path_node.get_path_array()
     )
 
 #---------------------------------------------------------------------------------------------------
@@ -426,6 +457,11 @@ class FactoryInput:
     factory_id: str
     factory_output_id: str
 
+    json_path:list[str]
+    """
+    Path to this data in the JSON file.
+    """
+
 
     def get_output_key(self) -> str:
         return make_factory_output_key(self.site_id, self.factory_id, self.factory_output_id)
@@ -447,7 +483,8 @@ def new_factory_input(path_node:JsonPathNode, factory_input_id:str, input_spec:d
         raise FactoriesJsonError(
             "A factory input must define a 'factory_output_id' with a non-empty string value.",
             path_node)
-    return FactoryInput(factory_input_id, site_id, factory_id, factory_output_id)
+    return FactoryInput(
+        factory_input_id, site_id, factory_id, factory_output_id, path_node.get_path_array())
 
 #---------------------------------------------------------------------------------------------------
 
@@ -456,6 +493,11 @@ class FactoryOutputSource:
     from_machine_id: list[str] | None
     from_storage_id: list[str] | None
     rate_limit_ipm: int
+
+    json_path:list[str]
+    """
+    Path to this data in the JSON file.
+    """
 
 #---------------------------------------------------------------------------------------------------
 
@@ -470,6 +512,11 @@ class FactoryOutput:
     factory_output_id: str
     rate_limit_ipm: int
     sources: list[FactoryOutputSource]
+
+    json_path:list[str]
+    """
+    Path to this data in the JSON file.
+    """
 
 
 #---------------------------------------------------------------------------------------------------
@@ -493,7 +540,8 @@ def new_factory_output_source(path_node:JsonPathNode, source_spec:dict) -> Facto
     validate_source_list(path_node, "factory output source", "from_machine_id", from_machine_id)
     validate_source_list(path_node, "factory output source", "from_storage_id", from_storage_id)
 
-    return FactoryOutputSource(from_machine_id, from_storage_id, rate_limit_ipm)
+    return FactoryOutputSource(
+        from_machine_id, from_storage_id, rate_limit_ipm, path_node.get_path_array())
 
 #---------------------------------------------------------------------------------------------------
 
@@ -519,19 +567,22 @@ def new_factory_output(
         raise FactoriesJsonError(
             "A factory output must define 'sources' as a non-empty list.", path_node)
     source_path_node = path_node.set_next("sources")
+    sources = [new_factory_output_source(source_path_node, ss) for ss in sources]
+    source_path_node.truncate()
     return FactoryOutput(
         factory,
         dispatched_item,
         factory_output_id,
         rate_limit_ipm,
-        [new_factory_output_source(source_path_node, ss) for ss in sources]
+        sources,
+        path_node.get_path_array()
     )
 
 #---------------------------------------------------------------------------------------------------
 
 class Factory:
 
-    def __init__(self, site:"Site", factory_id: str, purpose: str ) -> None:
+    def __init__(self, site:"Site", factory_id: str, purpose: str, json_path:list[str]) -> None:
         self.site: "Site" = site
         """
         Link to site that contains this factory.
@@ -539,10 +590,13 @@ class Factory:
 
         self.factory_id: str = factory_id
         self.purpose: str = purpose
+        self.json_path = json_path
+
         self.factory_machines: list[FactoryMachine] = list()
         self.factory_inputs: list[FactoryInput] = list()
         self.factory_outputs: list[FactoryOutput] = list()
         self.factory_storage: list[FactoryStorage] = list()
+
 
     def add_machine(self, machine: FactoryMachine) -> None:
         self.factory_machines.append(machine)
@@ -571,7 +625,7 @@ def new_factory(
             "JSON mandatory entry is either missing, or value isn't a populated string,"
             f" for value of entry 'purpose'.", path_node)
 
-    factory = Factory(site, factory_id, purpose)
+    factory = Factory(site, factory_id, purpose, path_node.get_path_array())
 
     machines = factory_values.get("machines")
     if not isinstance(machines, dict):
@@ -660,6 +714,10 @@ class Site:
     teleporter: str
     heat_limit: int
     heat_current: int
+    json_path:list[str]
+    """
+    Path to this data in the JSON file.
+    """
     factories: list[Factory] = field(default_factory=list)
 
     def add_factory(self, factory: Factory) -> None:
@@ -688,7 +746,7 @@ def new_site(path_node:JsonPathNode, site_id:str, site_values:dict) -> Site:
 
     # Stripping teleporter as an empty string indicates no teleporter and white space is the
     # visual equivalent of nothing entered.
-    site = Site(site_id, teleporter.strip(), heat_limit, heat_current)
+    site = Site(site_id, teleporter.strip(), heat_limit, heat_current, path_node.get_path_array())
 
     factories = site_values.get("factories")
 
@@ -998,13 +1056,14 @@ def validation_correct_item_for_input(
                     (m for m in factory.factory_machines
                         if m.machine_id == from_machine_id)
                 )
+                print(input.json_path)
                 if from_machine.item not in required_input_items:
                     raise FactoriesJsonError(
                         f"The item produced by machine '{from_machine_id}' cannot"
                         f" be used by {consumer_desc}."
                         f"\nExpecting one of {required_input_items} but delivering"
                         f" '{from_machine.item}'."
-                        , path)
+                        , input.json_path)
 
         if input.from_storage_id is not None:
             #
