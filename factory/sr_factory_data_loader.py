@@ -51,15 +51,15 @@ def missing_string(s:str | None) -> bool:
 
 class GameDataDefinitions:
     def __init__(self,
-                 items: list[Item],
-                 recipe_inputs: list[RecipeInput],
-                 raw_items: list[RawItem],
-                 buildings: list[Building]) -> None:
+                 items: list[ItemRecord],
+                 recipe_inputs: list[RecipeInputRecord],
+                 raw_items: list[RawItemRecord],
+                 buildings: list[BuildingRecord]) -> None:
         # Data read from data files.
-        self.items:list[Item] = items
-        self.recipe_inputs:list[RecipeInput] = recipe_inputs
-        self.raw_items:list[RawItem] = raw_items
-        self.buildings:list[Building] = buildings
+        self.items:list[ItemRecord] = items
+        self.recipe_inputs:list[RecipeInputRecord] = recipe_inputs
+        self.raw_items:list[RawItemRecord] = raw_items
+        self.buildings:list[BuildingRecord] = buildings
 
         # Calculated collections.
         self.inputs_per_item:dict[str,list[str]] = dict()
@@ -252,7 +252,7 @@ def validate_source_list(path_node:JsonPathNode, description:str, source:str, va
 #---------------------------------------------------------------------------------------------------
 
 def new_factory_machine_input(
-        path_node:JsonPathNode, input_spec:dict) -> FactoryMachineInput:
+        path_node:JsonPathNode, input_spec:dict) -> FactoryMachineInputRecord:
     from_machine_id = input_spec.get("from_machine_id")
     from_factory_input_id = input_spec.get("from_factory_input_id")
     from_storage_id = input_spec.get("from_storage_id")
@@ -273,7 +273,7 @@ def new_factory_machine_input(
     validate_source_list(path_node, d, "from_factory_input_id", from_factory_input_id)
     validate_source_list(path_node, d, "from_storage_id", from_storage_id)
 
-    return FactoryMachineInput(
+    return FactoryMachineInputRecord(
         from_machine_id,
         from_factory_input_id,
         from_storage_id,
@@ -284,9 +284,9 @@ def new_factory_machine_input(
 
 def new_factory_machine(
         path_node:JsonPathNode,
-        factory:"Factory",
+        factory:"FactoryRecord",
         machine_id:str,
-        machine_spec:dict) -> FactoryMachine:
+        machine_spec:dict) -> FactoryMachineRecord:
 
     item = machine_spec.get("item")
     variant = machine_spec.get("variant")
@@ -305,7 +305,7 @@ def new_factory_machine(
             "A factory machine must define at least one of 'variant' or 'inputs'.",
             path_node.get_path_array())
     if variant is not None:
-        return FactoryMachine(factory, machine_id, item, variant, None, path_node.get_path_array())
+        return FactoryMachineRecord(factory, machine_id, item, variant, None, path_node.get_path_array())
     else:
         if type(inputs) is not list or len(inputs) < 1:
             raise FactoriesJsonError(
@@ -314,7 +314,7 @@ def new_factory_machine(
         inputs_path_node = path_node.set_next("inputs")
         inputs = [new_factory_machine_input(inputs_path_node, ii) for ii in inputs]
         path_node.truncate()
-        return FactoryMachine(
+        return FactoryMachineRecord(
             factory,
             machine_id,
             item,
@@ -327,9 +327,9 @@ def new_factory_machine(
 
 def new_factory_storage(
         path_node:JsonPathNode,
-        factory:"Factory",
+        factory:"FactoryRecord",
         storage_id:str,
-        storage_spec:dict) -> FactoryStorage:
+        storage_spec:dict) -> FactoryStorageRecord:
 
     items = storage_spec.get("items")
     num_stacks = storage_spec.get("num_stacks")
@@ -361,7 +361,7 @@ def new_factory_storage(
                 path_node.get_path_array())
     inputs_path_node.truncate()
 
-    return FactoryStorage(
+    return FactoryStorageRecord(
         factory,
         storage_id,
         items,
@@ -389,7 +389,7 @@ def make_factory_output_key(site_id:str, factory_id:str, factory_output_id:str) 
 
 #---------------------------------------------------------------------------------------------------
 
-def new_factory_input(path_node:JsonPathNode, factory_input_id:str, input_spec:dict) -> FactoryInput:
+def new_factory_input(path_node:JsonPathNode, factory_input_id:str, input_spec:dict) -> FactoryInputRecord:
     site_id = input_spec.get("site_id")
     factory_id = input_spec.get("factory_id")
     factory_output_id = input_spec.get("factory_output_id")
@@ -406,12 +406,12 @@ def new_factory_input(path_node:JsonPathNode, factory_input_id:str, input_spec:d
         raise FactoriesJsonError(
             "A factory input must define a 'factory_output_id' with a non-empty string value.",
             path_node.get_path_array())
-    return FactoryInput(
+    return FactoryInputRecord(
         factory_input_id, site_id, factory_id, factory_output_id, path_node.get_path_array())
 
 #---------------------------------------------------------------------------------------------------
 
-def new_factory_output_source(path_node:JsonPathNode, source_spec:dict) -> FactoryOutputSource:
+def new_factory_output_source(path_node:JsonPathNode, source_spec:dict) -> FactoryOutputSourceRecord:
     from_machine_id = source_spec.get("from_machine_id")
     from_storage_id = source_spec.get("from_storage_id")
     rate_limit_ipm = source_spec.get("rate_limit_ipm")
@@ -430,16 +430,16 @@ def new_factory_output_source(path_node:JsonPathNode, source_spec:dict) -> Facto
     validate_source_list(path_node, "factory output source", "from_machine_id", from_machine_id)
     validate_source_list(path_node, "factory output source", "from_storage_id", from_storage_id)
 
-    return FactoryOutputSource(
+    return FactoryOutputSourceRecord(
         from_machine_id, from_storage_id, rate_limit_ipm, path_node.get_path_array())
 
 #---------------------------------------------------------------------------------------------------
 
 def new_factory_output(
         path_node:JsonPathNode,
-        factory:"Factory",
+        factory:"FactoryRecord",
         factory_output_id:str,
-        output_spec:dict) -> FactoryOutput:
+        output_spec:dict) -> FactoryOutputRecord:
 
     dispatched_item = output_spec.get("dispatched_item")
     rate_limit_ipm = output_spec.get("rate_limit_ipm")
@@ -460,7 +460,7 @@ def new_factory_output(
     source_path_node = path_node.set_next("sources")
     sources = [new_factory_output_source(source_path_node, ss) for ss in sources]
     source_path_node.truncate()
-    return FactoryOutput(
+    return FactoryOutputRecord(
         factory,
         dispatched_item,
         factory_output_id,
@@ -473,9 +473,9 @@ def new_factory_output(
 
 def new_factory(
         path_node:JsonPathNode,
-        site:"Site",
+        site:"SiteRecord",
         factory_id:str,
-        factory_values:dict) -> Factory:
+        factory_values:dict) -> FactoryRecord:
 
     purpose = factory_values.get("purpose")
 
@@ -484,7 +484,7 @@ def new_factory(
             "JSON mandatory entry is either missing, or value isn't a populated string,"
             " for value of entry 'purpose'.", path_node.get_path_array())
 
-    factory = Factory(site, factory_id, purpose, path_node.get_path_array())
+    factory = FactoryRecord(site, factory_id, purpose, path_node.get_path_array())
 
     machines = factory_values.get("machines")
     if not isinstance(machines, dict):
@@ -567,7 +567,7 @@ def new_factory(
 
 #---------------------------------------------------------------------------------------------------
 
-def new_site(path_node:JsonPathNode, site_id:str, site_values:dict) -> Site:
+def new_site(path_node:JsonPathNode, site_id:str, site_values:dict) -> SiteRecord:
     teleporter = site_values.get("teleporter")
     heat_limit = site_values.get("heat_limit")
     heat_current = site_values.get("heat_current")
@@ -588,7 +588,7 @@ def new_site(path_node:JsonPathNode, site_id:str, site_values:dict) -> Site:
 
     # Stripping teleporter as an empty string indicates no teleporter and white space is the
     # visual equivalent of nothing entered.
-    site = Site(site_id, teleporter.strip(), heat_limit, heat_current, path_node.get_path_array())
+    site = SiteRecord(site_id, teleporter.strip(), heat_limit, heat_current, path_node.get_path_array())
 
     factories = site_values.get("factories")
 
@@ -616,13 +616,13 @@ class FactoryDefinitions:
     """
 
     def __init__(self) -> None:
-        self.sites: list[Site] = list()
+        self.sites: list[SiteRecord] = list()
 
-        self.all_factory_outputs:dict[str,FactoryOutput] = dict()
+        self.all_factory_outputs:dict[str,FactoryOutputRecord] = dict()
         """Index all factory outputs by key 'site_id;factory_id;factory_output_id'. """
 
 
-    def add_site(self, site: Site) -> None:
+    def add_site(self, site: SiteRecord) -> None:
         self.sites.append(site)
 
 
@@ -669,7 +669,7 @@ class FactoryDefinitions:
 
 def visit_all_machines(
         factory_definitions: FactoryDefinitions,
-        machine_visitor: Callable[[FactoryMachine], None]) -> None:
+        machine_visitor: Callable[[FactoryMachineRecord], None]) -> None:
     """
     Call method machine_visitor for every machine in the definitions.
 
@@ -686,7 +686,7 @@ def visit_all_machines(
 
 def visit_all_factory_outputs(
         factory_definitions: FactoryDefinitions,
-        factory_output_visitor: Callable[[FactoryOutput], None]) -> None:
+        factory_output_visitor: Callable[[FactoryOutputRecord], None]) -> None:
     """
     Call method factory_output_visitor for every factory output in the definitions.
 
@@ -702,7 +702,7 @@ def visit_all_factory_outputs(
 
 def visit_all_factory_storage(
         factory_definitions: FactoryDefinitions,
-        factory_storage_visitor: Callable[[FactoryStorage], None]) -> None:
+        factory_storage_visitor: Callable[[FactoryStorageRecord], None]) -> None:
     """
     Call method factory_storage_visitor for every factory storage in the definitions.
 
@@ -732,7 +732,7 @@ def validate_item_exists(
     raw_items = set([f"{ri.item_name};{ri.variant}" for ri in data_definitions.raw_items])
     items = set([i.item_name for i in data_definitions.items])
 
-    def validator(machine:FactoryMachine) -> None:
+    def validator(machine:FactoryMachineRecord) -> None:
         if machine.variant is not None:
             # Raw item
             raw_item = f"{machine.item_name};{machine.variant}"
@@ -769,7 +769,7 @@ def validate_connections_exist(factory_definitions: FactoryDefinitions) -> None:
             machine_ids:set[str],
             input_ids:set[str],
             storage_ids:set[str],
-            input:FactoryMachineInput|FactoryOutputSource) -> None:
+            input:FactoryMachineInputRecord|FactoryOutputSourceRecord) -> None:
         if input.from_machine_ids is not None:
             for from_machine_id in input.from_machine_ids:
                 if from_machine_id not in machine_ids:
@@ -784,7 +784,7 @@ def validate_connections_exist(factory_definitions: FactoryDefinitions) -> None:
                         f"Connection specified by from_storage_id '{storage_id}'"
                         " references a storage that does not exist within the"
                         " same factory.", input.json_path)
-        if type(input) is FactoryMachineInput:
+        if type(input) is FactoryMachineInputRecord:
             if input.from_factory_input_ids is not None:
                 for from_factory_input_id in input.from_factory_input_ids:
                     if from_factory_input_id not in input_ids:
@@ -861,8 +861,8 @@ def validation_correct_item_for_input(
     """
 
     def inputs_validator(
-            factory:Factory,
-            input:FactoryMachineInput|FactoryOutputSource,
+            factory:FactoryRecord,
+            input:FactoryMachineInputRecord|FactoryOutputSourceRecord,
             required_input_items:list[str],
             consumer_desc:str) -> None:
 
@@ -901,7 +901,7 @@ def validation_correct_item_for_input(
                         f" '{storage.item_names}'."
                         , input.json_path)
 
-        if type(input) is FactoryMachineInput:
+        if type(input) is FactoryMachineInputRecord:
             if input.from_factory_input_ids is not None:
                 #
                 # Validate that item sent from the remote factory can be consumed by
@@ -926,7 +926,7 @@ def validation_correct_item_for_input(
                             f" '{factory_output.dispatched_item_name}'."
                             , input.json_path)
 
-    def machines_validator(machine:FactoryMachine) -> None:
+    def machines_validator(machine:FactoryMachineRecord) -> None:
         if machine.inputs is not None:
             required_input_items = \
                 data_definitions.inputs_per_item[machine.item_name]
@@ -934,13 +934,13 @@ def validation_correct_item_for_input(
             for mi in machine.inputs:
                 inputs_validator(machine.factory, mi, required_input_items, consumer_desc)
 
-    def factory_outputs_validator(output:FactoryOutput) -> None:
+    def factory_outputs_validator(output:FactoryOutputRecord) -> None:
         required_input_items = [output.dispatched_item_name]
         consumer_desc = f"factory output '{output.factory_output_id}'"
         for ss in output.sources:
             inputs_validator(output.factory, ss, required_input_items, consumer_desc)
 
-    def storage_validator(storage:FactoryStorage) -> None:
+    def storage_validator(storage:FactoryStorageRecord) -> None:
         required_input_items = storage.item_names
         consumer_desc = f"factory storage '{storage.storage_id}'"
         for si in storage.inputs:

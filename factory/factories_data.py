@@ -38,14 +38,14 @@ FactoryInput - Defines an ingress point for items from another factory.
 #---------------------------------------------------------------------------------------------------
 
 __all__ = [
-    'Site',
-    'Factory',
-    'FactoryMachine',
-    'FactoryMachineInput',
-    'FactoryStorage',
-    'FactoryInput',
-    'FactoryOutput',
-    'FactoryOutputSource',
+    'SiteRecord',
+    'FactoryRecord',
+    'FactoryMachineRecord',
+    'FactoryMachineInputRecord',
+    'FactoryStorageRecord',
+    'FactoryInputRecord',
+    'FactoryOutputRecord',
+    'FactoryOutputSourceRecord',
     'make_factory_output_key'
 ]
 
@@ -56,7 +56,7 @@ from dataclasses import dataclass, field
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
-class FactoryMachineInput:
+class FactoryMachineInputRecord:
     """
     Sources of items consumed by the machine.
 
@@ -78,7 +78,7 @@ class FactoryMachineInput:
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
-class FactoryMachine:
+class FactoryMachineRecord:
     """
     A machine within a factory that produces an item. The machine can be one of two types:
 
@@ -92,7 +92,7 @@ class FactoryMachine:
     'input' will be set to None.
     """
 
-    factory: "Factory"
+    factory: "FactoryRecord"
     """
     Link to the factory that contains the machine.
     """
@@ -104,7 +104,7 @@ class FactoryMachine:
     When the machine extracts raw items from a resource node, 'variant' is set to the purity of the
     resource node, otherwise it is set to None.
     """
-    inputs: list[FactoryMachineInput] | None
+    inputs: list[FactoryMachineInputRecord] | None
     """
     When the machine crafts an item from other items, 'inputs' is set to the list of item suppliers,
     otherwise it is set to None.
@@ -118,14 +118,14 @@ class FactoryMachine:
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
-class FactoryStorage:
+class FactoryStorageRecord:
     """
     A factory storage is different from a machine as it can never be a source of items into a
     production chain. This is because storage is a finite, non-renewable source. Within a factory,
     storage can only be connected as a buffer or final destination.
     """
 
-    factory: "Factory"
+    factory: "FactoryRecord"
     """
     Link to the factory that contains the machine.
     """
@@ -133,7 +133,7 @@ class FactoryStorage:
     storage_id: str
     item_names: list[str]
     num_stacks: int
-    inputs: list[FactoryMachineInput]
+    inputs: list[FactoryMachineInputRecord]
 
     json_path:list[str]
     """
@@ -160,7 +160,7 @@ def make_factory_output_key(site_id:str, factory_id:str, factory_output_id:str) 
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
-class FactoryInput:
+class FactoryInputRecord:
     factory_input_id: str
     site_id: str
     factory_id: str
@@ -177,7 +177,7 @@ class FactoryInput:
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
-class FactoryOutputSource:
+class FactoryOutputSourceRecord:
     from_machine_ids: list[str] | None
     from_storage_ids: list[str] | None
     rate_limit_ipm: int
@@ -190,8 +190,8 @@ class FactoryOutputSource:
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
-class FactoryOutput:
-    factory: "Factory"
+class FactoryOutputRecord:
+    factory: "FactoryRecord"
     """
     Link to the factory that contains the machine.
     """
@@ -199,7 +199,7 @@ class FactoryOutput:
     dispatched_item_name: str
     factory_output_id: str
     rate_limit_ipm: int
-    sources: list[FactoryOutputSource]
+    sources: list[FactoryOutputSourceRecord]
 
     json_path:list[str]
     """
@@ -208,10 +208,10 @@ class FactoryOutput:
 
 #---------------------------------------------------------------------------------------------------
 
-class Factory:
+class FactoryRecord:
 
-    def __init__(self, site:"Site", factory_id: str, purpose: str, json_path:list[str]) -> None:
-        self.site: "Site" = site
+    def __init__(self, site:"SiteRecord", factory_id: str, purpose: str, json_path:list[str]) -> None:
+        self.site: "SiteRecord" = site
         """
         Link to site that contains this factory.
         """
@@ -220,28 +220,28 @@ class Factory:
         self.purpose: str = purpose
         self.json_path = json_path
 
-        self.factory_machines: list[FactoryMachine] = list()
-        self.factory_inputs: list[FactoryInput] = list()
-        self.factory_outputs: list[FactoryOutput] = list()
-        self.factory_storage: list[FactoryStorage] = list()
+        self.factory_machines: list[FactoryMachineRecord] = list()
+        self.factory_inputs: list[FactoryInputRecord] = list()
+        self.factory_outputs: list[FactoryOutputRecord] = list()
+        self.factory_storage: list[FactoryStorageRecord] = list()
 
 
-    def add_machine(self, machine: FactoryMachine) -> None:
+    def add_machine(self, machine: FactoryMachineRecord) -> None:
         self.factory_machines.append(machine)
 
-    def add_input(self, factory_input: FactoryInput) -> None:
+    def add_input(self, factory_input: FactoryInputRecord) -> None:
         self.factory_inputs.append(factory_input)
 
-    def add_output(self, factory_output: FactoryOutput) -> None:
+    def add_output(self, factory_output: FactoryOutputRecord) -> None:
         self.factory_outputs.append(factory_output)
 
-    def add_storage(self, storage: FactoryStorage) -> None:
+    def add_storage(self, storage: FactoryStorageRecord) -> None:
         self.factory_storage.append(storage)
 
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
-class Site:
+class SiteRecord:
     site_id: str
     teleporter: str
     heat_limit: int
@@ -250,9 +250,9 @@ class Site:
     """
     Path to this data in the JSON file.
     """
-    factories: list[Factory] = field(default_factory=list)
+    factories: list[FactoryRecord] = field(default_factory=list)
 
-    def add_factory(self, factory: Factory) -> None:
+    def add_factory(self, factory: FactoryRecord) -> None:
         self.factories.append(factory)
 
 #---------------------------------------------------------------------------------------------------
