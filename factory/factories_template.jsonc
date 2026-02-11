@@ -53,9 +53,9 @@
                                     /*
                                     Inputs can be merged from multiple source into one connection.
                                     */
-                                    "from_machine_id": [""],
-                                    "from_factory_input_id": [""],
-                                    "from_storage_id": [""],
+                                    "from_machine_ids": [""],
+                                    "from_factory_input_ids": [""],
+                                    "from_storage_ids": [""],
                                     // The maximum rate at which items can be transferred along this connection
                                     "rate_limit_ipm": 0
                                 }
@@ -63,9 +63,11 @@
                         }
                     },
                     // 'inputs' optional and only required when a source of items is dispatched
-                    // from another factory.
+                    // from another factory. There is a 1:1 relationship from factory output to
+                    // factory input. The factory input definition is necessary so that the items
+                    // can be routed to multiple destinations within the factory.
                     "inputs": {
-                        "<factory input id>":{
+                        "<factory input id>": {
                             // Rates are determined from factory output. Item is identified from
                             // output, The output may not be from this factory.
                             "site_id": "",
@@ -93,8 +95,10 @@
                             "sources": [
                                 {
                                     // Not supporting source from factory input is intentional.
-                                    "from_machine_id": [""],
-                                    "from_storage_id": [""],
+                                    // The factory output is intended to provide a point of egress
+                                    // only for items made within this factory.
+                                    "from_machine_ids": [""],
+                                    "from_storage_ids": [""],
                                     // The maximum rate at which items can be transferred along this connection
                                     "rate_limit_ipm": 0
                                 }
@@ -120,11 +124,11 @@
                                     /*
                                     Inputs can be merged from multiple source into one connection.
                                     */
-                                    "from_machine_id": [""],
-                                    "from_factory_input_id": [""],
+                                    "from_machine_ids": [""],
+                                    "from_factory_input_ids": [""],
                                     // While the game allows for looping the output of a storage
                                     // to the input of the same storage, this program doesn't.
-                                    "from_storage_id": [""],
+                                    "from_storage_ids": [""],
                                     // The maximum rate at which items can be transferred along this connection
                                     "rate_limit_ipm": 0
                                 }

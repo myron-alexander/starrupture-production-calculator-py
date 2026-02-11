@@ -355,7 +355,7 @@ def new_factory_storage(
     inputs_path_node = path_node.set_next("inputs")
     factory_machine_inputs = [new_factory_machine_input(inputs_path_node, ii) for ii in inputs]
     for fmi in factory_machine_inputs:
-        if fmi.from_storage_id is not None and storage_id in fmi.from_storage_id:
+        if fmi.from_storage_ids is not None and storage_id in fmi.from_storage_ids:
             raise FactoriesJsonError(
                 "A factory storage may not define itself as an input.",
                 path_node.get_path_array())
@@ -735,18 +735,18 @@ def validate_item_exists(
     def validator(machine:FactoryMachine) -> None:
         if machine.variant is not None:
             # Raw item
-            raw_item = f"{machine.item};{machine.variant}"
+            raw_item = f"{machine.item_name};{machine.variant}"
             if raw_item not in raw_items:
                 raise FactoriesJsonError(
                     f"Machine '{machine.machine_id}'"
-                    f" specifies raw item '{machine.item}' with variant '{machine.variant}'"
+                    f" specifies raw item '{machine.item_name}' with variant '{machine.variant}'"
                     " that does not exist in the data definitions.", machine.json_path)
         else:
             # Crafted item
-            if machine.item not in items:
+            if machine.item_name not in items:
                 raise FactoriesJsonError(
                     f"Machine '{machine.machine_id}'"
-                    f" specifies item '{machine.item}' that does not exist in the data"
+                    f" specifies item '{machine.item_name}' that does not exist in the data"
                     " definitions.", machine.json_path)
 
     visit_all_machines(factory_definitions, validator)
@@ -770,23 +770,23 @@ def validate_connections_exist(factory_definitions: FactoryDefinitions) -> None:
             input_ids:set[str],
             storage_ids:set[str],
             input:FactoryMachineInput|FactoryOutputSource) -> None:
-        if input.from_machine_id is not None:
-            for from_machine_id in input.from_machine_id:
+        if input.from_machine_ids is not None:
+            for from_machine_id in input.from_machine_ids:
                 if from_machine_id not in machine_ids:
                     raise FactoriesJsonError(
                         f"Connection specified by from_machine_id '{from_machine_id}'"
                         " references a machine that doesn't exist within the same"
                         " factory.", input.json_path)
-        if input.from_storage_id is not None:
-            for storage_id in input.from_storage_id:
+        if input.from_storage_ids is not None:
+            for storage_id in input.from_storage_ids:
                 if storage_id not in storage_ids:
                     raise FactoriesJsonError(
                         f"Connection specified by from_storage_id '{storage_id}'"
                         " references a storage that does not exist within the"
                         " same factory.", input.json_path)
         if type(input) is FactoryMachineInput:
-            if input.from_factory_input_id is not None:
-                for from_factory_input_id in input.from_factory_input_id:
+            if input.from_factory_input_ids is not None:
+                for from_factory_input_id in input.from_factory_input_ids:
                     if from_factory_input_id not in input_ids:
                         raise FactoriesJsonError(
                             "Connection specified by from_factory_input_id"
@@ -866,48 +866,48 @@ def validation_correct_item_for_input(
             required_input_items:list[str],
             consumer_desc:str) -> None:
 
-        if input.from_machine_id is not None:
+        if input.from_machine_ids is not None:
             #
             # Validate that the source input can be consumed by the machine.
             #
-            for from_machine_id in input.from_machine_id:
+            for from_machine_id in input.from_machine_ids:
                 from_machine = next(
                     (m for m in factory.factory_machines
                         if m.machine_id == from_machine_id)
                 )
-                if from_machine.item not in required_input_items:
+                if from_machine.item_name not in required_input_items:
                     raise FactoriesJsonError(
                         f"The item produced by machine '{from_machine_id}' cannot"
                         f" be used by {consumer_desc}."
                         f"\nExpecting one of {required_input_items} but delivering"
-                        f" '{from_machine.item}'."
+                        f" '{from_machine.item_name}'."
                         , input.json_path)
 
-        if input.from_storage_id is not None:
+        if input.from_storage_ids is not None:
             #
             # Validate that the item provided from storage can be consumed by the
             # machine.
             #
-            for from_storage_id in input.from_storage_id:
+            for from_storage_id in input.from_storage_ids:
                 storage = next(
                     (m for m in factory.factory_storage
                         if m.storage_id == from_storage_id)
                 )
-                if set(storage.items).isdisjoint(required_input_items):
+                if set(storage.item_names).isdisjoint(required_input_items):
                     raise FactoriesJsonError(
                         f"The item supplied by storage '{from_storage_id}' cannot"
                         f" be used by {consumer_desc}."
                         f"\nExpecting one of {required_input_items} but delivering"
-                        f" '{storage.items}'."
+                        f" '{storage.item_names}'."
                         , input.json_path)
 
         if type(input) is FactoryMachineInput:
-            if input.from_factory_input_id is not None:
+            if input.from_factory_input_ids is not None:
                 #
                 # Validate that item sent from the remote factory can be consumed by
                 # the machine.
                 #
-                for from_factory_input_id in input.from_factory_input_id:
+                for from_factory_input_id in input.from_factory_input_ids:
                     output_key = next(
                         (i for i in factory.factory_inputs
                             if i.factory_input_id == from_factory_input_id)) \
@@ -917,31 +917,31 @@ def validation_correct_item_for_input(
                     # Don't check from_factory_output for None as that should never
                     # happen if the validation have been run in the correct order.
                     # Allow a reference exception if not set.
-                    if factory_output.dispatched_item not in required_input_items:
+                    if factory_output.dispatched_item_name not in required_input_items:
                         raise FactoriesJsonError(
                             "The item dispatched by output"
                             f" '{output_key}' cannot"
                             f" be used by {consumer_desc}."
                             f"\nExpecting one of {required_input_items} but delivering"
-                            f" '{factory_output.dispatched_item}'."
+                            f" '{factory_output.dispatched_item_name}'."
                             , input.json_path)
 
     def machines_validator(machine:FactoryMachine) -> None:
         if machine.inputs is not None:
             required_input_items = \
-                data_definitions.inputs_per_item[machine.item]
+                data_definitions.inputs_per_item[machine.item_name]
             consumer_desc = f"machine '{machine.machine_id}'"
             for mi in machine.inputs:
                 inputs_validator(machine.factory, mi, required_input_items, consumer_desc)
 
     def factory_outputs_validator(output:FactoryOutput) -> None:
-        required_input_items = [output.dispatched_item]
+        required_input_items = [output.dispatched_item_name]
         consumer_desc = f"factory output '{output.factory_output_id}'"
         for ss in output.sources:
             inputs_validator(output.factory, ss, required_input_items, consumer_desc)
 
     def storage_validator(storage:FactoryStorage) -> None:
-        required_input_items = storage.items
+        required_input_items = storage.item_names
         consumer_desc = f"factory storage '{storage.storage_id}'"
         for si in storage.inputs:
             inputs_validator(storage.factory, si, required_input_items, consumer_desc)

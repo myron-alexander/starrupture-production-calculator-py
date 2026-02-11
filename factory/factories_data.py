@@ -64,10 +64,10 @@ class FactoryMachineInput:
     doesn't craft items but it does have the same kinds of sources so FactoryMachineInput is
     also used by FactoryStorage as the input definition.
     """
-    from_machine_id: list[str] | None
-    from_factory_input_id: list[str] | None
+    from_machine_ids: list[str] | None
+    from_factory_input_ids: list[str] | None
     # A factory storage may not specify itself as an input, only other storages.
-    from_storage_id: list[str] | None
+    from_storage_ids: list[str] | None
     rate_limit_ipm: int
 
     json_path:list[str]
@@ -98,7 +98,7 @@ class FactoryMachine:
     """
 
     machine_id: str
-    item: str
+    item_name: str
     variant: str | None
     """
     When the machine extracts raw items from a resource node, 'variant' is set to the purity of the
@@ -131,7 +131,7 @@ class FactoryStorage:
     """
 
     storage_id: str
-    items: list[str]
+    item_names: list[str]
     num_stacks: int
     inputs: list[FactoryMachineInput]
 
@@ -178,8 +178,8 @@ class FactoryInput:
 
 @dataclass
 class FactoryOutputSource:
-    from_machine_id: list[str] | None
-    from_storage_id: list[str] | None
+    from_machine_ids: list[str] | None
+    from_storage_ids: list[str] | None
     rate_limit_ipm: int
 
     json_path:list[str]
@@ -196,7 +196,7 @@ class FactoryOutput:
     Link to the factory that contains the machine.
     """
 
-    dispatched_item: str
+    dispatched_item_name: str
     factory_output_id: str
     rate_limit_ipm: int
     sources: list[FactoryOutputSource]
