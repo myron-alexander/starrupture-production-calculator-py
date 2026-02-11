@@ -245,7 +245,7 @@ def main():
 
 #--------------------------------------------------------------------------------------------------
 
-def dump_items(items: list[Item]):
+def dump_items(items: list[ItemRecord]):
     item_names = [item.item_name for item in items]
     item_names.sort()
     for ii in item_names:
@@ -254,13 +254,13 @@ def dump_items(items: list[Item]):
 
 #--------------------------------------------------------------------------------------------------
 
-def get_count_item_produced_from_one_machine(item_name: str, items: list[Item]) -> int:
+def get_count_item_produced_from_one_machine(item_name: str, items: list[ItemRecord]) -> int:
     item = find_item(item_name, items)
     return item.items_per_minute
 
 #--------------------------------------------------------------------------------------------------
 
-def find_building_cost(building_name: str, num_buildings: int, buildings: list[Building]) -> tuple[int, str]:
+def find_building_cost(building_name: str, num_buildings: int, buildings: list[BuildingRecord]) -> tuple[int, str]:
     """
     Returns the costs associated with the building.
 
@@ -297,7 +297,7 @@ def find_building_cost(building_name: str, num_buildings: int, buildings: list[B
 # * Cost         : The total cost in building materials to construct the number of machines.
 
 
-def print_crafting_items(buildings: list[Building]):
+def print_crafting_items(buildings: list[BuildingRecord]):
     crafted_keys = list(crafting_items)
     crafted_keys.sort(key = str.lower)
     print("%-20s %-10s %-10s %-15s" % ("", "Provided", "Required", "Num"))
@@ -321,7 +321,7 @@ def print_crafting_items(buildings: list[Building]):
 """
 
 def print_machine_tree(machine: Machine,
-                       buildings: list[Building],
+                       buildings: list[BuildingRecord],
                        depth_limit:int,
                        indent: str = "",
                        current_depth:int = 0):
@@ -370,9 +370,9 @@ NODE_RAW = 2
 #:param source_list: Which list to search: 0 = items, 1 = input, 2 = raw
 
 def walk_item_chain(    item_name: str,
-                        items: list[Item],
-                        recipe_inputs: list[RecipeInput],
-                        raw_items: list[RawItem],
+                        items: list[ItemRecord],
+                        recipe_inputs: list[RecipeInputRecord],
+                        raw_items: list[RawItemRecord],
                         required_ipm: float,
                         source_list: int = 0,
                         walk_depth: int = 0,
@@ -473,14 +473,14 @@ def is_raw(item_name: str) -> bool:
 
 #--------------------------------------------------------------------------------------------------
 
-def initialize_raw_items(raw_items: list[RawItem]):
+def initialize_raw_items(raw_items: list[RawItemRecord]):
     global raw_item_names
     for ri in raw_items:
         raw_item_names.add(ri.item_name)
 
 #--------------------------------------------------------------------------------------------------
 
-def find_item(item_name: str, items: list[Item]):
+def find_item(item_name: str, items: list[ItemRecord]):
     for i in items:
         if item_name == i.item_name:
             return i
@@ -488,7 +488,7 @@ def find_item(item_name: str, items: list[Item]):
 
 #--------------------------------------------------------------------------------------------------
 
-def find_inputs(item_name: str, recipe_inputs: list[RecipeInput]) -> list[RecipeInput]:
+def find_inputs(item_name: str, recipe_inputs: list[RecipeInputRecord]) -> list[RecipeInputRecord]:
     found = []
     for i in recipe_inputs:
         if item_name == i.item_name:
@@ -499,7 +499,7 @@ def find_inputs(item_name: str, recipe_inputs: list[RecipeInput]) -> list[Recipe
 
 #--------------------------------------------------------------------------------------------------
 
-def find_raw(item_name: str, variant: str, raw_items: list[RawItem]) -> RawItem:
+def find_raw(item_name: str, variant: str, raw_items: list[RawItemRecord]) -> RawItemRecord:
     for i in raw_items:
         if item_name == i.item_name and variant == i.variant:
             return i
@@ -552,7 +552,7 @@ SPEC_INPUTS_TEMPLATE = """,
 
 #---------------------------------------------------------------------------------------------------
 
-def generate_spec_file(aparser:argparse.ArgumentParser, args:argparse.Namespace, items:list[Item]):
+def generate_spec_file(aparser:argparse.ArgumentParser, args:argparse.Namespace, items:list[ItemRecord]):
     item_name = args.item
     if item_name is None:
         aparser.exit(1, "Must specify item name with '--item' when generating spec file.\n\n")

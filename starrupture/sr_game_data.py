@@ -20,10 +20,10 @@ StarRupture game data for item and building definitions.
 #---------------------------------------------------------------------------------------------------
 
 __all__ = [
-    'Item',
-    'RecipeInput',
-    'RawItem',
-    'Building',
+    'ItemRecord',
+    'RecipeInputRecord',
+    'RawItemRecord',
+    'BuildingRecord',
     'load_definitions'
 ]
 
@@ -46,7 +46,7 @@ from typing import TypeVar
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
-class Item:
+class ItemRecord:
     item_name: str
     num_produced: int
     period_seconds: float
@@ -57,7 +57,7 @@ class Item:
 #--------------------------------------------------------------------------------------------------
 
 @dataclass
-class RecipeInput:
+class RecipeInputRecord:
     item_name: str
     input_name: str
     num_required: int
@@ -67,7 +67,7 @@ class RecipeInput:
 #--------------------------------------------------------------------------------------------------
 
 @dataclass
-class RawItem:
+class RawItemRecord:
     item_name: str
     variant: str
     num_produced: int
@@ -79,7 +79,7 @@ class RawItem:
 #--------------------------------------------------------------------------------------------------
 
 @dataclass
-class Building:
+class BuildingRecord:
     building_name: str
     heat_cost: int
     building_material_type: str
@@ -88,7 +88,7 @@ class Building:
 
 #---------------------------------------------------------------------------------------------------
 
-T = TypeVar('T', bound=Item|RecipeInput|RawItem|Building)
+T = TypeVar('T', bound=ItemRecord|RecipeInputRecord|RawItemRecord|BuildingRecord)
 
 class CsvRowConverter(ABC):
     def __init__(self) -> None:
@@ -153,8 +153,8 @@ class ItemRowConverter(CsvRowConverter):
         super().set_headers(row)
         self.has_stacksize = "STACKSIZE" in self._header_lookup
 
-    def convert_row(self, row:list[str]) -> Item:
-        return Item(
+    def convert_row(self, row:list[str]) -> ItemRecord:
+        return ItemRecord(
             self.get_column_value("Item", row),
             int(self.get_column_value("NumProduced", row)),
             float(self.get_column_value("PeriodSeconds", row)),
@@ -173,8 +173,8 @@ class RecipeInputRowConverter(CsvRowConverter):
     def __init__(self) -> None:
         super().__init__()
 
-    def convert_row(self, row:list[str]) -> RecipeInput:
-        return RecipeInput(
+    def convert_row(self, row:list[str]) -> RecipeInputRecord:
+        return RecipeInputRecord(
             self.get_column_value("Item", row),
             self.get_column_value("Input", row),
             int(self.get_column_value("NumRequired", row)),
@@ -203,8 +203,8 @@ class RawItemRowConverter(CsvRowConverter):
         super().set_headers(row)
         self.has_stacksize = "STACKSIZE" in self._header_lookup
 
-    def convert_row(self, row:list[str]) -> RawItem:
-        return RawItem(
+    def convert_row(self, row:list[str]) -> RawItemRecord:
+        return RawItemRecord(
             self.get_column_value("Item", row),
             self.get_column_value("Variant", row),
             int(self.get_column_value("NumProduced", row)),
@@ -235,7 +235,7 @@ class BuildingRowConverter(CsvRowConverter):
         super().set_headers(row)
         self.has_numstacks = "NUMSTACKS" in self._header_lookup
 
-    def convert_row(self, row:list[str]) -> Building:
+    def convert_row(self, row:list[str]) -> BuildingRecord:
         building = self.get_column_value("Building", row)
         heat = int(self.get_column_value("Heat", row))
         num_stacks = 0
@@ -257,7 +257,7 @@ class BuildingRowConverter(CsvRowConverter):
         if build_cost is None:
             raise ValueError(f"No building cost defined for machine '{building}'.")
 
-        return Building(building, heat, build_cost[0], build_cost[1], num_stacks)
+        return BuildingRecord(building, heat, build_cost[0], build_cost[1], num_stacks)
 
 
 #---------------------------------------------------------------------------------------------------
@@ -267,7 +267,7 @@ def load_definitions(
         input_filename:str,
         raw_filename:str,
         buildings_filename:str
-    ) -> tuple[list[Item], list[RecipeInput], list[RawItem], list[Building]]:
+    ) -> tuple[list[ItemRecord], list[RecipeInputRecord], list[RawItemRecord], list[BuildingRecord]]:
     """
     Load the definitions for StarRupture items and buildings.
 
