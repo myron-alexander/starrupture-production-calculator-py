@@ -115,55 +115,15 @@ class FactoryMachine:
     Path to this data in the JSON file.
     """
 
-    _enabled:bool = False
-    """
-    Machine can only provide items to the production chain when enabled is True.
-    """
-
-    _inputs_satisfied:bool = False
-    """
-    When the machine crafts an item from input items, the value of inputs_satisfied indicates,
-    when True, that all input items are available. If inputs_satisfied is False, enabled must be
-    set to False as well.
-    """
-
-    def is_enabled(self) -> bool:
-        """
-        Machine can only provide items to the production chain when enabled is True.
-        """
-        return self._enabled and self._inputs_satisfied
-
-    def has_inputs_satisfied(self) -> bool:
-        """
-        When the machine crafts an item from input items, the return value indicates,
-        when True, that all input items are available.
-
-        When the machine extracts raw items, this will always return True.
-        """
-        return self.variant is not None or self._inputs_satisfied
-
-    def set_enabled(self) -> "FactoryMachine":
-        if not self._inputs_satisfied:
-            raise ValueError("Cannot enable a machine that has unsatisfied inputs.")
-        self._enabled = True
-        return self
-
-    def set_disabled(self) -> "FactoryMachine":
-        self._enabled = False
-        return self
-
-    def set_inputs_satisfied(self) -> "FactoryMachine":
-        self._inputs_satisfied = True
-        return self
-
-    def set_inputs_unsatisfied(self) -> "FactoryMachine":
-        self._inputs_satisfied = False
-        return self.set_disabled()
-
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
 class FactoryStorage:
+    """
+    A factory storage is different from a machine as it can never be a source of items into a
+    production chain. This is because storage is a finite, non-renewable source. Within a factory,
+    storage can only be connected as a buffer or final destination.
+    """
 
     factory: "Factory"
     """
@@ -179,50 +139,6 @@ class FactoryStorage:
     """
     Path to this data in the JSON file.
     """
-
-    _enabled:bool = False
-    """
-    Storage can only provide items to the production chain when enabled is True.
-    """
-
-    _inputs_satisfied:bool = False
-    """
-    Indicates, when True, that the inputs into the storage are capable of supplying all the
-    items named in the 'items' field. If only some, or none of the items are being supplied,
-    '_inputs_satisfied' must be False.
-    """
-
-    def is_enabled(self) -> bool:
-        """
-        Can only provide items to the production chain when enabled is True.
-        """
-        return self._enabled and self._inputs_satisfied
-
-    def has_inputs_satisfied(self) -> bool:
-        """
-        Indicates, when True, that the inputs into the storage are capable of supplying all the
-        items named in the 'items' field. If only some, or none of the items are being supplied,
-        will return False.
-        """
-        return self._inputs_satisfied
-
-    def set_enabled(self) -> "FactoryStorage":
-        if not self._inputs_satisfied:
-            raise ValueError("Cannot enable a storage that has unsatisfied inputs.")
-        self._enabled = True
-        return self
-
-    def set_disabled(self) -> "FactoryStorage":
-        self._enabled = False
-        return self
-
-    def set_inputs_satisfied(self) -> "FactoryStorage":
-        self._inputs_satisfied = True
-        return self
-
-    def set_inputs_unsatisfied(self) -> "FactoryStorage":
-        self._inputs_satisfied = False
-        return self.set_disabled()
 
 #---------------------------------------------------------------------------------------------------
 
@@ -258,11 +174,6 @@ class FactoryInput:
     def get_output_key(self) -> str:
         return make_factory_output_key(self.site_id, self.factory_id, self.factory_output_id)
 
-    #
-    # The enabled state for a FactoryInput mirrors the state of the linked FactoryOutput thus
-    # the state must be queried from the FactoryOutput.
-    #
-
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
@@ -294,48 +205,6 @@ class FactoryOutput:
     """
     Path to this data in the JSON file.
     """
-
-    _enabled:bool = False
-    """
-    Factory output can only provide items to the production chain when enabled is True.
-    """
-
-    _inputs_satisfied:bool = False
-    """
-    Indicates, when True, that the inputs into the factory output are capable of supplying the
-    dispatched item.
-    """
-
-    def is_enabled(self) -> bool:
-        """
-        Can only provide items to the production chain when enabled is True.
-        """
-        return self._enabled and self._inputs_satisfied
-
-    def has_inputs_satisfied(self) -> bool:
-        """
-        Indicates, when True, that the inputs into the factory output are capable of supplying the
-        dispatched item.
-        """
-        return self._inputs_satisfied
-
-    def set_enabled(self) -> "FactoryOutput":
-        if not self._inputs_satisfied:
-            raise ValueError("Cannot enable a factory output that has unsatisfied inputs.")
-        self._enabled = True
-        return self
-
-    def set_disabled(self) -> "FactoryOutput":
-        self._enabled = False
-        return self
-
-    def set_inputs_satisfied(self) -> "FactoryOutput":
-        self._inputs_satisfied = True
-        return self
-
-    def set_inputs_unsatisfied(self) -> "FactoryOutput":
-        self._inputs_satisfied = False
-        return self.set_disabled()
 
 #---------------------------------------------------------------------------------------------------
 
