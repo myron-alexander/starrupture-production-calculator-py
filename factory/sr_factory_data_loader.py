@@ -395,7 +395,12 @@ def make_factory_output_key(site_id:str, factory_id:str, factory_output_id:str) 
 
 #---------------------------------------------------------------------------------------------------
 
-def new_factory_input(path_node:JsonPathNode, factory_input_id:str, input_spec:dict) -> FactoryInputRecord:
+def new_factory_input(
+        path_node:JsonPathNode,
+        factory:"FactoryRecord",
+        factory_input_id:str,
+        input_spec:dict) -> FactoryInputRecord:
+
     site_id = input_spec.get("site_id")
     factory_id = input_spec.get("factory_id")
     factory_output_id = input_spec.get("factory_output_id")
@@ -413,7 +418,12 @@ def new_factory_input(path_node:JsonPathNode, factory_input_id:str, input_spec:d
             "A factory input must define a 'factory_output_id' with a non-empty string value.",
             path_node.get_path_array())
     return FactoryInputRecord(
-        factory_input_id, site_id, factory_id, factory_output_id, path_node.get_path_array())
+        factory,
+        factory_input_id,
+        site_id,
+        factory_id,
+        factory_output_id,
+        path_node.get_path_array())
 
 #---------------------------------------------------------------------------------------------------
 
@@ -453,8 +463,8 @@ def new_factory_output(
 
     return FactoryOutputRecord(
         factory,
-        dispatched_item,
         factory_output_id,
+        dispatched_item,
         output_rate_limit_ipm,
         from_machine_ids,
         from_storage_ids,
@@ -512,7 +522,7 @@ def new_factory(
                 raise FactoriesJsonError(
                     f'JSON mandatory factory input ID entry "{k}" invalid.',
                     factory_input_path_node.get_path_array())
-            factory_input = new_factory_input(factory_input_path_node.set_next(k), k, v)
+            factory_input = new_factory_input(factory_input_path_node.set_next(k), factory, k, v)
             if factory.factory_id == factory_input.factory_id \
                     and factory.site.site_id == factory_input.site_id:
                 raise FactoriesJsonError(
@@ -757,7 +767,7 @@ def validate_item_exists(
             if ii not in items:
                 raise FactoriesJsonError(
                     f"Storage '{storage.storage_id}'"
-                    f" specifies item '{ii}' that does not exist in the data definitions.", 
+                    f" specifies item '{ii}' that does not exist in the data definitions.",
                     storage.json_path)
         for ii in storage.inputs: # pyright: ignore[reportOptionalIterable]
             if ii.input_item_name not in items:

@@ -188,7 +188,18 @@ def make_factory_output_key(site_id:str, factory_id:str, factory_output_id:str) 
 
 @dataclass
 class FactoryInputRecord:
+    """
+    An entry point into this factory that is connected to a remote factory output supplying an item.
+    The name of the supplied item is taken from the linked factory output.
+    """
+
+    factory: "FactoryRecord"
+    """
+    Link to the factory that contains this input.
+    """
+
     factory_input_id: str
+
     site_id: str
     factory_id: str
     factory_output_id: str
@@ -205,13 +216,19 @@ class FactoryInputRecord:
 
 @dataclass
 class FactoryOutputRecord:
+    """
+    An egress point from this factory that is connected to a remote factory receiving the
+    dispatched item.
+    """
+
     factory: "FactoryRecord"
     """
     Link to the factory that contains the machine.
     """
 
-    dispatched_item_name: str
     factory_output_id: str
+    
+    dispatched_item_name: str
     output_rate_limit_ipm: int
 
     from_machine_ids: list[str] | None
