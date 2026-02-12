@@ -736,8 +736,7 @@ def validate_item_exists(
     raw_items = set([f"{ri.item_name};{ri.variant}" for ri in data_definitions.raw_items])
 
     # General item names for all items, including raw. For raw items, only the name is needed.
-    items = set([i.item_name for i in data_definitions.items])
-    items |= set([ri.item_name for ri in data_definitions.raw_items])
+    items = data_definitions.valid_items
 
     def machine_validator(machine:FactoryMachineRecord) -> None:
         if machine.variant is not None:
