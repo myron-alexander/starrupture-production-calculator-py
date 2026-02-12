@@ -3,9 +3,10 @@
      - A factory consists of machines. Each machine has inputs and outputs.
      - Factories can be linked.
      - A factory has a purpose. This purpose must be stated.
-     - A factory name is unique within a site. I intentionally didn't make factory name globally
-       unique, even though that is my preference, to not put artificial limits on the user.
-     - A site has a unique name.
+     - A factory identifier is unique within a site. I intentionally didn't make factory name
+       globally unique, even though that is my preference, to not put artificial limits on the user.
+     - All buildings within a factory must have a unique identifier,
+     - A site has a unique identifier.
      - A site has a location within the game world. This is not currently implemented as the
        mechanism for identifying the location hasn't been determined.
      - A site may be associated with a teleporter.

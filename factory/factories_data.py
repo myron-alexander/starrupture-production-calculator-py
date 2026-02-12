@@ -63,7 +63,7 @@ class FactoryMachineInputRecord:
     doesn't craft items but it does have the same kinds of sources so FactoryMachineInput is
     also used by FactoryStorage as the input definition.
     """
-    
+
     input_item_name:str
     """
     Name of the item to be supplied to the machine. All the listed sources must provide this item.
@@ -227,7 +227,7 @@ class FactoryOutputRecord:
     """
 
     factory_output_id: str
-    
+
     dispatched_item_name: str
     output_rate_limit_ipm: int
 
@@ -259,6 +259,10 @@ class FactoryRecord:
         self.factory_outputs: list[FactoryOutputRecord] = list()
         self.factory_storage: list[FactoryStorageRecord] = list()
 
+        # All buildings within the factory must have an identity that is unique to the factory.
+        # Thus all the machines, storage, factory inputs, and output buildings within the factory
+        # will have an identity that is different to all other buildings of the factory.
+
 
     def add_machine(self, machine: FactoryMachineRecord) -> None:
         self.factory_machines.append(machine)
@@ -285,6 +289,8 @@ class SiteRecord:
     Path to this data in the JSON file.
     """
     factories: list[FactoryRecord] = field(default_factory=list)
+
+    # All factories within the site must have a unique identity.
 
     def add_factory(self, factory: FactoryRecord) -> None:
         self.factories.append(factory)

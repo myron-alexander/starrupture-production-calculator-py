@@ -1007,6 +1007,48 @@ def validation_correct_item_for_input(
 
 #---------------------------------------------------------------------------------------------------
 
+def validate_factory_id_unique_in_site(factory_definitions: FactoryDefinitions) -> None:
+    """
+    Ensure that that all factories have a unique identifier within a site.
+    Run just before validate_building_id_unique_in_factory.
+    """
+    dup_msgs:list[str] = []
+    for site in factory_definitions.sites:
+        duplicates = [d for d,i in Counter([b.factory_id for b in site.factories]).items() if i > 1]
+        if 0 < len(duplicates):
+            dup_msgs.append(
+                f"Site '{site.site_id}'has duplicate factory IDs: {duplicates}")
+    if 0 < len(dup_msgs):
+        raise FactoriesJsonError(
+            "All factories within a site must have a unique identifier.\n" +
+            "\n".join(dup_msgs))
+
+#---------------------------------------------------------------------------------------------------
+
+def validate_building_id_unique_in_factory(factory_definitions: FactoryDefinitions) -> None:
+    """
+    Ensure that every building within the same factory has a unique identity.
+    Run after other validations.
+    """
+    dup_msgs:list[str] = []
+    for site in factory_definitions.sites:
+        for factory in site.factories:
+            ids:list[str] = [b.machine_id for b in factory.factory_machines]
+            ids.extend([b.storage_id for b in factory.factory_storage])
+            ids.extend([b.factory_input_id for b in factory.factory_inputs])
+            ids.extend([b.factory_output_id for b in factory.factory_outputs])
+            duplicates = [d for d,i in Counter(ids).items() if i > 1]
+            if 0 < len(duplicates):
+                dup_msgs.append(
+                    f"Factory '{site.site_id}'->'{factory.factory_id}' has duplicate building IDs:"
+                    f" {duplicates}")
+    if 0 < len(dup_msgs):
+        raise FactoriesJsonError(
+            "All buildings within a factory must have a unique identifier.\n" +
+            "\n".join(dup_msgs))
+
+#---------------------------------------------------------------------------------------------------
+
 # The function assigned to object_pairs_hook will be called with every JSON object. The processing
 # order of nested objects is inner most object first IE ascending up the hierarchy.
 # The JSON object will be converted into an array of key,value tuples.
@@ -1078,6 +1120,8 @@ def load_factories_json(
     validate_item_exists(factory_definitions, game_data_definitions)
     validate_connections_exist(factory_definitions)
     validation_correct_item_for_input(factory_definitions, game_data_definitions)
+    validate_factory_id_unique_in_site(factory_definitions)
+    validate_building_id_unique_in_factory(factory_definitions)
     return factory_definitions
 
 #---------------------------------------------------------------------------------------------------
