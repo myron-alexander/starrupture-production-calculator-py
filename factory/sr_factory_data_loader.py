@@ -253,12 +253,17 @@ def validate_source_list(path_node:JsonPathNode, description:str, source:str, va
 
 def new_factory_machine_input(
         path_node:JsonPathNode, input_spec:dict) -> FactoryMachineInputRecord:
-    from_machine_id = input_spec.get("from_machine_id")
-    from_factory_input_id = input_spec.get("from_factory_input_id")
-    from_storage_id = input_spec.get("from_storage_id")
+    input_item_name = input_spec.get("input_item")
+    from_machine_ids = input_spec.get("from_machine_ids")
+    from_factory_input_ids = input_spec.get("from_factory_input_ids")
+    from_storage_ids = input_spec.get("from_storage_ids")
     rate_limit_ipm = input_spec.get("rate_limit_ipm")
 
-    if from_machine_id is None and from_factory_input_id is None and from_storage_id is None:
+    if type(input_item_name) is not str or missing_string(input_item_name):
+        raise FactoriesJsonError(
+            "A factory machine input must define 'input_item' with a non-empty string value.",
+            path_node.get_path_array())
+    if from_machine_ids is None and from_factory_input_ids is None and from_storage_ids is None:
         raise FactoriesJsonError(
             "A factory machine input must specify at least one of"
             " 'from_machine_id', 'from_factory_input_id', 'from_storage_id'.",
@@ -269,14 +274,15 @@ def new_factory_machine_input(
             " of at least 1.",
             path_node.get_path_array())
     d = "factory machine input"
-    validate_source_list(path_node, d, "from_machine_id", from_machine_id)
-    validate_source_list(path_node, d, "from_factory_input_id", from_factory_input_id)
-    validate_source_list(path_node, d, "from_storage_id", from_storage_id)
+    validate_source_list(path_node, d, "from_machine_id", from_machine_ids)
+    validate_source_list(path_node, d, "from_factory_input_id", from_factory_input_ids)
+    validate_source_list(path_node, d, "from_storage_id", from_storage_ids)
 
     return FactoryMachineInputRecord(
-        from_machine_id,
-        from_factory_input_id,
-        from_storage_id,
+        input_item_name,
+        from_machine_ids,
+        from_factory_input_ids,
+        from_storage_ids,
         int(rate_limit_ipm),
         path_node.get_path_array())
 
@@ -411,30 +417,6 @@ def new_factory_input(path_node:JsonPathNode, factory_input_id:str, input_spec:d
 
 #---------------------------------------------------------------------------------------------------
 
-def new_factory_output_source(path_node:JsonPathNode, source_spec:dict) -> FactoryOutputSourceRecord:
-    from_machine_id = source_spec.get("from_machine_id")
-    from_storage_id = source_spec.get("from_storage_id")
-    rate_limit_ipm = source_spec.get("rate_limit_ipm")
-
-    if from_machine_id is None and from_storage_id is None:
-        raise FactoriesJsonError(
-            "A factory output source must specify at least one of"
-            " 'from_machine_id', 'from_storage_id'.", path_node.get_path_array())
-
-    if type(rate_limit_ipm) is not int or rate_limit_ipm < 1:
-        raise FactoriesJsonError(
-            "A factory output source must define 'rate_limit_ipm' with an integer value of at"
-            " least 1.",
-            path_node.get_path_array())
-
-    validate_source_list(path_node, "factory output source", "from_machine_id", from_machine_id)
-    validate_source_list(path_node, "factory output source", "from_storage_id", from_storage_id)
-
-    return FactoryOutputSourceRecord(
-        from_machine_id, from_storage_id, rate_limit_ipm, path_node.get_path_array())
-
-#---------------------------------------------------------------------------------------------------
-
 def new_factory_output(
         path_node:JsonPathNode,
         factory:"FactoryRecord",
@@ -442,30 +424,41 @@ def new_factory_output(
         output_spec:dict) -> FactoryOutputRecord:
 
     dispatched_item = output_spec.get("dispatched_item")
-    rate_limit_ipm = output_spec.get("rate_limit_ipm")
-    sources = output_spec.get("sources")
+    output_rate_limit_ipm = output_spec.get("output_rate_limit_ipm")
+    from_machine_ids = output_spec.get("from_machine_ids")
+    from_storage_ids = output_spec.get("from_storage_ids")
+    input_rate_limit_ipm = output_spec.get("input_rate_limit_ipm")
 
     if type(dispatched_item) is not str or missing_string(dispatched_item):
         raise FactoriesJsonError(
             "A factory output must define a 'dispatched_item' with a non-empty string value.",
             path_node.get_path_array())
-    if type(rate_limit_ipm) is not int or rate_limit_ipm < 1:
+    if type(output_rate_limit_ipm) is not int or output_rate_limit_ipm < 1:
         raise FactoriesJsonError(
-            "A factory output must define a 'rate_limit_ipm' with an integer value of at least 1.",
+            "A factory output must define a 'output_rate_limit_ipm' with an integer value of at"
+            " least 1.",
             path_node.get_path_array())
-    if type(sources) is not list or len(sources) < 1:
+    if from_machine_ids is None and from_storage_ids is None:
         raise FactoriesJsonError(
-            "A factory output must define 'sources' as a non-empty list.",
+            "A factory output must specify at least one of"
+            " 'from_machine_id', 'from_storage_id'.", path_node.get_path_array())
+    if type(input_rate_limit_ipm) is not int or input_rate_limit_ipm < 1:
+        raise FactoriesJsonError(
+            "A factory output must define 'input_rate_limit_ipm' with an integer value of at"
+            " least 1.",
             path_node.get_path_array())
-    source_path_node = path_node.set_next("sources")
-    sources = [new_factory_output_source(source_path_node, ss) for ss in sources]
-    source_path_node.truncate()
+
+    validate_source_list(path_node, "factory output source", "from_machine_ids", from_machine_ids)
+    validate_source_list(path_node, "factory output source", "from_storage_ids", from_storage_ids)
+
     return FactoryOutputRecord(
         factory,
         dispatched_item,
         factory_output_id,
-        rate_limit_ipm,
-        sources,
+        output_rate_limit_ipm,
+        from_machine_ids,
+        from_storage_ids,
+        input_rate_limit_ipm,
         path_node.get_path_array()
     )
 
@@ -729,10 +722,14 @@ def validate_item_exists(
     :type data_definitions: DataDefinitions
     """
 
+    # Raw item names must include the variant.
     raw_items = set([f"{ri.item_name};{ri.variant}" for ri in data_definitions.raw_items])
-    items = set([i.item_name for i in data_definitions.items])
 
-    def validator(machine:FactoryMachineRecord) -> None:
+    # General item names for all items, including raw. For raw items, only the name is needed.
+    items = set([i.item_name for i in data_definitions.items])
+    items |= set([ri.item_name for ri in data_definitions.raw_items])
+
+    def machine_validator(machine:FactoryMachineRecord) -> None:
         if machine.variant is not None:
             # Raw item
             raw_item = f"{machine.item_name};{machine.variant}"
@@ -748,8 +745,37 @@ def validate_item_exists(
                     f"Machine '{machine.machine_id}'"
                     f" specifies item '{machine.item_name}' that does not exist in the data"
                     " definitions.", machine.json_path)
+            for ii in machine.inputs: # pyright: ignore[reportOptionalIterable]
+                if ii.input_item_name not in items:
+                    raise FactoriesJsonError(
+                        f"Machine '{machine.machine_id}'"
+                        f" specifies input item '{ii.input_item_name}' that does not exist in the"
+                        " data definitions.", ii.json_path)
 
-    visit_all_machines(factory_definitions, validator)
+    def storage_validator(storage:FactoryStorageRecord) -> None:
+        for ii in storage.item_names:
+            if ii not in items:
+                raise FactoriesJsonError(
+                    f"Storage '{storage.storage_id}'"
+                    f" specifies item '{ii}' that does not exist in the data definitions.", 
+                    storage.json_path)
+        for ii in storage.inputs: # pyright: ignore[reportOptionalIterable]
+            if ii.input_item_name not in items:
+                raise FactoriesJsonError(
+                    f"Storage '{storage.storage_id}'"
+                    f" specifies input item '{ii.input_item_name}' that does not exist in the"
+                    " data definitions.", ii.json_path)
+
+    def output_validator(output:FactoryOutputRecord) -> None:
+        if output.dispatched_item_name not in items:
+            raise FactoriesJsonError(
+                f"Factory output '{output.factory_output_id}'"
+                f" specifies a dispatched item '{output.dispatched_item_name}' that doesn't exist"
+                " in the data definitions.", output.json_path)
+
+    visit_all_machines(factory_definitions, machine_validator)
+    visit_all_factory_storage(factory_definitions, storage_validator)
+    visit_all_factory_outputs(factory_definitions, output_validator)
 
 #---------------------------------------------------------------------------------------------------
 
@@ -769,7 +795,7 @@ def validate_connections_exist(factory_definitions: FactoryDefinitions) -> None:
             machine_ids:set[str],
             input_ids:set[str],
             storage_ids:set[str],
-            input:FactoryMachineInputRecord|FactoryOutputSourceRecord) -> None:
+            input:FactoryMachineInputRecord|FactoryOutputRecord) -> None:
         if input.from_machine_ids is not None:
             for from_machine_id in input.from_machine_ids:
                 if from_machine_id not in machine_ids:
@@ -818,8 +844,7 @@ def validate_connections_exist(factory_definitions: FactoryDefinitions) -> None:
                 #
                 # Validate that linked machines exist within the same factory.
                 #
-                for source in factory_output.sources:
-                    validate_machine_inputs(machine_ids, input_ids, storage_ids, source)
+                validate_machine_inputs(machine_ids, input_ids, storage_ids, factory_output)
                 key = make_factory_output_key(
                         site.site_id,
                         factory.factory_id,
@@ -862,8 +887,8 @@ def validation_correct_item_for_input(
 
     def inputs_validator(
             factory:FactoryRecord,
-            input:FactoryMachineInputRecord|FactoryOutputSourceRecord,
-            required_input_items:list[str],
+            input:FactoryMachineInputRecord|FactoryOutputRecord,
+            required_input_item:str,
             consumer_desc:str) -> None:
 
         if input.from_machine_ids is not None:
@@ -875,11 +900,11 @@ def validation_correct_item_for_input(
                     (m for m in factory.factory_machines
                         if m.machine_id == from_machine_id)
                 )
-                if from_machine.item_name not in required_input_items:
+                if from_machine.item_name != required_input_item:
                     raise FactoriesJsonError(
                         f"The item produced by machine '{from_machine_id}' cannot"
                         f" be used by {consumer_desc}."
-                        f"\nExpecting one of {required_input_items} but delivering"
+                        f"\nExpecting '{required_input_item}' but delivering"
                         f" '{from_machine.item_name}'."
                         , input.json_path)
 
@@ -893,11 +918,11 @@ def validation_correct_item_for_input(
                     (m for m in factory.factory_storage
                         if m.storage_id == from_storage_id)
                 )
-                if set(storage.item_names).isdisjoint(required_input_items):
+                if required_input_item not in set(storage.item_names):
                     raise FactoriesJsonError(
                         f"The item supplied by storage '{from_storage_id}' cannot"
                         f" be used by {consumer_desc}."
-                        f"\nExpecting one of {required_input_items} but delivering"
+                        f"\nExpecting '{required_input_item}' but delivering"
                         f" '{storage.item_names}'."
                         , input.json_path)
 
@@ -917,12 +942,12 @@ def validation_correct_item_for_input(
                     # Don't check from_factory_output for None as that should never
                     # happen if the validation have been run in the correct order.
                     # Allow a reference exception if not set.
-                    if factory_output.dispatched_item_name not in required_input_items:
+                    if factory_output.dispatched_item_name != required_input_item:
                         raise FactoriesJsonError(
                             "The item dispatched by output"
                             f" '{output_key}' cannot"
                             f" be used by {consumer_desc}."
-                            f"\nExpecting one of {required_input_items} but delivering"
+                            f"\nExpecting '{required_input_item}' but delivering"
                             f" '{factory_output.dispatched_item_name}'."
                             , input.json_path)
 
@@ -931,20 +956,41 @@ def validation_correct_item_for_input(
             required_input_items = \
                 data_definitions.inputs_per_item[machine.item_name]
             consumer_desc = f"machine '{machine.machine_id}'"
+            num_inputs_to_recipe = len(required_input_items)
+            num_specified_inputs = len(machine.inputs)
+            if num_inputs_to_recipe < num_specified_inputs:
+                raise FactoriesJsonError(
+                    "The number of inputs specifed exceed the number in the recipe for item"
+                    f" '{machine.item_name}'. Recipe requires {num_inputs_to_recipe} but specified"
+                    f" {num_specified_inputs}.", machine.json_path)
+            if len(set([n.input_item_name for n in machine.inputs])) < num_specified_inputs:
+                raise FactoriesJsonError(
+                    "An input item may only be specified once within the inputs list.",
+                    machine.json_path)
             for mi in machine.inputs:
-                inputs_validator(machine.factory, mi, required_input_items, consumer_desc)
+                if mi.input_item_name not in required_input_items:
+                    raise FactoriesJsonError(
+                         "The item specified for input is not one of the items needed to craft"
+                        f" '{machine.item_name}' and cannot be used by {consumer_desc}."
+                        f"\nExpecting {required_input_items} but specifying '{mi.input_item_name}'."
+                        , mi.json_path)
+                inputs_validator(machine.factory, mi, mi.input_item_name, consumer_desc)
 
     def factory_outputs_validator(output:FactoryOutputRecord) -> None:
-        required_input_items = [output.dispatched_item_name]
         consumer_desc = f"factory output '{output.factory_output_id}'"
-        for ss in output.sources:
-            inputs_validator(output.factory, ss, required_input_items, consumer_desc)
+        inputs_validator(output.factory, output, output.dispatched_item_name, consumer_desc)
 
     def storage_validator(storage:FactoryStorageRecord) -> None:
         required_input_items = storage.item_names
         consumer_desc = f"factory storage '{storage.storage_id}'"
         for si in storage.inputs:
-            inputs_validator(storage.factory, si, required_input_items, consumer_desc)
+            if si.input_item_name not in required_input_items:
+                raise FactoriesJsonError(
+                     "The item specified for input is not one of the items that can be stored "
+                    f" thus cannot be used by {consumer_desc}."
+                    f"\nExpecting {required_input_items} but specifying '{si.input_item_name}'."
+                    , si.json_path)
+            inputs_validator(storage.factory, si, si.input_item_name, consumer_desc)
 
     visit_all_machines(factory_definitions, machines_validator)
     visit_all_factory_outputs(factory_definitions, factory_outputs_validator)

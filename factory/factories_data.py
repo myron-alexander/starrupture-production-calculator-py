@@ -45,7 +45,6 @@ __all__ = [
     'FactoryStorageRecord',
     'FactoryInputRecord',
     'FactoryOutputRecord',
-    'FactoryOutputSourceRecord',
     'make_factory_output_key'
 ]
 
@@ -64,11 +63,38 @@ class FactoryMachineInputRecord:
     doesn't craft items but it does have the same kinds of sources so FactoryMachineInput is
     also used by FactoryStorage as the input definition.
     """
+    
+    input_item_name:str
+    """
+    Name of the item to be supplied to the machine. All the listed sources must provide this item.
+    """
+
     from_machine_ids: list[str] | None
+    """
+    Optional list of machines that provide the item named in "input_item_name".
+    If this list is not None, the list may not be empty.
+    """
+
     from_factory_input_ids: list[str] | None
+    """
+    Optional list of factory inputs that provide the item named in "input_item_name" from another
+    factory.
+    If this list is not None, the list may not be empty.
+    """
+
     # A factory storage may not specify itself as an input, only other storages.
     from_storage_ids: list[str] | None
+    """
+    Optional list of storage machines that provide the item named in "input_item_name". If the
+    receiving machine is also a storage, it may not specify itself as an item source.
+    If this list is not None, the list may not be empty.
+    """
+
     rate_limit_ipm: int
+    """
+    The maximum rate that items can be received into this input port. Generally defined by tne
+    rails type but can be set to a lower value if it makes sense.
+    """
 
     json_path:list[str]
     """
@@ -104,10 +130,11 @@ class FactoryMachineRecord:
     When the machine extracts raw items from a resource node, 'variant' is set to the purity of the
     resource node, otherwise it is set to None.
     """
+
     inputs: list[FactoryMachineInputRecord] | None
     """
     When the machine crafts an item from other items, 'inputs' is set to the list of item suppliers,
-    otherwise it is set to None.
+    otherwise it is set to None. Each member of the list corresponds to one input into the recipe.
     """
 
     json_path:list[str]
@@ -177,19 +204,6 @@ class FactoryInputRecord:
 #---------------------------------------------------------------------------------------------------
 
 @dataclass
-class FactoryOutputSourceRecord:
-    from_machine_ids: list[str] | None
-    from_storage_ids: list[str] | None
-    rate_limit_ipm: int
-
-    json_path:list[str]
-    """
-    Path to this data in the JSON file.
-    """
-
-#---------------------------------------------------------------------------------------------------
-
-@dataclass
 class FactoryOutputRecord:
     factory: "FactoryRecord"
     """
@@ -198,8 +212,11 @@ class FactoryOutputRecord:
 
     dispatched_item_name: str
     factory_output_id: str
-    rate_limit_ipm: int
-    sources: list[FactoryOutputSourceRecord]
+    output_rate_limit_ipm: int
+
+    from_machine_ids: list[str] | None
+    from_storage_ids: list[str] | None
+    input_rate_limit_ipm: int
 
     json_path:list[str]
     """

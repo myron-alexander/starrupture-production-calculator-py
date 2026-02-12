@@ -47,11 +47,19 @@
                             // If the machine is an extractor, this is required.
                             // Values are: "impure", "normal", "pure"
                             "variant": "",
-                            // If the machine is not an extractor, this is required.
+                            // If the machine crafts an item from other items, this is required.
+                            // There will be one entry in the array for each of the items required
+                            // to craft the craftable.
                             "inputs": [
                                 {
+                                    // Must correspond with one of the recipe items used to craft
+                                    // "item". The "input_item" may only appear once in the
+                                    // "inputs" list.
+                                    "input_item": "",
                                     /*
                                     Inputs can be merged from multiple source into one connection.
+                                    All the inputs listed here must supply the item specified by
+                                    "input_item".
                                     */
                                     "from_machine_ids": [""],
                                     "from_factory_input_ids": [""],
@@ -91,18 +99,19 @@
                             v.3   480 |       12.5s | 22.5s |       2.667 |      266.667 |
                             */
                             // The maximum rate that items can be transferred out of the factory
-                            "rate_limit_ipm": 0,
-                            "sources": [
-                                {
-                                    // Not supporting source from factory input is intentional.
-                                    // The factory output is intended to provide a point of egress
-                                    // only for items made within this factory.
-                                    "from_machine_ids": [""],
-                                    "from_storage_ids": [""],
-                                    // The maximum rate at which items can be transferred along this connection
-                                    "rate_limit_ipm": 0
-                                }
-                            ]
+                            // over this connection.
+                            "output_rate_limit_ipm": 0,
+                            
+                            // Every source in the list must provide the item named in
+                            // "dipatched_item".
+                            // Not supporting source from factory input is intentional.
+                            // The factory output is intended to provide a point of egress
+                            // only for items made within this factory.
+                            "from_machine_ids": [""],
+                            "from_storage_ids": [""],
+                            // The maximum rate at which items can be received along this
+                            // connection.
+                            "input_rate_limit_ipm": 0
                         }
                     },
                     // 'storage' is optional and is only required when the factory contains
@@ -121,8 +130,14 @@
                             "num_stacks": 0,
                             "inputs": [
                                 {
+                                    // Corresponds with one of the items listed in the storage
+                                    // "items" list. An "input_item" may only appear once in
+                                    // "inputs" list.
+                                    "input_item": "",
                                     /*
                                     Inputs can be merged from multiple source into one connection.
+                                    All the inputs listed here must supply the item specified by
+                                    "input_item".
                                     */
                                     "from_machine_ids": [""],
                                     "from_factory_input_ids": [""],
