@@ -3,7 +3,11 @@
 A Flask web application for managing pins on the Starrupture map with coordinate tracking.
 
 Written by CoPilot using chat prompts with the only edits I performed by hand being this paragraph.
-This was done as an exercise in using the AI to build an entire program.
+This was done as an exercise in using the AI to build an entire program. The map image,
+starrupture_map_outline.png, was created by me in GIMP 2. The grid was drawn using a filter and the
+grid number labels were done mostly by hand but the Y axis labels were positioned using a
+script-fu script created by a combination of DuckDuckGo and Google's AI to copy the text layer and
+move 50 pixels up.
 
 ## Features
 
