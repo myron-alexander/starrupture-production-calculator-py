@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starrupture Map - Pin Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="dark-mode">
+    <div class="container">
+        <header>
+            <h1>Starrupture Map Pin Manager</h1>
+            <p>Click on the map to add pins at specific coordinates (X, Y)</p>
+        </header>
+
+        <div class="content">
+            <div class="map-section">
+                <div class="map-container" id="mapContainer">
+                    <img id="mapImage" src="{{ url_for('map_image') }}" alt="Starrupture Map">
+                    <div id="pinsOverlay" class="pins-overlay"></div>
+                </div>
+                <div class="coordinates-display">
+                    <span>Grid X: <span id="coordX">-</span></span>
+                    <span>Grid Y: <span id="coordY">-</span></span>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="panel">
+                    <h2>Add Pin</h2>
+                    <div class="form-group">
+                        <label for="pinName">Pin Name:</label>
+                        <input type="text" id="pinName" placeholder="Enter pin name" value="New Location">
+                    </div>
+                    <div class="form-group">
+                        <label for="pinX">Grid X:</label>
+                        <input type="number" id="pinX" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="pinY">Grid Y:</label>
+                        <input type="number" id="pinY" value="0">
+                    </div>
+                    <button id="addPinBtn" class="btn btn-primary">Add Pin</button>
+                </div>
+
+                <div class="panel">
+                    <h2>Pins List</h2>
+                    <div id="pinsList" class="pins-list">
+                        <div class="pin-item empty">No pins yet</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for editing pins -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Edit Pin</h2>
+            <div class="form-group">
+                <label for="editPinName">Pin Name:</label>
+                <input type="text" id="editPinName">
+            </div>
+            <div class="form-group">
+                <label for="editPinX">Grid X:</label>
+                <input type="number" id="editPinX">
+            </div>
+            <div class="form-group">
+                <label for="editPinY">Grid Y:</label>
+                <input type="number" id="editPinY">
+            </div>
+            <div class="modal-buttons">
+                <button id="savePinBtn" class="btn btn-primary">Save</button>
+                <button id="deletePinBtn" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

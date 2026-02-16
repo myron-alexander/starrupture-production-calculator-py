@@ -1,0 +1,383 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+}
+
+body.dark-mode {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+}
+
+.container {
+    max-width: 1800px;
+    margin: 0 auto;
+    padding: 20px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+header h1 {
+    font-size: 28px;
+    margin-bottom: 5px;
+}
+
+header p {
+    opacity: 0.9;
+    font-size: 14px;
+}
+
+.content {
+    display: flex;
+    gap: 20px;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Map Section */
+.map-section {
+    flex: 1;
+    background: #2d2d2d;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.map-container {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: 4px;
+    border: 2px solid #444;
+}
+
+.map-container img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.pins-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.pin {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    background: #667eea;
+    border: 2px solid white;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+    z-index: 10;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transform: translate(-50%, -50%);
+}
+
+.pin:hover {
+    transform: translate(-50%, -50%) scale(1.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    background: #5568d3;
+}
+
+.pin-tooltip {
+    position: absolute;
+    background: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 100;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.pin:hover .pin-tooltip {
+    opacity: 1;
+}
+
+.coordinates-display {
+    margin-top: 15px;
+    font-size: 14px;
+    color: #b0b0b0;
+    display: flex;
+    gap: 20px;
+    font-family: monospace;
+}
+
+.coordinates-display span {
+    background: #3d3d3d;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #444;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+}
+
+.panel {
+    background: #2d2d2d;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    border: 1px solid #3d3d3d;
+}
+
+.panel h2 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #e0e0e0;
+    border-bottom: 2px solid #667eea;
+    padding-bottom: 10px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #b0b0b0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+    background-color: #3d3d3d;
+    color: #e0e0e0;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    background-color: #474747;
+}
+
+.btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn-primary {
+    background-color: #667eea;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #5568d3;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.btn-danger {
+    background-color: #f56565;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #e53e3e;
+}
+
+/* Pins List */
+.pins-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.pin-item {
+    background: #3d3d3d;
+    border-left: 4px solid #667eea;
+    padding: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid #4d4d4d;
+}
+
+.pin-item:hover {
+    background: #474747;
+    transform: translateX(5px);
+}
+
+.pin-item-name {
+    font-weight: 600;
+    color: #e0e0e0;
+    margin-bottom: 4px;
+}
+
+.pin-item-coords {
+    font-size: 12px;
+    color: #909090;
+    font-family: monospace;
+}
+
+.pin-item.empty {
+    text-align: center;
+    color: #707070;
+    padding: 20px 12px;
+    border: none;
+    cursor: default;
+}
+
+.pin-item.empty:hover {
+    background: #3d3d3d;
+    transform: none;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: #2d2d2d;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    width: 90%;
+    max-width: 400px;
+    border: 1px solid #3d3d3d;
+}
+
+.modal-content h2 {
+    margin-bottom: 20px;
+    color: #e0e0e0;
+}
+
+.close {
+    color: #707070;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 20px;
+}
+
+.close:hover {
+    color: #e0e0e0;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.modal-buttons .btn {
+    flex: 1;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2d2d2d;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #777;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .content {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        max-height: 300px;
+    }
+
+    .map-section {
+        min-height: 400px;
+    }
+}
