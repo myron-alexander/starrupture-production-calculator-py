@@ -3,6 +3,7 @@
 
 # Miscellaneous working files.
 scratch/
+map_builder/pins_data.json
 
 # Python temp files
 **/__pycache__/
