@@ -4,6 +4,7 @@
 # Miscellaneous working files.
 scratch/
 map_builder/pins_data.json
+map_builder/starrupture_map_filled.png
 
 # Python temp files
 **/__pycache__/
