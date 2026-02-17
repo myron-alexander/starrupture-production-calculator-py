@@ -11,6 +11,10 @@ app = Flask(__name__)
 # Configuration
 PINS_FILE = 'pins_data.json'
 MAP_IMAGE = 'starrupture_map_outline.png'
+FILLED_MAP_IMAGE = 'starrupture_map_filled.png'
+
+def get_map_image_filename() -> str:
+    return FILLED_MAP_IMAGE if os.path.exists(FILLED_MAP_IMAGE) else MAP_IMAGE
 
 # Initialize pins storage
 def load_pins():
@@ -34,7 +38,7 @@ def index():
 @app.route('/map-image')
 def map_image():
     """Serve the map image."""
-    return send_file(MAP_IMAGE, mimetype='image/png')
+    return send_file(get_map_image_filename(), mimetype='image/png')
 
 @app.route('/api/pins', methods=['GET'])
 def get_pins():

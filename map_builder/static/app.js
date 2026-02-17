@@ -22,7 +22,7 @@ let selectedPinId = null;
 
 // Grid configuration
 const GRID_ORIGIN_X = 350;  // Pixel X coordinate of grid origin
-const GRID_ORIGIN_Y = 1600; // Pixel Y coordinate of grid origin
+const GRID_ORIGIN_Y = 1650; // Pixel Y coordinate of grid origin
 const GRID_SPACING = 50;    // Pixels between grid lines
 
 // Convert pixel coordinates to grid coordinates
