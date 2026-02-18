@@ -1,9 +1,11 @@
 Building;Heat;BbmCost;IbmCost;QbmCost;NumStacks
 assembler;150;;200;;1
 base core amplifier v.1;-20;;140;;0
+base core amplifier v.2;-250;;;100;0
 cargo dispatcher;40;;50;;1
 cargo receiver;40;;120;;3
 compounder;150;;180;;1
+defense tower;30;;220;;4
 defense turret;20;200;;;3
 fabricator;5;140;;;1
 furnace;8;200;;;1
@@ -16,6 +18,7 @@ ore excavator;3;80;;;1
 refinery;60;;150;;1
 smelter;3;100;;;1
 solar generator v.1;5;40;;;0
+solar generator v.2;250;;200;;0
 storage depot v.1;5;100;;;4
 storage depot v.2;40;;150;;16
 sulfur extractor;60;;120;;1
