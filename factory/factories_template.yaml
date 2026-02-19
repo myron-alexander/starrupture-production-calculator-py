@@ -46,8 +46,10 @@
 #
 
 sites:
+  
   # The site ID is a name provided by the user. The site ID must be globally unique.
   <site id>:
+
     # Optional. Populated by the user when the site is near a teleporter. When the user has not
     # filled in the teleporter name, this entry is written to the file with an empty string value.
     teleporter: ""
@@ -79,19 +81,21 @@ sites:
         #   "calcium ore", "helium-3", "sulfur ore", "titanium ore", "wolfram ore"
         # This list may change as the game develops so the valid list should be provided by the web
         # server. May not be an empty string, must always be one of the valid items.
-        resource_item: ""
+        resource_item: "selected valid resource name"
 
         # Required. Available rate of supply in items per minute. This is a user provided value.
-        # Only positive integer values are allowed.
-        rate_ipm: 0
+        # Only positive integer values greater than one are allowed.
+        rate_ipm: 1
 
         # Required. Values are: "impure", "normal", "pure". This is purely descriptive and is
         # selected by the user.
-        variant: ""
+        variant: "variant name"
 
-        # Optional until specified as an input to a factory machine, then required. This
-        # specifies the core that the actual extractor machine belongs to.
-        core_id: ""
+        # Value is optional until specified as an input to a factory machine, then required. This
+        # specifies the core that the actual extractor machine belongs to. When populated,
+        # the value must be a valid core_id defined in the cores list of this site. When not
+        # specified, this entry is written to the file with an empty string.
+        core_id: "valid core id or an empty string"
 
     # Cores are optional for a site when no factories are defined but required before a factory
     # can be added. A core is a game mechanism that restricts that size of a factory through the
@@ -103,9 +107,11 @@ sites:
     # at intervals and if they overwhelm the base defences, the factory buildings will be
     # destroyed. The higher the core level, the stronger the raid.
     cores:
+      
       # Core IDs must be unique within the site. The cores are specific to the site so the IDs don't
       # need to be globally unique. The core ID is a name provide by the user.
       <core id>:
+      
         # Required. The core cooling level that is also the danger level. Default value is zero.
         # Valid values are: 0, 1, 2, 3, 4.
         # Core level to heat limit mapping:
@@ -120,7 +126,8 @@ sites:
         # buildings that are associated with the core. However, not all buildings are part of the
         # manufacturing chain so those buildings need to be listed for the heat calculation.
         non_production_buildings:
-          # A list of buildings that do not contribute to the production chain. This is a list so
+          # A list of buildings that do not contribute to the production chain. The building name
+          # must be from a valid list of buildings supplied from the web server. This is a list so
           # that the building names are not required to be unique. The number is the building count.
           # The building name is chosen from a list of valid names supplied by the web server.
           # Example valid names include "base core amplifier v.1", "defense turret", "habitat",
@@ -140,6 +147,7 @@ sites:
     # near resource nodes while they are exploring the map in order to note the locations of those
     # resources.
     factories:
+
       # Factory IDs must be unique within the site. The factory ID is a name provided by the user
       # when creating the factory.
       <factory id>:
@@ -151,7 +159,8 @@ sites:
         # All factory buildings must be associated with a core but it is possible for a factory
         # to span multiple cores so some factory buildings associated with a core while other
         # buildings associated with a different core. The default core is the value used when
-        # a factory building doesn't have a core specified.
+        # a factory building doesn't have a core specified. The value must be a valid core_id
+        # defined within the cores list of this site.
         default_core: "core id"
 
         # TODO
@@ -164,45 +173,110 @@ sites:
             # factory and cannot be the same as a resource ID since those are treated as machines
             # shared across factories.
             # The machine ID is a name provided by the user when creating the machine.
+            # No building is defined for the crafting machine as the crafted item can only be
+            # made in a specific building so the building details are inferred from the crafted
+            # item.
             <machine id>:
 
               # Required. The item that is crafted by this machine. The list of valid items is
-              # provided by the web server. The user will select from a list of valid items.
-              crafted_item: ""
+              # provided by the web server. The user will select from a sorted list of valid items.
+              crafted_item: "valid item name"
 
               # Required. There will be one entry in the array for each of the items required
               # to craft the craftable. The required items are specified by the crafted item
               # recipe. The recipe is provided by the web server.
               inputs:
-                - # Must correspond with one of the recipe items used to craft
-                  # "item". The "input_item" may only appear once in the
-                  # "inputs" list.
-                  input_item: ""
+                - # Must correspond with one of the recipe items used to craft "item". The
+                  # "input_item" may only appear once in the "inputs" list. The user will select
+                  # from a sorted list of valid items that are defined for the crafting recipe.
+                  # The recipe is provided by the web server. The list shown to the user will
+                  # exclude items already added to inputes.
+                  input_item: "item name from valid list of items"
 
                   # Inputs can be merged from multiple sources into one connection.
                   # All the inputs listed here must supply the item specified by
-                  # "input_item".
+                  # "input_item". The list value must be a valid machine ID defined by this
+                  # factory, a valid resource ID defined in the resource_nodes list of this site,
+                  # or a receiver id defined in the receivers list of this factory.
                   from_machine_ids:
-                    - ""
+                    - "machine, resource, or receiver id"
 
                   # The maximum rate at which items can be transferred along this connection.
                   # Essentially represents the speed of the rail connected to the input port.
-                  rate_limit_ipm: 0
+                  # Must be a positive integer greater than zero.
+                  rate_limit_ipm: 1
 
+              # Optional link to a core defined for the same site that the machine is part of.
+              # When not present, this machine is associated with the core specified in the factor
+              # default_core value. When present, the value must be a valid core_id defined in the
+              # cores list of this site.
+              core_id: "core id"
 
+          # Optional list of machines that can be used as simple storage bins, when
+          # only receiving items, or buffers, when connected to the input of another
+          # machine.
           storage:
+
+            # The machine ID that identifies the storage. Must be unique within the
+            # factory and cannot be the same as a resource ID since those are treated as machines
+            # shared across factories.
+            # The machine ID is a name provided by the user when creating the machine.
+            <machine id>:
+
+              # Link to a valid storage building. The list of valid storage buildings is provided
+              # by the web server. The user will select from a sorted list of valid storage
+              # buildings.
+              building_id: "valid storage building name"
+
+              # Some storage buildings allow for storage of multiple items. Each of the items
+              # listed here must be from a list of valid items provided by the web server.
+              # When adding an item to the list, the user will select from a sorted list of valid
+              # items.
+              stored_items:
+                - "valid item name"
+              
+              # Number of storage stacks available when the storage building defines a
+              # variable number of stacks. When the storage defines a fixed number of stacks, this
+              # entry must be omitted. Must be an integer number equal or greater than the specified
+              # starting number of stacks for the building.
+              num_stacks: 1
+
+              # Required. There will be one entry in the array for each of the items listed in
+              # stored_items.
+              inputs:
+                - # Must correspond with one of the stored_items. The "input_item" may only appear
+                  # once in the "inputs" list. The user will select from a sorted list of valid
+                  # items taken from stored_items. The list shown to the user will exclude items
+                  # that already added to inputs list.
+                  input_item: "item name from valid list of items"
+
+                  # Inputs can be merged from multiple sources into one connection.
+                  # All the inputs listed here must supply the item specified by
+                  # "input_item". The list value must be a valid machine ID defined by this
+                  # factory, a valid resource ID defined in the resource_nodes list of this site,
+                  # or a receiver id defined in the receivers list of this factory.
+                  from_machine_ids:
+                    - "machine, resource, or receiver id"
+
+                  # The maximum rate at which items can be transferred along this connection.
+                  # Essentially represents the speed of the rail connected to the input port.
+                  # Must be a positive integer greater than zero.
+                  rate_limit_ipm: 1
+
+
 
         # 'inputs' optional and only required when a source of items is dispatched
         # from another factory. There is a 1:1 relationship from factory output to
         # factory input. The factory input definition is necessary so that the items
         # can be routed to multiple destinations within the factory.
         receivers:
-          <factory input id>:
+          <receiver id>:
             # Rates are determined from factory output. Item is identified from
             # output, The output may not be from this factory.
             site_id: ""
             factory_id: ""
             factory_output_id: ""
+
         # 'outputs' optional and only required when this factory is the source of
         # items being dispatched to another factory.
         dispatchers:
