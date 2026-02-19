@@ -58,9 +58,9 @@
     <div id="editModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <h2>Edit Pin</h2>
+            <h2>Edit Site</h2>
             <div class="form-group">
-                <label for="editPinName">Pin Name:</label>
+                <label for="editPinName">Site Name:</label>
                 <input type="text" id="editPinName">
             </div>
             <div class="form-group">
@@ -71,9 +71,182 @@
                 <label for="editPinY">Grid Y:</label>
                 <input type="number" id="editPinY">
             </div>
+            <div class="form-group">
+                <label for="editTeleporter">Teleporter:</label>
+                <input type="text" id="editTeleporter" placeholder="Teleporter name (optional)">
+            </div>
+            <div class="form-group">
+                <label for="editDescription">Description:</label>
+                <textarea id="editDescription" rows="3" placeholder="Site description (optional)"></textarea>
+            </div>
             <div class="modal-buttons">
                 <button id="savePinBtn" class="btn btn-primary">Save</button>
                 <button id="deletePinBtn" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Resource Node -->
+    <div id="resourceNodeModal" class="modal">
+        <div class="modal-content">
+            <span class="close" data-modal="resourceNodeModal">&times;</span>
+            <h2 id="resourceNodeModalTitle">Add Resource Node</h2>
+            <div class="form-group">
+                <label for="resourceNodeId">Resource ID:</label>
+                <input type="text" id="resourceNodeId" placeholder="Unique identifier">
+            </div>
+            <div class="form-group">
+                <label for="resourceItem">Resource Item:</label>
+                <select id="resourceItem">
+                    <option value="calcium ore">Calcium Ore</option>
+                    <option value="helium-3">Helium-3</option>
+                    <option value="sulfur ore">Sulfur Ore</option>
+                    <option value="titanium ore">Titanium Ore</option>
+                    <option value="wolfram ore">Wolfram Ore</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="resourceRate">Rate (items/min):</label>
+                <input type="number" id="resourceRate" min="1" value="60">
+            </div>
+            <div class="form-group">
+                <label for="resourceVariant">Variant:</label>
+                <select id="resourceVariant">
+                    <option value="impure">Impure</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="pure">Pure</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="resourceCoreId">Core ID (optional):</label>
+                <input type="text" id="resourceCoreId" placeholder="Leave empty if not assigned">
+            </div>
+            <div class="modal-buttons">
+                <button id="saveResourceNodeBtn" class="btn btn-primary">Save</button>
+                <button id="deleteResourceNodeBtn" class="btn btn-danger" style="display:none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Core -->
+    <div id="coreModal" class="modal">
+        <div class="modal-content">
+            <span class="close" data-modal="coreModal">&times;</span>
+            <h2 id="coreModalTitle">Add Core</h2>
+            <div class="form-group">
+                <label for="coreId">Core ID:</label>
+                <input type="text" id="coreId" placeholder="Unique identifier">
+            </div>
+            <div class="form-group">
+                <label for="coreLevel">Core Level:</label>
+                <select id="coreLevel">
+                    <option value="0" selected>0 (1000 heat)</option>
+                    <option value="1">1 (2500 heat)</option>
+                    <option value="2">2 (4000 heat)</option>
+                    <option value="3">3 (6000 heat)</option>
+                    <option value="4">4 (10000 heat)</option>
+                </select>
+            </div>
+            <div class="modal-buttons">
+                <button id="saveCoreBtn" class="btn btn-primary">Save</button>
+                <button id="deleteCoreBtn" class="btn btn-danger" style="display:none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Factory -->
+    <div id="factoryModal" class="modal">
+        <div class="modal-content">
+            <span class="close" data-modal="factoryModal">&times;</span>
+            <h2 id="factoryModalTitle">Add Factory</h2>
+            <div class="form-group">
+                <label for="factoryId">Factory ID:</label>
+                <input type="text" id="factoryId" placeholder="Unique identifier">
+            </div>
+            <div class="form-group">
+                <label for="factoryPurpose">Purpose:</label>
+                <textarea id="factoryPurpose" rows="3" placeholder="Description of factory purpose"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="factoryDefaultCore">Default Core:</label>
+                <input type="text" id="factoryDefaultCore" placeholder="Core ID for this factory">
+            </div>
+            <div class="modal-buttons">
+                <button id="saveFactoryBtn" class="btn btn-primary">Save</button>
+                <button id="deleteFactoryBtn" class="btn btn-danger" style="display:none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="receiverModal" class="modal">
+        <div class="modal-content">
+            <span class="close" data-modal="receiverModal">&times;</span>
+            <h2 id="receiverModalTitle">Add Receiver</h2>
+            <div class="form-group">
+                <label for="receiverId">Receiver ID:</label>
+                <input type="text" id="receiverId" placeholder="Unique identifier">
+            </div>
+            <div class="form-group">
+                <label for="receiverSiteId">Source Site ID:</label>
+                <input type="text" id="receiverSiteId" placeholder="Site ID with dispatcher">
+            </div>
+            <div class="form-group">
+                <label for="receiverFactoryId">Source Factory ID:</label>
+                <input type="text" id="receiverFactoryId" placeholder="Factory ID with dispatcher">
+            </div>
+            <div class="form-group">
+                <label for="receiverDispatcherId">Dispatcher ID:</label>
+                <input type="text" id="receiverDispatcherId" placeholder="Dispatcher sending items">
+            </div>
+            <div class="form-group">
+                <label for="receiverBuildingId">Building ID (optional):</label>
+                <input type="text" id="receiverBuildingId" placeholder="Receiver building name">
+            </div>
+            <div class="modal-buttons">
+                <button id="saveReceiverBtn" class="btn btn-primary">Save</button>
+                <button id="deleteReceiverBtn" class="btn btn-danger" style="display:none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="dispatcherModal" class="modal">
+        <div class="modal-content">
+            <span class="close" data-modal="dispatcherModal">&times;</span>
+            <h2 id="dispatcherModalTitle">Add Dispatcher</h2>
+            <div class="form-group">
+                <label for="dispatcherId">Dispatcher ID:</label>
+                <input type="text" id="dispatcherId" placeholder="Unique identifier">
+            </div>
+            <div class="form-group">
+                <label for="dispatchedItem">Dispatched Item:</label>
+                <select id="dispatchedItem">
+                    <option value="">Select item</option>
+                    <option value="calcium ore">Calcium Ore</option>
+                    <option value="helium-3">Helium-3</option>
+                    <option value="sulfur ore">Sulfur Ore</option>
+                    <option value="titanium ore">Titanium Ore</option>
+                    <option value="wolfram ore">Wolfram Ore</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="dispatcherOutputRate">Output Rate Limit (items/min):</label>
+                <input type="number" id="dispatcherOutputRate" min="1" value="100">
+            </div>
+            <div class="form-group">
+                <label for="dispatcherInputRate">Input Rate Limit (items/min):</label>
+                <input type="number" id="dispatcherInputRate" min="1" value="100">
+            </div>
+            <div class="form-group">
+                <label for="dispatcherFromIds">Source IDs (comma-separated):</label>
+                <textarea id="dispatcherFromIds" rows="2" placeholder="Machine, resource, or receiver IDs"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="dispatcherBuildingId">Building ID (optional):</label>
+                <input type="text" id="dispatcherBuildingId" placeholder="Dispatcher building name">
+            </div>
+            <div class="modal-buttons">
+                <button id="saveDispatcherBtn" class="btn btn-primary">Save</button>
+                <button id="deleteDispatcherBtn" class="btn btn-danger" style="display:none;">Delete</button>
             </div>
         </div>
     </div>

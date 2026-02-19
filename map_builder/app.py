@@ -48,16 +48,21 @@ def get_pins():
 
 @app.route('/api/pins', methods=['POST'])
 def add_pin():
-    """Add a new pin."""
+    """Add a new pin (site)."""
     data = request.json
     pins = load_pins()
     
     pin_id = str(int(datetime.now().timestamp() * 1000))
     pin_data = {
         'id': pin_id,
-        'name': data.get('name', 'Unnamed Pin'),
+        'name': data.get('name', 'Unnamed Site'),
         'x': data.get('x', 0),
         'y': data.get('y', 0),
+        'teleporter': data.get('teleporter', ''),
+        'description': data.get('description', ''),
+        'resource_nodes': data.get('resource_nodes', {}),
+        'cores': data.get('cores', {}),
+        'factories': data.get('factories', {}),
         'created': datetime.now().isoformat()
     }
     
@@ -68,16 +73,29 @@ def add_pin():
 
 @app.route('/api/pins/<pin_id>', methods=['PUT'])
 def update_pin(pin_id):
-    """Update a pin."""
+    """Update a pin (site)."""
     data = request.json
     pins = load_pins()
     
     if pin_id in pins:
-        pins[pin_id].update({
-            'name': data.get('name', pins[pin_id]['name']),
-            'x': data.get('x', pins[pin_id]['x']),
-            'y': data.get('y', pins[pin_id]['y'])
-        })
+        # Update only the fields that are provided
+        if 'name' in data:
+            pins[pin_id]['name'] = data['name']
+        if 'x' in data:
+            pins[pin_id]['x'] = data['x']
+        if 'y' in data:
+            pins[pin_id]['y'] = data['y']
+        if 'teleporter' in data:
+            pins[pin_id]['teleporter'] = data['teleporter']
+        if 'description' in data:
+            pins[pin_id]['description'] = data['description']
+        if 'resource_nodes' in data:
+            pins[pin_id]['resource_nodes'] = data['resource_nodes']
+        if 'cores' in data:
+            pins[pin_id]['cores'] = data['cores']
+        if 'factories' in data:
+            pins[pin_id]['factories'] = data['factories']
+            
         save_pins(pins)
         return jsonify(pins[pin_id])
     
