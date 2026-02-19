@@ -1,0 +1,264 @@
+# * A site defines a location within the world map.
+# * The world map is a grid of X,Y co-ordinates.
+# * The X co-ordinates have a range from -5 to +33.
+# * The Y co-ordinates have a range from -13 to +32.
+# * Fractional co-ordinates are not valid, only whole integer numbers are valid co-ordinate values.
+# * The 0,0 co-ordinate is the location of the starting point in the game.
+# * The game is in early-access and is still in development. The developers have said that the game
+#   map will be expanded. Because the map is expected to be expanded, the origin 0,0 point was
+#   chosen for the known fixed location in the world map that is not expected to change.
+# * A site optionally contains resources that can be extracted and are the root of a production
+#   chain.
+# * A site
+
+# A factory consists of machines. Each machine has inputs and outputs.
+# Factories can be linked.
+# A factory has a purpose. This purpose must be stated.
+# A factory identifier is unique within a site. I intentionally didn't make factory name
+# globally unique, even though that is my preference, to not put artificial limits on the user.
+# All buildings within a factory must have a unique identifier,
+# A site has a unique identifier.
+# A site has a location within the game world. This is not currently implemented as the
+# mechanism for identifying the location hasn't been determined.
+# A site may be associated with a teleporter.
+# A site has a heat limit.
+# Factories are not necessarily optimal. They will have items produced that are not used.
+# They will have insufficient inputs to produce all outputs. This will reduce the production rate.
+#
+# It must be possible to search for item capacity. This search will list the factories that
+# have capacity for that item. The search result must include the heat limit.
+#
+# A machine has inputs and outputs. The inputs can either be produced by another machine or be
+# an input to the factory. The outputs can either be consumed by another machine, stored, or be
+# an output of the factory.
+#
+# Due to the nature of the game, and how it pulls items to the machines on an as-needed basis
+# with transversal latencies, the caclulated rates are very approximate and nay have a
+# high degree of error.
+#
+# Due to core overlap, a factory could have machines that span cores and as such the heat
+# limit of the factory is only suggestive.
+#
+# The reason some optional keys are written to the file with a default value is that the file is
+# intended to be edited by the user outside of an application and having some keys present
+# is to assist the user. The original intention was for this file to be created manually by the
+# user (player) but later an application was visualised as a means to help the process.
+#
+
+sites:
+  # The site ID is a name provided by the user. The site ID must be globally unique.
+  <site id>:
+    # Optional. Populated by the user when the site is near a teleporter. When the user has not
+    # filled in the teleporter name, this entry is written to the file with an empty string value.
+    teleporter: ""
+
+    # Required. Location of the site in the world map.
+    # The first array element is the X co-ordinate.
+    # The second array element is the Y co-ordinate.
+    location: [0,0]
+
+    # Optional description for the site. When the user has not provided a description, the entry
+    # is written to the file with an empty string value.
+    description: ""
+
+    # Optional list of resource nodes available within the site. Each resource node is identified
+    # by the resource ID. The reason resource nodes are defined separate from the factories
+    # is two fold:
+    # 1. Allows the user to define the resources of the site before a factory is created.
+    # 2. Allows for multiple factories to share a single resource node.
+    resource_nodes:
+
+      # Resource IDs must be unique within the site and may not conflict with any machine ID across
+      # all factories of the site. These resources are not available outside the site so the ID
+      # does not need to be globally unique but the resource is treated as a special machine that
+      # is shared across all factories. The ID is a name provided by the user.
+      <resource id>:
+
+        # Required: Name of item supplied by the resource. The item is selected by the user.
+        # Current valid items are:
+        #   "calcium ore", "helium-3", "sulfur ore", "titanium ore", "wolfram ore"
+        # This list may change as the game develops so the valid list should be provided by the web
+        # server. May not be an empty string, must always be one of the valid items.
+        resource_item: ""
+
+        # Required. Available rate of supply in items per minute. This is a user provided value.
+        # Only positive integer values are allowed.
+        rate_ipm: 0
+
+        # Required. Values are: "impure", "normal", "pure". This is purely descriptive and is
+        # selected by the user.
+        variant: ""
+
+        # Optional until specified as an input to a factory machine, then required. This
+        # specifies the core that the actual extractor machine belongs to.
+        core_id: ""
+
+    # Cores are optional for a site when no factories are defined but required before a factory
+    # can be added. A core is a game mechanism that restricts that size of a factory through the
+    # constraints of heat limit and danger level. You cannot create a factory that exceeds the
+    # heat limit without severe consequences for production as the factory won't automatically
+    # cool after a rupture and requires that the player manually cool each building. In order to
+    # increase the heat limit, the core level must be increased but this also increases the danger
+    # level. When the core level is incremented from zero, hostile creatures will raid the factory
+    # at intervals and if they overwhelm the base defences, the factory buildings will be
+    # destroyed. The higher the core level, the stronger the raid.
+    cores:
+      # Core IDs must be unique within the site. The cores are specific to the site so the IDs don't
+      # need to be globally unique. The core ID is a name provide by the user.
+      <core id>:
+        # Required. The core cooling level that is also the danger level. Default value is zero.
+        # Valid values are: 0, 1, 2, 3, 4.
+        # Core level to heat limit mapping:
+        #  0: 1000
+        #  1: 2500
+        #  2: 4000
+        #  3: 6000
+        #  4: 10000
+        core_level: 0
+
+        # Optional. The current heat of the core is calculated as the sum of heat from all
+        # buildings that are associated with the core. However, not all buildings are part of the
+        # manufacturing chain so those buildings need to be listed for the heat calculation.
+        non_production_buildings:
+          # A list of buildings that do not contribute to the production chain. This is a list so
+          # that the building names are not required to be unique. The number is the building count.
+          # The building name is chosen from a list of valid names supplied by the web server.
+          # Example valid names include "base core amplifier v.1", "defense turret", "habitat",
+          # "large habitat".
+          # The value is the user provided count of the building within the site.
+          # Only positive integer numbers are allowed. The user may enter the number directly, or
+          # use the +, - buttons to increment or decrement the value. The default value when adding
+          # a building to the list is 1.
+          # The application must have a button that will consolidate all the buildings within the
+          # list, by name, with value as the sum of all corresponding counts. The purpose for
+          # allowing multiple building entries is in how I expect the user will go around the map
+          # and add buildings to the core as found.
+          - <building name>: 1
+
+    # Optional. A factory is a production chain with a purpose. It is optional to allow the user
+    # to add sites before filling with factories. For example, the user may want to add sites
+    # near resource nodes while they are exploring the map in order to note the locations of those
+    # resources.
+    factories:
+      # Factory IDs must be unique within the site. The factory ID is a name provided by the user
+      # when creating the factory.
+      <factory id>:
+
+        # Optional description of the factory purpose. When not entered by the user, must be
+        # written to the file as an empty string.
+        purpose: ""
+
+        # All factory buildings must be associated with a core but it is possible for a factory
+        # to span multiple cores so some factory buildings associated with a core while other
+        # buildings associated with a different core. The default core is the value used when
+        # a factory building doesn't have a core specified.
+        default_core: "core id"
+
+        # TODO
+        machines:
+
+          # Optional list of machines that craft items from other items.
+          crafters:
+
+            # The machine ID that identifies the crafting machine. Must be unique within the
+            # factory and cannot be the same as a resource ID since those are treated as machines
+            # shared across factories.
+            # The machine ID is a name provided by the user when creating the machine.
+            <machine id>:
+
+              # Required. The item that is crafted by this machine. The list of valid items is
+              # provided by the web server. The user will select from a list of valid items.
+              crafted_item: ""
+
+              # Required. There will be one entry in the array for each of the items required
+              # to craft the craftable. The required items are specified by the crafted item
+              # recipe. The recipe is provided by the web server.
+              inputs:
+                - # Must correspond with one of the recipe items used to craft
+                  # "item". The "input_item" may only appear once in the
+                  # "inputs" list.
+                  input_item: ""
+
+                  # Inputs can be merged from multiple sources into one connection.
+                  # All the inputs listed here must supply the item specified by
+                  # "input_item".
+                  from_machine_ids:
+                    - ""
+
+                  # The maximum rate at which items can be transferred along this connection.
+                  # Essentially represents the speed of the rail connected to the input port.
+                  rate_limit_ipm: 0
+
+
+          storage:
+
+        # 'inputs' optional and only required when a source of items is dispatched
+        # from another factory. There is a 1:1 relationship from factory output to
+        # factory input. The factory input definition is necessary so that the items
+        # can be routed to multiple destinations within the factory.
+        receivers:
+          <factory input id>:
+            # Rates are determined from factory output. Item is identified from
+            # output, The output may not be from this factory.
+            site_id: ""
+            factory_id: ""
+            factory_output_id: ""
+        # 'outputs' optional and only required when this factory is the source of
+        # items being dispatched to another factory.
+        dispatchers:
+          <factory output id>:
+            # Item that is dispatched by this output. This was added to the spec
+            # for validation purposes as well as allowing for the user to see
+            # the intention when viewing the JSON.
+            dipatched_item: ""
+            # Calculate max sent rate of cargo dispatcher for various input rates:
+            # rails ipm | receive 100 | +10s  | Num batches | Max sent ipm |
+            # v.1   120 |         50s |   60s |       1.000 |      100.000 |
+            # v.2   240 |         25s |   35s |       1.714 |      171.429 |
+            # v.3   480 |       12.5s | 22.5s |       2.667 |      266.667 |
+            # The maximum rate that items can be transferred out of the factory
+            # over this connection.
+            output_rate_limit_ipm: 0
+            # Every source in the list must provide the item named in
+            # "dipatched_item".
+            # Not supporting source from factory input is intentional.
+            # The factory output is intended to provide a point of egress
+            # only for items made within this factory.
+            from_machine_ids:
+              - ""
+            from_storage_ids:
+              - ""
+            # The maximum rate at which items can be received along this
+            # connection.
+            input_rate_limit_ipm: 0
+        # 'storage' is optional and is only required when the factory contains
+        # storage buildings. A storage building is a special type of machine and thus
+        # takes the same type of inputs as a machine.
+        storage:
+          # Defines storage buildings that can be used as simple storage bins, when
+          # only receiving items, or buffers, when connected to the input of another
+          # factory building.
+          <storage id>:
+            # Some storage buildings allow for storage of multiple items.
+            items:
+              - ""
+            # Number of storage stacks available.
+            num_stacks: 0
+            inputs:
+              - # Corresponds with one of the items listed in the storage
+                # "items" list. An "input_item" may only appear once in
+                # "inputs" list.
+                input_item: ""
+                # Inputs can be merged from multiple source into one connection.
+                # All the inputs listed here must supply the item specified by
+                # "input_item".
+                from_machine_ids:
+                  - ""
+                from_factory_input_ids:
+                  - ""
+                # While the game allows for looping the output of a storage
+                # to the input of the same storage, this program doesn't.
+                from_storage_ids:
+                  - ""
+                # The maximum rate at which items can be transferred along this connection
+                rate_limit_ipm: 0
