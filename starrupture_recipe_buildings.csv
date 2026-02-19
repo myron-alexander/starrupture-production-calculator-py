@@ -2,8 +2,8 @@ Building;Type;Heat;BbmCost;IbmCost;QbmCost;NumStacks;MaxStacks;PowerDraw;PowerDr
 assembler;;150;;200;;1;;-60;
 base core amplifier v.1;;-20;;140;;0;;0;
 base core amplifier v.2;;-250;;;100;0;;0;
-cargo dispatcher;;40;;50;;1;;-40;
-cargo receiver;;40;;120;;3;;-40;
+cargo dispatcher;dispatcher;40;;50;;1;;-40;
+cargo receiver;receiver;40;;120;;3;;-40;
 compounder;;150;;180;;1;;-60;
 defense tower;;30;;220;;4;;-20;
 defense turret;;20;200;;;3;;-50;
