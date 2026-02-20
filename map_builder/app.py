@@ -106,7 +106,15 @@ def save_pins(pins):
 @app.route('/')
 def index():
     """Serve the main page."""
-    return render_template('index.html')
+    if game_data is None:
+        load_game_data()
+    return render_template(
+        'index.html',
+        valid_raw_items=game_data.valid_raw_items,
+        receiving_buildings=game_data.receiving_buildings,
+        dispatcher_buildings=game_data.dispatcher_buildings,
+        valid_items=game_data.valid_items
+    )
 
 @app.route('/map-image')
 def map_image():
@@ -211,10 +219,8 @@ def load_game_data():
 #---------------------------------------------------------------------------------------------------
 
 def main():
-
     load_game_data()
-
-    #app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000)
 
 #---------------------------------------------------------------------------------------------------
 

@@ -679,7 +679,9 @@ function openAddResourceNodeModal(pinId) {
     resourceNodeModalTitle.textContent = 'Add Resource Node';
     resourceNodeId.value = '';
     resourceNodeId.disabled = false;
-    resourceItem.value = 'calcium ore';
+    if (resourceItem.options.length > 0) {
+        resourceItem.value = resourceItem.options[0].value;
+    }
     resourceRate.value = '60';
     resourceVariant.value = 'normal';
     resourceCoreId.value = '';

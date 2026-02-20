@@ -98,11 +98,9 @@
             <div class="form-group">
                 <label for="resourceItem">Resource Item:</label>
                 <select id="resourceItem">
-                    <option value="calcium ore">Calcium Ore</option>
-                    <option value="helium-3">Helium-3</option>
-                    <option value="sulfur ore">Sulfur Ore</option>
-                    <option value="titanium ore">Titanium Ore</option>
-                    <option value="wolfram ore">Wolfram Ore</option>
+                    {% for item in valid_raw_items %}
+                    <option value="{{ item }}">{{ item }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="form-group">
@@ -200,7 +198,12 @@
             </div>
             <div class="form-group">
                 <label for="receiverBuildingId">Building ID (optional):</label>
-                <input type="text" id="receiverBuildingId" placeholder="Receiver building name">
+                <select id="receiverBuildingId">
+                    <option value=""></option>
+                    {% for building in receiving_buildings %}
+                    <option value="{{ building }}">{{ building }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="modal-buttons">
                 <button id="saveReceiverBtn" class="btn btn-primary">Save</button>
@@ -221,11 +224,9 @@
                 <label for="dispatchedItem">Dispatched Item:</label>
                 <select id="dispatchedItem">
                     <option value="">Select item</option>
-                    <option value="calcium ore">Calcium Ore</option>
-                    <option value="helium-3">Helium-3</option>
-                    <option value="sulfur ore">Sulfur Ore</option>
-                    <option value="titanium ore">Titanium Ore</option>
-                    <option value="wolfram ore">Wolfram Ore</option>
+                    {% for item in valid_items %}
+                    <option value="{{ item }}">{{ item }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="form-group">
@@ -242,7 +243,12 @@
             </div>
             <div class="form-group">
                 <label for="dispatcherBuildingId">Building ID (optional):</label>
-                <input type="text" id="dispatcherBuildingId" placeholder="Dispatcher building name">
+                <select id="dispatcherBuildingId">
+                    <option value=""></option>
+                    {% for building in dispatcher_buildings %}
+                    <option value="{{ building }}">{{ building }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="modal-buttons">
                 <button id="saveDispatcherBtn" class="btn btn-primary">Save</button>
