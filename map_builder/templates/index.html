@@ -260,6 +260,30 @@
         </div>
     </div>
 
+    <div id="nonProdBuildingModal" class="modal">
+        <div class="modal-content">
+            <span class="close" data-modal="nonProdBuildingModal">&times;</span>
+            <h2 id="nonProdBuildingModalTitle">Add Non-Production Building</h2>
+            <div class="form-group">
+                <label for="nonProdBuildingId">Building ID:</label>
+                <select id="nonProdBuildingId">
+                    <option value="">Select building</option>
+                    {% for building in non_production_buildings %}
+                    <option value="{{ building }}">{{ building }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="nonProdBuildingCount">Count:</label>
+                <input type="number" id="nonProdBuildingCount" min="1" value="1">
+            </div>
+            <div class="modal-buttons">
+                <button id="saveNonProdBuildingBtn" class="btn btn-primary">Save</button>
+                <button id="deleteNonProdBuildingBtn" class="btn btn-danger" style="display:none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

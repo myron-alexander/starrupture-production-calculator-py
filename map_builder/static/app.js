@@ -70,6 +70,14 @@ const dispatcherBuildingId = document.getElementById('dispatcherBuildingId');
 const saveDispatcherBtn = document.getElementById('saveDispatcherBtn');
 const deleteDispatcherBtn = document.getElementById('deleteDispatcherBtn');
 
+// Non-Production Building Modal Elements
+const nonProdBuildingModal = document.getElementById('nonProdBuildingModal');
+const nonProdBuildingModalTitle = document.getElementById('nonProdBuildingModalTitle');
+const nonProdBuildingId = document.getElementById('nonProdBuildingId');
+const nonProdBuildingCount = document.getElementById('nonProdBuildingCount');
+const saveNonProdBuildingBtn = document.getElementById('saveNonProdBuildingBtn');
+const deleteNonProdBuildingBtn = document.getElementById('deleteNonProdBuildingBtn');
+
 let pins = {};
 let selectedPinId = null;
 let editingResourceNodeId = null;
@@ -78,6 +86,8 @@ let editingFactoryId = null;
 let selectedFactoryId = null;
 let editingReceiverId = null;
 let editingDispatcherId = null;
+let selectedCoreId = null;
+let editingBuildingIndex = null;
 
 // Grid configuration
 const GRID_ORIGIN_X = 350;  // Pixel X coordinate of grid origin
@@ -158,6 +168,13 @@ function attachEventListeners() {
     saveDispatcherBtn.addEventListener('click', handleSaveDispatcher);
     deleteDispatcherBtn.addEventListener('click', handleDeleteDispatcher);
     
+    // Non-Production Building Modal controls
+    document.querySelectorAll('[data-modal="nonProdBuildingModal"]').forEach(el => {
+        el.addEventListener('click', closeNonProdBuildingModal);
+    });
+    saveNonProdBuildingBtn.addEventListener('click', handleSaveNonProdBuilding);
+    deleteNonProdBuildingBtn.addEventListener('click', handleDeleteNonProdBuilding);
+    
     window.addEventListener('click', (event) => {
         if (event.target === editModal) {
             closeEditModal();
@@ -176,6 +193,9 @@ function attachEventListeners() {
         }
         if (event.target === dispatcherModal) {
             closeDispatcherModal();
+        }
+        if (event.target === nonProdBuildingModal) {
+            closeNonProdBuildingModal();
         }
     });
 }
@@ -404,6 +424,7 @@ function renderPinsList() {
                 const section = addBtn.closest('.tree-section');
                 const sectionHeader = section.querySelector('.tree-section-header').textContent;
                 const factoryId = addBtn.dataset.factoryId;
+                const coreId = addBtn.dataset.coreId;
                 
                 if (sectionHeader.includes('Resource Nodes')) {
                     openAddResourceNodeModal(id);
@@ -415,10 +436,14 @@ function renderPinsList() {
                     openAddReceiverModal(id, factoryId);
                 } else if (sectionHeader.includes('Dispatchers') && factoryId) {
                     openAddDispatcherModal(id, factoryId);
+                } else if (sectionHeader.includes('Non-Production Buildings') && coreId) {
+                    openAddNonProdBuildingModal(id, coreId);
                 }
             } else if (treeBlock) {
                 const itemId = treeBlock.dataset.itemId;
                 const factoryId = treeBlock.dataset.factoryId;
+                const coreId = treeBlock.dataset.coreId;
+                const buildingIndex = treeBlock.dataset.buildingIndex;
                 const section = treeBlock.closest('.tree-section');
                 const sectionHeader = section.querySelector('.tree-section-header').textContent;
                 
@@ -432,6 +457,8 @@ function renderPinsList() {
                     openEditReceiverModal(id, factoryId, itemId);
                 } else if (sectionHeader.includes('Dispatchers') && factoryId) {
                     openEditDispatcherModal(id, factoryId, itemId);
+                } else if (sectionHeader.includes('Non-Production Buildings') && coreId && buildingIndex !== undefined) {
+                    openEditNonProdBuildingModal(id, coreId, parseInt(buildingIndex));
                 }
             }
         });
@@ -542,6 +569,39 @@ function renderDispatchersTree(dispatchers, factoryId) {
     return html;
 }
 
+function renderNonProdBuildingsTree(buildings, coreId) {
+    const buildingsArray = Array.isArray(buildings) ? buildings : [];
+    let html = `
+        <div class="tree-section" style="margin-left: 20px; margin-top: 10px;">
+            <div class="tree-section-header">Non-Production Buildings (${buildingsArray.length})</div>
+    `;
+    
+    if (buildingsArray.length === 0) {
+        html += `
+            <div class="tree-block add-button" data-core-id="${coreId}">
+                + Add Non-Production Building
+            </div>
+        `;
+    } else {
+        buildingsArray.forEach((building, index) => {
+            html += `
+                <div class="tree-block" data-building-index="${index}" data-core-id="${coreId}">
+                    <div class="tree-block-label">${building.building_id || 'Unknown'}</div>
+                    <div class="tree-block-value">Count: ${building.count || 0}</div>
+                </div>
+            `;
+        });
+        html += `
+            <div class="tree-block add-button" data-core-id="${coreId}">
+                + Add Non-Production Building
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    return html;
+}
+
 function renderItemDetails(sectionType, item, itemId = null) {
     if (sectionType === 'Resource Nodes') {
         return `
@@ -549,9 +609,16 @@ function renderItemDetails(sectionType, item, itemId = null) {
             <div class="tree-block-value">${item.variant || 'normal'}</div>
         `;
     } else if (sectionType === 'Cores') {
-        return `
+        let html = `
             <div class="tree-block-value">Level: ${item.core_level || 0}</div>
         `;
+        // Add non-production buildings as children of core
+        if (item.non_production_buildings && item.non_production_buildings.length > 0) {
+            html += renderNonProdBuildingsTree(item.non_production_buildings, itemId);
+        } else {
+            html += renderNonProdBuildingsTree([], itemId);
+        }
+        return html;
     } else if (sectionType === 'Factories') {
         let html = `
             <div class="tree-block-value">${item.purpose || 'No purpose set'}</div>
@@ -1338,5 +1405,120 @@ async function handleDeleteDispatcher() {
     } catch (error) {
         console.error('Error deleting dispatcher:', error);
         alert('Error deleting dispatcher');
+    }
+}
+
+// Non-Production Building Modal Functions
+function openAddNonProdBuildingModal(pinId, coreId) {
+    selectedPinId = pinId;
+    selectedCoreId = coreId;
+    editingBuildingIndex = null;
+    nonProdBuildingModalTitle.textContent = 'Add Non-Production Building';
+    nonProdBuildingId.value = '';
+    nonProdBuildingId.disabled = false;
+    nonProdBuildingCount.value = 1;
+    deleteNonProdBuildingBtn.style.display = 'none';
+    nonProdBuildingModal.classList.add('show');
+}
+
+function openEditNonProdBuildingModal(pinId, coreId, buildingIndex) {
+    selectedPinId = pinId;
+    selectedCoreId = coreId;
+    editingBuildingIndex = buildingIndex;
+    const building = pins[pinId].cores[coreId].non_production_buildings[buildingIndex];
+    
+    nonProdBuildingModalTitle.textContent = 'Edit Non-Production Building';
+    nonProdBuildingId.value = building.building_id || '';
+    nonProdBuildingId.disabled = false;
+    nonProdBuildingCount.value = building.count || 1;
+    deleteNonProdBuildingBtn.style.display = 'block';
+    nonProdBuildingModal.classList.add('show');
+}
+
+function closeNonProdBuildingModal() {
+    nonProdBuildingModal.classList.remove('show');
+    editingBuildingIndex = null;
+    selectedCoreId = null;
+}
+
+async function handleSaveNonProdBuilding() {
+    if (!selectedPinId || !selectedCoreId) return;
+    
+    const buildingId = nonProdBuildingId.value.trim();
+    if (!buildingId) {
+        alert('Please select a building');
+        return;
+    }
+    
+    const count = parseInt(nonProdBuildingCount.value);
+    if (isNaN(count) || count < 1) {
+        alert('Please enter a valid count (minimum 1)');
+        return;
+    }
+    
+    // Initialize non_production_buildings if needed
+    if (!pins[selectedPinId].cores[selectedCoreId].non_production_buildings) {
+        pins[selectedPinId].cores[selectedCoreId].non_production_buildings = [];
+    }
+    
+    const buildingData = {
+        building_id: buildingId,
+        count: count
+    };
+    
+    if (editingBuildingIndex !== null) {
+        // Editing existing building
+        pins[selectedPinId].cores[selectedCoreId].non_production_buildings[editingBuildingIndex] = buildingData;
+    } else {
+        // Adding new building
+        pins[selectedPinId].cores[selectedCoreId].non_production_buildings.push(buildingData);
+    }
+    
+    try {
+        const response = await fetch(`/api/pins/${selectedPinId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ cores: pins[selectedPinId].cores })
+        });
+        
+        if (response.ok) {
+            const updatedPin = await response.json();
+            pins[selectedPinId] = updatedPin;
+            renderPins();
+            renderPinsList();
+            closeNonProdBuildingModal();
+        }
+    } catch (error) {
+        console.error('Error saving non-production building:', error);
+        alert('Error saving non-production building');
+    }
+}
+
+async function handleDeleteNonProdBuilding() {
+    if (!selectedPinId || !selectedCoreId || editingBuildingIndex === null) return;
+    
+    pins[selectedPinId].cores[selectedCoreId].non_production_buildings.splice(editingBuildingIndex, 1);
+    
+    try {
+        const response = await fetch(`/api/pins/${selectedPinId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ cores: pins[selectedPinId].cores })
+        });
+        
+        if (response.ok) {
+            const updatedPin = await response.json();
+            pins[selectedPinId] = updatedPin;
+            renderPins();
+            renderPinsList();
+            closeNonProdBuildingModal();
+        }
+    } catch (error) {
+        console.error('Error deleting non-production building:', error);
+        alert('Error deleting non-production building');
     }
 }

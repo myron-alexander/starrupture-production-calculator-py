@@ -42,11 +42,6 @@ class GameData:
         self.crafting_buildings.sort()
         self.excavator_buildings = list(set([i.factory for i in self.raw_item_definitions]))
         self.excavator_buildings.sort()
-        self.non_production_buildings = [
-            b for b in self.building_definitions 
-                if b.building_name not in self.crafting_buildings 
-                    or b.building_name not in self.excavator_buildings
-        ]
         self.generator_buildings = [
             b.building_name for b in self.building_definitions if b.building_type == "generator"
         ]
@@ -59,6 +54,18 @@ class GameData:
             b.building_name for b in self.building_definitions if b.building_type == "receiver"
         ]
         self.receiving_buildings.sort()
+
+        production_buildings = set()
+        production_buildings |= set([b for b in self.crafting_buildings])
+        production_buildings |= set([b for b in self.excavator_buildings])
+        production_buildings |= set([b for b in self.generator_buildings])
+        production_buildings |= set([b for b in self.dispatcher_buildings])
+        production_buildings |= set([b for b in self.receiving_buildings])
+
+        self.non_production_buildings = [
+            b.building_name for b in self.building_definitions 
+                if b.building_name not in production_buildings
+        ]
 
     #---------------------------------------------------------------------------
 
@@ -113,7 +120,8 @@ def index():
         valid_raw_items=game_data.valid_raw_items,
         receiving_buildings=game_data.receiving_buildings,
         dispatcher_buildings=game_data.dispatcher_buildings,
-        valid_items=game_data.valid_items
+        valid_items=game_data.valid_items,
+        non_production_buildings=game_data.non_production_buildings
     )
 
 @app.route('/map-image')
