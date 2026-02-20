@@ -126,7 +126,8 @@ def index():
         dispatcher_buildings=game_data.dispatcher_buildings,
         valid_items=game_data.valid_items,
         non_production_buildings=game_data.non_production_buildings,
-        storage_buildings=game_data.storage_buildings
+        storage_buildings=game_data.storage_buildings,
+        craftable_items = game_data.craftable_items
     )
 
 @app.route('/map-image')

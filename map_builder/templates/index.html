@@ -198,7 +198,7 @@
                 <label for="crafterItem">Crafted Item:</label>
                 <select id="crafterItem">
                     <option value="">Select item</option>
-                    {% for item in valid_items %}
+                    {% for item in craftable_items %}
                     <option value="{{ item }}">{{ item }}</option>
                     {% endfor %}
                 </select>

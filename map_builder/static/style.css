@@ -300,7 +300,7 @@ header p {
 
 .pin-item:hover {
     background: #474747;
-    transform: translateX(5px);
+    /* transform: translateX(5px); */
 }
 
 .pin-item-name {
@@ -382,7 +382,7 @@ header p {
     border-radius: 4px;
     padding: 8px 10px;
     margin-bottom: 6px;
-    font-size: 13px;
+    font-size: 15px;
     transition: background 0.2s;
 }
 
@@ -407,7 +407,7 @@ header p {
 
 .tree-block-label {
     color: #b0b0b0;
-    font-size: 11px;
+    font-size: 16px;
     margin-bottom: 2px;
 }
 
