@@ -71,6 +71,19 @@ class GameData:
                 if b.building_name not in production_buildings
         ]
 
+        self.item_recipes:dict[str,list[tuple[str, int]]] = {
+            ri.item_name: [(r.input_name, r.num_required)
+                                for r in self.item_input_definitions
+                                    if r.item_name == ri.item_name
+                          ]
+            for ri in self.item_input_definitions
+        }
+        """
+        Crafting recipe for every craftable item. The key is the craftable item name and the
+        value is a list of input items needed to craft the items, as well as the number required to
+        craft. The value tuple is (input item name, amount required).
+        """
+
     #---------------------------------------------------------------------------
 
     def _make_valid_items(self) -> list[str]:
@@ -127,7 +140,8 @@ def index():
         valid_items=game_data.valid_items,
         non_production_buildings=game_data.non_production_buildings,
         storage_buildings=game_data.storage_buildings,
-        craftable_items = game_data.craftable_items
+        craftable_items = game_data.craftable_items,
+        item_recipes = game_data.item_recipes
     )
 
 @app.route('/map-image')

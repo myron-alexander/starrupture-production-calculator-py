@@ -529,6 +529,23 @@ header p {
     width: auto;
 }
 
+.crafter-inputs-placeholder:empty {
+    min-height: 100px;
+    background: #2a2a2a;
+    border: 1px solid #3d3d3d;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.crafter-inputs-placeholder:empty::after {
+    content: 'Select a crafted item to see inputs';
+    color: #666;
+    font-style: italic;
+    font-size: 14px;
+}
+
 .storage-item-row,
 .storage-input-row {
     border: 1px solid #3d3d3d;

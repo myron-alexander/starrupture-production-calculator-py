@@ -80,7 +80,6 @@ const crafterModalTitle = document.getElementById('crafterModalTitle');
 const crafterId = document.getElementById('crafterId');
 const crafterItem = document.getElementById('crafterItem');
 const crafterInputsContainer = document.getElementById('crafterInputsContainer');
-const addCrafterInputBtn = document.getElementById('addCrafterInputBtn');
 const crafterCoreId = document.getElementById('crafterCoreId');
 const saveCrafterBtn = document.getElementById('saveCrafterBtn');
 const deleteCrafterBtn = document.getElementById('deleteCrafterBtn');
@@ -208,9 +207,7 @@ function attachEventListeners() {
     document.querySelectorAll('[data-modal="crafterModal"]').forEach(el => {
         el.addEventListener('click', closeCrafterModal);
     });
-    addCrafterInputBtn.addEventListener('click', () => {
-        addCrafterInputRow();
-    });
+    crafterItem.addEventListener('change', handleCrafterItemChange);
     saveCrafterBtn.addEventListener('click', handleSaveCrafter);
     deleteCrafterBtn.addEventListener('click', handleDeleteCrafter);
     
@@ -1360,7 +1357,7 @@ function populateCrafterCoreOptions(pinId, selectedCoreId = '') {
     }
 }
 
-function createCrafterInputRow(inputData = {}) {
+function createCrafterInputRow(inputItem, inputData = {}) {
     const row = document.createElement('div');
     row.className = 'crafter-input-row';
 
@@ -1368,14 +1365,17 @@ function createCrafterInputRow(inputData = {}) {
     itemField.className = 'crafter-input-field';
     const itemLabel = document.createElement('label');
     itemLabel.textContent = 'Input Item';
-    const itemSelect = document.createElement('select');
-    itemSelect.className = 'crafter-input-item';
-    Array.from(crafterItem.options).forEach(option => {
-        itemSelect.appendChild(option.cloneNode(true));
-    });
-    itemSelect.value = inputData.input_item || '';
+    const itemValue = document.createElement('div');
+    itemValue.className = 'crafter-input-item';
+    itemValue.textContent = inputItem;
+    itemValue.style.padding = '8px 12px';
+    itemValue.style.backgroundColor = '#2a2a2a';
+    itemValue.style.borderRadius = '4px';
+    itemValue.style.border = '1px solid #444';
+    // Store the value as a data attribute for easy retrieval
+    itemValue.dataset.value = inputItem;
     itemField.appendChild(itemLabel);
-    itemField.appendChild(itemSelect);
+    itemField.appendChild(itemValue);
 
     const fromIdsField = document.createElement('div');
     fromIdsField.className = 'crafter-input-field';
@@ -1403,31 +1403,57 @@ function createCrafterInputRow(inputData = {}) {
     rateField.appendChild(rateLabel);
     rateField.appendChild(rateInput);
 
-    const actions = document.createElement('div');
-    actions.className = 'crafter-input-actions';
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn btn-danger';
-    removeBtn.textContent = 'Remove';
-    removeBtn.addEventListener('click', () => {
-        row.remove();
-    });
-    actions.appendChild(removeBtn);
-
     row.appendChild(itemField);
     row.appendChild(fromIdsField);
     row.appendChild(rateField);
-    row.appendChild(actions);
 
     return row;
 }
 
-function addCrafterInputRow(inputData = {}) {
-    crafterInputsContainer.appendChild(createCrafterInputRow(inputData));
-}
-
 function resetCrafterInputs() {
     crafterInputsContainer.innerHTML = '';
+}
+
+function handleCrafterItemChange() {
+    const selectedItem = crafterItem.value;
+    resetCrafterInputs();
+    
+    if (!selectedItem || !window.itemRecipes || !window.itemRecipes[selectedItem]) {
+        return; // Show placeholder when no item selected or no recipe found
+    }
+    
+    const recipe = window.itemRecipes[selectedItem];
+    // recipe is an array of [inputItemName, quantity] tuples
+    // We only care about the input item name (first element)
+    recipe.forEach(([inputItemName, _quantity]) => {
+        const row = createCrafterInputRow(inputItemName, {});
+        crafterInputsContainer.appendChild(row);
+    });
+}
+
+function populateInputsFromRecipeAndData(selectedItem, existingInputs = []) {
+    resetCrafterInputs();
+    
+    if (!selectedItem || !window.itemRecipes || !window.itemRecipes[selectedItem]) {
+        return;
+    }
+    
+    const recipe = window.itemRecipes[selectedItem];
+    
+    // Create a map of existing input data by input_item for easy lookup
+    const existingDataMap = {};
+    if (Array.isArray(existingInputs)) {
+        existingInputs.forEach(input => {
+            existingDataMap[input.input_item] = input;
+        });
+    }
+    
+    // Create rows based on recipe, using existing data if available
+    recipe.forEach(([inputItemName, _quantity]) => {
+        const existingData = existingDataMap[inputItemName] || {};
+        const row = createCrafterInputRow(inputItemName, existingData);
+        crafterInputsContainer.appendChild(row);
+    });
 }
 
 // Crafter Modal Functions
@@ -1439,8 +1465,7 @@ function openAddCrafterModal(pinId, factoryId) {
     crafterId.value = '';
     crafterId.disabled = false;
     crafterItem.value = '';
-    resetCrafterInputs();
-    addCrafterInputRow();
+    resetCrafterInputs(); // Show placeholder
     populateCrafterCoreOptions(pinId);
     deleteCrafterBtn.style.display = 'none';
     crafterModal.classList.add('show');
@@ -1456,12 +1481,10 @@ function openEditCrafterModal(pinId, factoryId, machineId) {
     crafterId.value = machineId;
     crafterId.disabled = true;
     crafterItem.value = crafter.crafted_item || '';
-    resetCrafterInputs();
-    if (Array.isArray(crafter.inputs) && crafter.inputs.length > 0) {
-        crafter.inputs.forEach(input => addCrafterInputRow(input));
-    } else {
-        addCrafterInputRow();
-    }
+    
+    // Populate inputs from recipe with existing data
+    populateInputsFromRecipeAndData(crafter.crafted_item, crafter.inputs);
+    
     populateCrafterCoreOptions(pinId, crafter.core_id || '');
     deleteCrafterBtn.style.display = 'block';
     crafterModal.classList.add('show');
@@ -1478,7 +1501,8 @@ function parseCrafterInputs() {
     const inputs = [];
 
     for (const row of rows) {
-        const inputItem = row.querySelector('.crafter-input-item').value.trim();
+        const inputItemElement = row.querySelector('.crafter-input-item');
+        const inputItem = inputItemElement.dataset.value || inputItemElement.textContent.trim();
         const fromIdsValue = row.querySelector('.crafter-input-from-ids').value.trim();
         const rateValue = row.querySelector('.crafter-input-rate').value.trim();
 

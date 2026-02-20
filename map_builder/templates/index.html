@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Starrupture Map - Pin Manager</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        // Game data passed from server
+        window.itemRecipes = {{ item_recipes | tojson }};
+    </script>
 </head>
 <body class="dark-mode">
     <div class="container">
@@ -205,8 +209,7 @@
             </div>
             <div class="form-group">
                 <label>Inputs:</label>
-                <div id="crafterInputsContainer"></div>
-                <button id="addCrafterInputBtn" class="btn btn-secondary" type="button">Add Input</button>
+                <div id="crafterInputsContainer" class="crafter-inputs-placeholder"></div>
             </div>
             <div class="form-group">
                 <label for="crafterCoreId">Core ID (optional):</label>
