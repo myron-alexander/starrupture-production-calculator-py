@@ -15,7 +15,6 @@ const saveAddPinBtn = document.getElementById('saveAddPinBtn');
 
 // Edit Pin Modal Elements
 const editModal = document.getElementById('editModal');
-const closeBtn = document.querySelector('.close');
 const savePinBtn = document.getElementById('savePinBtn');
 const deletePinBtn = document.getElementById('deletePinBtn');
 const editPinName = document.getElementById('editPinName');
@@ -164,7 +163,9 @@ function attachEventListeners() {
     saveAddPinBtn.addEventListener('click', handleAddPin);
     
     // Edit Site Modal controls
-    closeBtn.addEventListener('click', closeEditModal);
+    document.querySelectorAll('[data-modal="editModal"]').forEach(el => {
+        el.addEventListener('click', closeEditModal);
+    });
     savePinBtn.addEventListener('click', handleSavePin);
     deletePinBtn.addEventListener('click', handleDeletePin);
     
@@ -238,6 +239,7 @@ function attachEventListeners() {
             closeAddPinModal();
         }
         if (event.target === editModal) {
+            console.log("close edit modal button pressed.")
             closeEditModal();
         }
         if (event.target === resourceNodeModal) {
