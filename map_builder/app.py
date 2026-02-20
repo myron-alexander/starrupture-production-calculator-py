@@ -214,7 +214,7 @@ def load_game_data():
     global game_data
     game_data = GameData(items, inputs, raws, buildings)
 
-    dump_game_data()
+    #dump_game_data()
 
 #---------------------------------------------------------------------------------------------------
 

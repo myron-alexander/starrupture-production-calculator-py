@@ -673,6 +673,30 @@ async function handleDeletePin() {
 }
 
 // Resource Node Modal Functions
+function populateResourceNodeCoreOptions(pinId, selectedCoreId = '') {
+    const cores = (pins[pinId] && pins[pinId].cores) ? pins[pinId].cores : {};
+    const coreIds = Object.keys(cores).sort();
+
+    resourceCoreId.innerHTML = '';
+    const emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    emptyOption.textContent = '';
+    resourceCoreId.appendChild(emptyOption);
+
+    coreIds.forEach(coreId => {
+        const option = document.createElement('option');
+        option.value = coreId;
+        option.textContent = coreId;
+        resourceCoreId.appendChild(option);
+    });
+
+    if (selectedCoreId && coreIds.includes(selectedCoreId)) {
+        resourceCoreId.value = selectedCoreId;
+    } else {
+        resourceCoreId.value = '';
+    }
+}
+
 function openAddResourceNodeModal(pinId) {
     selectedPinId = pinId;
     editingResourceNodeId = null;
@@ -684,7 +708,7 @@ function openAddResourceNodeModal(pinId) {
     }
     resourceRate.value = '60';
     resourceVariant.value = 'normal';
-    resourceCoreId.value = '';
+    populateResourceNodeCoreOptions(pinId);
     deleteResourceNodeBtn.style.display = 'none';
     resourceNodeModal.classList.add('show');
 }
@@ -700,7 +724,7 @@ function openEditResourceNodeModal(pinId, nodeId) {
     resourceItem.value = node.resource_item || 'calcium ore';
     resourceRate.value = node.rate_ipm || 60;
     resourceVariant.value = node.variant || 'normal';
-    resourceCoreId.value = node.core_id || '';
+    populateResourceNodeCoreOptions(pinId, node.core_id || '');
     deleteResourceNodeBtn.style.display = 'block';
     resourceNodeModal.classList.add('show');
 }
@@ -725,11 +749,21 @@ async function handleSaveResourceNode() {
         return;
     }
     
+    // Validate core ID if specified
+    const coreIds = pins[selectedPinId] && pins[selectedPinId].cores
+        ? Object.keys(pins[selectedPinId].cores)
+        : [];
+    const selectedCoreId = resourceCoreId.value.trim();
+    if (selectedCoreId && !coreIds.includes(selectedCoreId)) {
+        alert('Please select a valid core ID');
+        return;
+    }
+    
     const nodeData = {
         resource_item: resourceItem.value,
         rate_ipm: parseInt(resourceRate.value),
         variant: resourceVariant.value,
-        core_id: resourceCoreId.value.trim()
+        core_id: selectedCoreId
     };
     
     if (!pins[selectedPinId].resource_nodes) {
