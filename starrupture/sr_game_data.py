@@ -81,14 +81,18 @@ class RawItemRecord:
 @dataclass
 class BuildingRecord:
     building_name: str
+    building_type: str
     heat_cost: int
     building_material_type: str
     building_cost: int
     num_stacks: int
+    max_stacks: int
+    power_draw: int
+    power_draw_per_stack: int|None
 
 #---------------------------------------------------------------------------------------------------
 
-T = TypeVar('T', bound=ItemRecord|RecipeInputRecord|RawItemRecord|BuildingRecord)
+type GameRecord = ItemRecord|RecipeInputRecord|RawItemRecord|BuildingRecord
 
 class CsvRowConverter(ABC):
     def __init__(self) -> None:
@@ -108,7 +112,7 @@ class CsvRowConverter(ABC):
 
 
     @abstractmethod
-    def convert_row(self, row:list[str]) -> T:
+    def convert_row(self, row:list[str]) -> GameRecord:
         """
         Extract the data from the row into a data class.
 
@@ -240,11 +244,18 @@ class BuildingRowConverter(CsvRowConverter):
         heat = int(self.get_column_value("Heat", row))
         num_stacks = 0
         if self.has_numstacks:
+            building_type = self.get_column_value("Type", row)
             bbm_cost = self.get_column_value("BbmCost", row)
             ibm_cost = self.get_column_value("IbmCost", row)
             qbm_cost = self.get_column_value("QbmCost", row)
             num_stacks = int(self.get_column_value("NumStacks", row))
+            max_stacks_str = self.get_column_value("MaxStacks", row)
+            max_stacks = num_stacks if 0 == len(max_stacks_str.strip()) else int(max_stacks_str)
+            power_draw = int(self.get_column_value("PowerDraw", row))
         else:
+            building_type = ""
+            max_stacks = num_stacks
+            power_draw = 0
             bbm_cost = self.get_column_value("bbm cost", row)
             ibm_cost = self.get_column_value("ibm cost", row)
             qbm_cost = self.get_column_value("qbm cost", row)
@@ -257,7 +268,16 @@ class BuildingRowConverter(CsvRowConverter):
         if build_cost is None:
             raise ValueError(f"No building cost defined for machine '{building}'.")
 
-        return BuildingRecord(building, heat, build_cost[0], build_cost[1], num_stacks)
+        return BuildingRecord(
+            building, 
+            building_type,
+            heat, 
+            build_cost[0], 
+            build_cost[1], 
+            num_stacks,
+            max_stacks,
+            power_draw,
+            None)
 
 
 #---------------------------------------------------------------------------------------------------
@@ -288,12 +308,12 @@ def load_definitions(
     raw_items = load_file(raw_filename, RawItemRowConverter())
     buildings = load_file(buildings_filename, BuildingRowConverter())
 
-    return (items, recipe_inputs, raw_items, buildings)
+    return (items, recipe_inputs, raw_items, buildings) # type: ignore
 
 #---------------------------------------------------------------------------------------------------
 
-def load_file(fname:str, converter:CsvRowConverter) -> list[T]:
-    ar:list[T] = []
+def load_file(fname:str, converter:CsvRowConverter) -> list[GameRecord]:
+    ar:list[GameRecord] = []
     with open(fname, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=';')
         read_header = True
