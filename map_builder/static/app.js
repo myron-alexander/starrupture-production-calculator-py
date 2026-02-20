@@ -4,11 +4,16 @@ const mapImage = document.getElementById('mapImage');
 const pinsOverlay = document.getElementById('pinsOverlay');
 const coordXDisplay = document.getElementById('coordX');
 const coordYDisplay = document.getElementById('coordY');
-const pinNameInput = document.getElementById('pinName');
-const pinXInput = document.getElementById('pinX');
-const pinYInput = document.getElementById('pinY');
-const addPinBtn = document.getElementById('addPinBtn');
 const pinsList = document.getElementById('pinsList');
+
+// Add Pin Modal Elements
+const addPinModal = document.getElementById('addPinModal');
+const addPinName = document.getElementById('addPinName');
+const addPinX = document.getElementById('addPinX');
+const addPinY = document.getElementById('addPinY');
+const saveAddPinBtn = document.getElementById('saveAddPinBtn');
+
+// Edit Pin Modal Elements
 const editModal = document.getElementById('editModal');
 const closeBtn = document.querySelector('.close');
 const savePinBtn = document.getElementById('savePinBtn');
@@ -81,6 +86,20 @@ const crafterCoreId = document.getElementById('crafterCoreId');
 const saveCrafterBtn = document.getElementById('saveCrafterBtn');
 const deleteCrafterBtn = document.getElementById('deleteCrafterBtn');
 
+// Storage Modal Elements
+const storageModal = document.getElementById('storageModal');
+const storageModalTitle = document.getElementById('storageModalTitle');
+const storageId = document.getElementById('storageId');
+const storageBuildingId = document.getElementById('storageBuildingId');
+const storageNumStacks = document.getElementById('storageNumStacks');
+const storageCoreId = document.getElementById('storageCoreId');
+const storageItemsContainer = document.getElementById('storageItemsContainer');
+const addStorageItemBtn = document.getElementById('addStorageItemBtn');
+const storageInputsContainer = document.getElementById('storageInputsContainer');
+const addStorageInputBtn = document.getElementById('addStorageInputBtn');
+const saveStorageBtn = document.getElementById('saveStorageBtn');
+const deleteStorageBtn = document.getElementById('deleteStorageBtn');
+
 // Non-Production Building Modal Elements
 const nonProdBuildingModal = document.getElementById('nonProdBuildingModal');
 const nonProdBuildingModalTitle = document.getElementById('nonProdBuildingModalTitle');
@@ -100,6 +119,7 @@ let editingDispatcherId = null;
 let selectedCoreId = null;
 let editingBuildingIndex = null;
 let editingCrafterId = null;
+let editingStorageId = null;
 
 // Grid configuration
 const GRID_ORIGIN_X = 350;  // Pixel X coordinate of grid origin
@@ -137,10 +157,13 @@ function attachEventListeners() {
     // Mouse move to show coordinates
     mapContainer.addEventListener('mousemove', handleMouseMove);
     
-    // Add pin button
-    addPinBtn.addEventListener('click', handleAddPin);
+    // Add Pin Modal controls
+    document.querySelectorAll('[data-modal="addPinModal"]').forEach(el => {
+        el.addEventListener('click', closeAddPinModal);
+    });
+    saveAddPinBtn.addEventListener('click', handleAddPin);
     
-    // Site Modal controls
+    // Edit Site Modal controls
     closeBtn.addEventListener('click', closeEditModal);
     savePinBtn.addEventListener('click', handleSavePin);
     deletePinBtn.addEventListener('click', handleDeletePin);
@@ -190,6 +213,19 @@ function attachEventListeners() {
     saveCrafterBtn.addEventListener('click', handleSaveCrafter);
     deleteCrafterBtn.addEventListener('click', handleDeleteCrafter);
     
+    // Storage Modal controls
+    document.querySelectorAll('[data-modal="storageModal"]').forEach(el => {
+        el.addEventListener('click', closeStorageModal);
+    });
+    addStorageItemBtn.addEventListener('click', () => {
+        addStorageItemRow();
+    });
+    addStorageInputBtn.addEventListener('click', () => {
+        addStorageInputRow();
+    });
+    saveStorageBtn.addEventListener('click', handleSaveStorage);
+    deleteStorageBtn.addEventListener('click', handleDeleteStorage);
+    
     // Non-Production Building Modal controls
     document.querySelectorAll('[data-modal="nonProdBuildingModal"]').forEach(el => {
         el.addEventListener('click', closeNonProdBuildingModal);
@@ -198,6 +234,9 @@ function attachEventListeners() {
     deleteNonProdBuildingBtn.addEventListener('click', handleDeleteNonProdBuilding);
     
     window.addEventListener('click', (event) => {
+        if (event.target === addPinModal) {
+            closeAddPinModal();
+        }
         if (event.target === editModal) {
             closeEditModal();
         }
@@ -218,6 +257,9 @@ function attachEventListeners() {
         }
         if (event.target === crafterModal) {
             closeCrafterModal();
+        }
+        if (event.target === storageModal) {
+            closeStorageModal();
         }
         if (event.target === nonProdBuildingModal) {
             closeNonProdBuildingModal();
@@ -247,9 +289,8 @@ function handleMapClick(event) {
     // Convert to grid coordinates and snap to grid
     const { gridX, gridY } = pixelToGrid(pixelX, pixelY);
     
-    // Update input fields with grid coordinates
-    pinXInput.value = gridX;
-    pinYInput.value = gridY;
+    // Show add pin modal with coordinates pre-filled
+    openAddPinModal(gridX, gridY);
 }
 
 function handleMouseMove(event) {
@@ -277,9 +318,9 @@ function handleMouseMove(event) {
 }
 
 async function handleAddPin() {
-    const name = pinNameInput.value.trim();
-    let x = parseInt(pinXInput.value);
-    let y = parseInt(pinYInput.value);
+    const name = addPinName.value.trim();
+    let x = parseInt(addPinX.value);
+    let y = parseInt(addPinY.value);
     
     if (!name) {
         alert('Please enter a pin name');
@@ -307,10 +348,8 @@ async function handleAddPin() {
             renderPins();
             renderPinsList();
             
-            // Reset form
-            pinNameInput.value = 'New Location';
-            pinXInput.value = 0;
-            pinYInput.value = 0;
+            // Close modal
+            closeAddPinModal();
         }
     } catch (error) {
         console.error('Error adding pin:', error);
@@ -463,6 +502,8 @@ function renderPinsList() {
                     openAddDispatcherModal(id, factoryId);
                 } else if (sectionHeader.includes('Crafters') && factoryId) {
                     openAddCrafterModal(id, factoryId);
+                } else if (sectionHeader.includes('Storage') && factoryId) {
+                    openAddStorageModal(id, factoryId);
                 } else if (sectionHeader.includes('Non-Production Buildings') && coreId) {
                     openAddNonProdBuildingModal(id, coreId);
                 }
@@ -486,6 +527,8 @@ function renderPinsList() {
                     openEditDispatcherModal(id, factoryId, itemId);
                 } else if (sectionHeader.includes('Crafters') && factoryId) {
                     openEditCrafterModal(id, factoryId, itemId);
+                } else if (sectionHeader.includes('Storage') && factoryId) {
+                    openEditStorageModal(id, factoryId, itemId);
                 } else if (sectionHeader.includes('Non-Production Buildings') && coreId && buildingIndex !== undefined) {
                     openEditNonProdBuildingModal(id, coreId, parseInt(buildingIndex));
                 }
@@ -556,6 +599,40 @@ function renderCraftersTree(crafters, factoryId) {
         html += `
             <div class="tree-block add-button" data-factory-id="${factoryId}">
                 + Add Crafter
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    return html;
+}
+
+function renderStorageTree(storage, factoryId) {
+    const storageIds = Object.keys(storage).sort();
+    let html = `
+        <div class="tree-section" style="margin-left: 20px; margin-top: 10px;">
+            <div class="tree-section-header">Storage (${storageIds.length})</div>
+    `;
+    
+    if (storageIds.length === 0) {
+        html += `
+            <div class="tree-block add-button" data-factory-id="${factoryId}">
+                + Add Storage
+            </div>
+        `;
+    } else {
+        storageIds.forEach(storageId => {
+            const stor = storage[storageId];
+            html += `
+                <div class="tree-block" data-item-id="${storageId}" data-factory-id="${factoryId}">
+                    <div class="tree-block-label">${storageId}</div>
+                    ${renderItemDetails('Storage', stor)}
+                </div>
+            `;
+        });
+        html += `
+            <div class="tree-block add-button" data-factory-id="${factoryId}">
+                + Add Storage
             </div>
         `;
     }
@@ -686,11 +763,16 @@ function renderItemDetails(sectionType, item, itemId = null) {
         let html = `
             <div class="tree-block-value">${item.purpose || 'No purpose set'}</div>
         `;
-        // Add crafters, receivers, and dispatchers as children of factory
+        // Add crafters, storage, receivers, and dispatchers as children of factory
         if (item.machines && item.machines.crafters && Object.keys(item.machines.crafters).length > 0) {
             html += renderCraftersTree(item.machines.crafters, itemId);
         } else {
             html += renderCraftersTree({}, itemId);
+        }
+        if (item.machines && item.machines.storage && Object.keys(item.machines.storage).length > 0) {
+            html += renderStorageTree(item.machines.storage, itemId);
+        } else {
+            html += renderStorageTree({}, itemId);
         }
         if (item.receivers && Object.keys(item.receivers).length > 0) {
             html += renderReceiversTree(item.receivers, itemId);
@@ -726,6 +808,15 @@ function renderItemDetails(sectionType, item, itemId = null) {
             <div class="tree-block-value">Inputs: ${inputsLabel}</div>
             ${item.core_id ? `<div class="tree-block-value">Core: ${item.core_id}</div>` : ''}
         `;
+    } else if (sectionType === 'Storage') {
+        const storedItems = Array.isArray(item.stored_items) ? item.stored_items : [];
+        const storedLabel = storedItems.length > 0 ? storedItems.join(', ') : 'None';
+        return `
+            <div class="tree-block-value">Building: ${item.building_id || 'Unknown'}</div>
+            <div class="tree-block-value">Items: ${storedLabel}</div>
+            ${item.num_stacks ? `<div class="tree-block-value">Stacks: ${item.num_stacks}</div>` : ''}
+            ${item.core_id ? `<div class="tree-block-value">Core: ${item.core_id}</div>` : ''}
+        `;
     }
     return '';
 }
@@ -741,6 +832,18 @@ function toggleDetails(pinId) {
         details.classList.add('expanded');
         toggle.textContent = '▲';
     }
+}
+
+function openAddPinModal(gridX, gridY) {
+    addPinName.value = 'New Location';
+    addPinX.value = gridX;
+    addPinY.value = gridY;
+    
+    addPinModal.classList.add('show');
+}
+
+function closeAddPinModal() {
+    addPinModal.classList.remove('show');
 }
 
 function openEditModal(pinId) {
@@ -1499,6 +1602,364 @@ async function handleDeleteCrafter() {
     } catch (error) {
         console.error('Error deleting crafter:', error);
         alert('Error deleting crafter');
+    }
+}
+
+// Storage Modal Functions
+function createStorageItemRow(itemName = '') {
+    const row = document.createElement('div');
+    row.className = 'storage-item-row';
+
+    const itemField = document.createElement('div');
+    itemField.className = 'storage-item-field';
+    const itemLabel = document.createElement('label');
+    itemLabel.textContent = 'Item';
+    const itemSelect = document.createElement('select');
+    itemSelect.className = 'storage-item-select';
+    
+    // Get valid items from crafterItem dropdown (already populated)
+    Array.from(crafterItem.options).forEach(option => {
+        itemSelect.appendChild(option.cloneNode(true));
+    });
+    itemSelect.value = itemName || '';
+    itemField.appendChild(itemLabel);
+    itemField.appendChild(itemSelect);
+
+    const actions = document.createElement('div');
+    actions.className = 'storage-item-actions';
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-danger';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', () => {
+        row.remove();
+    });
+    actions.appendChild(removeBtn);
+
+    row.appendChild(itemField);
+    row.appendChild(actions);
+
+    return row;
+}
+
+function addStorageItemRow(itemName = '') {
+    storageItemsContainer.appendChild(createStorageItemRow(itemName));
+}
+
+function resetStorageItems() {
+    storageItemsContainer.innerHTML = '';
+}
+
+function createStorageInputRow(inputData = {}) {
+    const row = document.createElement('div');
+    row.className = 'storage-input-row';
+
+    const itemField = document.createElement('div');
+    itemField.className = 'storage-input-field';
+    const itemLabel = document.createElement('label');
+    itemLabel.textContent = 'Input Item';
+    const itemSelect = document.createElement('select');
+    itemSelect.className = 'storage-input-item';
+    Array.from(crafterItem.options).forEach(option => {
+        itemSelect.appendChild(option.cloneNode(true));
+    });
+    itemSelect.value = inputData.input_item || '';
+    itemField.appendChild(itemLabel);
+    itemField.appendChild(itemSelect);
+
+    const fromIdsField = document.createElement('div');
+    fromIdsField.className = 'storage-input-field';
+    const fromIdsLabel = document.createElement('label');
+    fromIdsLabel.textContent = 'From IDs';
+    const fromIdsInput = document.createElement('input');
+    fromIdsInput.type = 'text';
+    fromIdsInput.className = 'storage-input-from-ids';
+    fromIdsInput.placeholder = 'from ids (comma-separated)';
+    fromIdsInput.value = Array.isArray(inputData.from_ids)
+        ? inputData.from_ids.join(', ')
+        : (inputData.from_ids || '');
+    fromIdsField.appendChild(fromIdsLabel);
+    fromIdsField.appendChild(fromIdsInput);
+
+    const rateField = document.createElement('div');
+    rateField.className = 'storage-input-field';
+    const rateLabel = document.createElement('label');
+    rateLabel.textContent = 'Rate Limit IPM';
+    const rateInput = document.createElement('input');
+    rateInput.type = 'number';
+    rateInput.className = 'storage-input-rate';
+    rateInput.min = '1';
+    rateInput.value = inputData.rate_limit_ipm || 1;
+    rateField.appendChild(rateLabel);
+    rateField.appendChild(rateInput);
+
+    const actions = document.createElement('div');
+    actions.className = 'storage-input-actions';
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-danger';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', () => {
+        row.remove();
+    });
+    actions.appendChild(removeBtn);
+
+    row.appendChild(itemField);
+    row.appendChild(fromIdsField);
+    row.appendChild(rateField);
+    row.appendChild(actions);
+
+    return row;
+}
+
+function addStorageInputRow(inputData = {}) {
+    storageInputsContainer.appendChild(createStorageInputRow(inputData));
+}
+
+function resetStorageInputs() {
+    storageInputsContainer.innerHTML = '';
+}
+
+function populateStorageCoreOptions(pinId, selectedCoreId = '') {
+    const cores = (pins[pinId] && pins[pinId].cores) ? pins[pinId].cores : {};
+    const coreIds = Object.keys(cores).sort();
+
+    storageCoreId.innerHTML = '';
+
+    const emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    emptyOption.textContent = '';
+    storageCoreId.appendChild(emptyOption);
+
+    coreIds.forEach(coreIdValue => {
+        const option = document.createElement('option');
+        option.value = coreIdValue;
+        option.textContent = coreIdValue;
+        storageCoreId.appendChild(option);
+    });
+
+    if (selectedCoreId && coreIds.includes(selectedCoreId)) {
+        storageCoreId.value = selectedCoreId;
+    } else {
+        storageCoreId.value = '';
+    }
+}
+
+function openAddStorageModal(pinId, factoryId) {
+    selectedPinId = pinId;
+    selectedFactoryId = factoryId;
+    editingStorageId = null;
+    storageModalTitle.textContent = 'Add Storage';
+    storageId.value = '';
+    storageId.disabled = false;
+    storageBuildingId.value = '';
+    storageNumStacks.value = '';
+    resetStorageItems();
+    addStorageItemRow();
+    resetStorageInputs();
+    addStorageInputRow();
+    populateStorageCoreOptions(pinId);
+    deleteStorageBtn.style.display = 'none';
+    storageModal.classList.add('show');
+}
+
+function openEditStorageModal(pinId, factoryId, machineId) {
+    selectedPinId = pinId;
+    selectedFactoryId = factoryId;
+    editingStorageId = machineId;
+    const storage = pins[pinId].factories[factoryId].machines.storage[machineId];
+
+    storageModalTitle.textContent = 'Edit Storage';
+    storageId.value = machineId;
+    storageId.disabled = true;
+    storageBuildingId.value = storage.building_id || '';
+    storageNumStacks.value = storage.num_stacks || '';
+    
+    resetStorageItems();
+    if (Array.isArray(storage.stored_items) && storage.stored_items.length > 0) {
+        storage.stored_items.forEach(item => addStorageItemRow(item));
+    } else {
+        addStorageItemRow();
+    }
+    
+    resetStorageInputs();
+    if (Array.isArray(storage.inputs) && storage.inputs.length > 0) {
+        storage.inputs.forEach(input => addStorageInputRow(input));
+    } else {
+        addStorageInputRow();
+    }
+    
+    populateStorageCoreOptions(pinId, storage.core_id || '');
+    deleteStorageBtn.style.display = 'block';
+    storageModal.classList.add('show');
+}
+
+function closeStorageModal() {
+    storageModal.classList.remove('show');
+    editingStorageId = null;
+    selectedFactoryId = null;
+}
+
+function parseStorageItems() {
+    const rows = Array.from(storageItemsContainer.querySelectorAll('.storage-item-row'));
+    const items = [];
+
+    for (const row of rows) {
+        const itemName = row.querySelector('.storage-item-select').value.trim();
+        if (itemName) {
+            items.push(itemName);
+        }
+    }
+
+    return items;
+}
+
+function parseStorageInputs() {
+    const rows = Array.from(storageInputsContainer.querySelectorAll('.storage-input-row'));
+    const inputs = [];
+
+    for (const row of rows) {
+        const inputItem = row.querySelector('.storage-input-item').value.trim();
+        const fromIdsValue = row.querySelector('.storage-input-from-ids').value.trim();
+        const rateValue = row.querySelector('.storage-input-rate').value.trim();
+
+        if (!inputItem) {
+            return { error: 'Each input row must include an input item' };
+        }
+
+        const rate = parseInt(rateValue);
+        if (isNaN(rate) || rate < 1) {
+            return { error: 'Each input row must include a positive rate_limit_ipm' };
+        }
+
+        const fromIds = fromIdsValue
+            ? fromIdsValue.split(',').map(id => id.trim()).filter(id => id)
+            : [];
+
+        inputs.push({
+            input_item: inputItem,
+            from_ids: fromIds,
+            rate_limit_ipm: rate
+        });
+    }
+
+    if (inputs.length === 0) {
+        return { error: 'Please add at least one input row' };
+    }
+
+    return { inputs };
+}
+
+async function handleSaveStorage() {
+    if (!selectedPinId || !selectedFactoryId) return;
+
+    const machineId = storageId.value.trim();
+    if (!machineId) {
+        alert('Please enter a storage ID');
+        return;
+    }
+
+    const buildingId = storageBuildingId.value.trim();
+    if (!buildingId) {
+        alert('Please select a building');
+        return;
+    }
+
+    if (!pins[selectedPinId].factories[selectedFactoryId].machines) {
+        pins[selectedPinId].factories[selectedFactoryId].machines = {};
+    }
+    if (!pins[selectedPinId].factories[selectedFactoryId].machines.storage) {
+        pins[selectedPinId].factories[selectedFactoryId].machines.storage = {};
+    }
+
+    if (!editingStorageId && pins[selectedPinId].factories[selectedFactoryId].machines.storage[machineId]) {
+        alert('A storage with this ID already exists');
+        return;
+    }
+
+    const storedItems = parseStorageItems();
+    if (storedItems.length === 0) {
+        alert('Please add at least one stored item');
+        return;
+    }
+
+    const parseResult = parseStorageInputs();
+    if (parseResult.error) {
+        alert(parseResult.error);
+        return;
+    }
+
+    const storageData = {
+        building_id: buildingId,
+        stored_items: storedItems,
+        inputs: parseResult.inputs
+    };
+
+    const numStacks = storageNumStacks.value.trim();
+    if (numStacks) {
+        const stacksInt = parseInt(numStacks);
+        if (!isNaN(stacksInt) && stacksInt > 0) {
+            storageData.num_stacks = stacksInt;
+        }
+    }
+
+    const coreIdValue = storageCoreId.value.trim();
+    if (coreIdValue) {
+        storageData.core_id = coreIdValue;
+    }
+
+    if (editingStorageId && editingStorageId !== machineId) {
+        delete pins[selectedPinId].factories[selectedFactoryId].machines.storage[editingStorageId];
+    }
+
+    pins[selectedPinId].factories[selectedFactoryId].machines.storage[machineId] = storageData;
+
+    try {
+        const response = await fetch(`/api/pins/${selectedPinId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ factories: pins[selectedPinId].factories })
+        });
+
+        if (response.ok) {
+            const updatedPin = await response.json();
+            pins[selectedPinId] = updatedPin;
+            renderPins();
+            renderPinsList();
+            closeStorageModal();
+        }
+    } catch (error) {
+        console.error('Error saving storage:', error);
+        alert('Error saving storage');
+    }
+}
+
+async function handleDeleteStorage() {
+    if (!selectedPinId || !selectedFactoryId || !editingStorageId) return;
+
+    delete pins[selectedPinId].factories[selectedFactoryId].machines.storage[editingStorageId];
+
+    try {
+        const response = await fetch(`/api/pins/${selectedPinId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ factories: pins[selectedPinId].factories })
+        });
+
+        if (response.ok) {
+            const updatedPin = await response.json();
+            pins[selectedPinId] = updatedPin;
+            renderPins();
+            renderPinsList();
+            closeStorageModal();
+        }
+    } catch (error) {
+        console.error('Error deleting storage:', error);
+        alert('Error deleting storage');
     }
 }
 

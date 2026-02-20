@@ -54,6 +54,10 @@ class GameData:
             b.building_name for b in self.building_definitions if b.building_type == "receiver"
         ]
         self.receiving_buildings.sort()
+        self.storage_buildings = [
+            b.building_name for b in self.building_definitions if b.building_type == "storage"
+        ]
+        self.storage_buildings.sort()
 
         production_buildings = set()
         production_buildings |= set([b for b in self.crafting_buildings])
@@ -121,7 +125,8 @@ def index():
         receiving_buildings=game_data.receiving_buildings,
         dispatcher_buildings=game_data.dispatcher_buildings,
         valid_items=game_data.valid_items,
-        non_production_buildings=game_data.non_production_buildings
+        non_production_buildings=game_data.non_production_buildings,
+        storage_buildings=game_data.storage_buildings
     )
 
 @app.route('/map-image')

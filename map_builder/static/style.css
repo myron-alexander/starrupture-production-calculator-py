@@ -154,7 +154,7 @@ header p {
 
 /* Sidebar */
 .sidebar {
-    width: 300px;
+    min-width: 350px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -528,6 +528,65 @@ header p {
 
 .crafter-input-actions .btn {
     width: auto;
+}
+
+.storage-item-row,
+.storage-input-row {
+    border: 1px solid #3d3d3d;
+    border-radius: 6px;
+    padding: 12px;
+    background: #242424;
+    margin-bottom: 10px;
+    display: grid;
+    gap: 10px;
+}
+
+.storage-item-field label,
+.storage-input-field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #b0b0b0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.storage-item-field input,
+.storage-item-field select,
+.storage-input-field input,
+.storage-input-field select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #3d3d3d;
+    color: #e0e0e0;
+}
+
+.storage-item-field input:focus,
+.storage-item-field select:focus,
+.storage-input-field input:focus,
+.storage-input-field select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    background-color: #474747;
+}
+
+.storage-item-actions .btn,
+.storage-input-actions .btn {
+    width: auto;
+}
+
+.btn-secondary {
+    background-color: #4a5568;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #2d3748;
 }
 
 /* Scrollbar styling */

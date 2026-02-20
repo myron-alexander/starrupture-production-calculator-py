@@ -27,22 +27,6 @@
                     <span>Grid X: <span id="coordX">-</span></span>
                     <span>Grid Y: <span id="coordY">-</span></span>
                 </div>
-                <div class="panel">
-                    <h2>Add Pin</h2>
-                    <div class="form-group">
-                        <label for="pinName">Pin Name:</label>
-                        <input type="text" id="pinName" placeholder="Enter pin name" value="New Location">
-                    </div>
-                    <div class="form-group">
-                        <label for="pinX">Grid X:</label>
-                        <input type="number" id="pinX" value="0">
-                    </div>
-                    <div class="form-group">
-                        <label for="pinY">Grid Y:</label>
-                        <input type="number" id="pinY" value="0">
-                    </div>
-                    <button id="addPinBtn" class="btn btn-primary">Add Pin</button>
-                </div>
 
                 <div class="panel">
                     <h2>Pins List</h2>
@@ -50,6 +34,29 @@
                         <div class="pin-item empty">No pins yet</div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for adding pins -->
+    <div id="addPinModal" class="modal">
+        <div class="modal-content">
+            <span class="close" data-modal="addPinModal">&times;</span>
+            <h2>Add Site</h2>
+            <div class="form-group">
+                <label for="addPinName">Site Name:</label>
+                <input type="text" id="addPinName" placeholder="Enter site name" value="New Location">
+            </div>
+            <div class="form-group">
+                <label for="addPinX">Grid X:</label>
+                <input type="number" id="addPinX" value="0">
+            </div>
+            <div class="form-group">
+                <label for="addPinY">Grid Y:</label>
+                <input type="number" id="addPinY" value="0">
+            </div>
+            <div class="modal-buttons">
+                <button id="saveAddPinBtn" class="btn btn-primary">Add Site</button>
             </div>
         </div>
     </div>
@@ -210,6 +217,50 @@
             <div class="modal-buttons">
                 <button id="saveCrafterBtn" class="btn btn-primary">Save</button>
                 <button id="deleteCrafterBtn" class="btn btn-danger" style="display:none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="storageModal" class="modal">
+        <div class="modal-content">
+            <span class="close" data-modal="storageModal">&times;</span>
+            <h2 id="storageModalTitle">Add Storage</h2>
+            <div class="form-group">
+                <label for="storageId">Storage ID:</label>
+                <input type="text" id="storageId" placeholder="Unique identifier">
+            </div>
+            <div class="form-group">
+                <label for="storageBuildingId">Building:</label>
+                <select id="storageBuildingId">
+                    <option value="">Select building</option>
+                    {% for building in storage_buildings %}
+                    <option value="{{ building }}">{{ building }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="storageNumStacks">Number of Stacks (optional):</label>
+                <input type="number" id="storageNumStacks" min="1" placeholder="Leave empty for fixed stacks">
+            </div>
+            <div class="form-group">
+                <label>Stored Items:</label>
+                <div id="storageItemsContainer"></div>
+                <button id="addStorageItemBtn" class="btn btn-secondary" type="button">Add Stored Item</button>
+            </div>
+            <div class="form-group">
+                <label>Inputs:</label>
+                <div id="storageInputsContainer"></div>
+                <button id="addStorageInputBtn" class="btn btn-secondary" type="button">Add Input</button>
+            </div>
+            <div class="form-group">
+                <label for="storageCoreId">Core ID (optional):</label>
+                <select id="storageCoreId">
+                    <option value=""></option>
+                </select>
+            </div>
+            <div class="modal-buttons">
+                <button id="saveStorageBtn" class="btn btn-primary">Save</button>
+                <button id="deleteStorageBtn" class="btn btn-danger" style="display:none;">Delete</button>
             </div>
         </div>
     </div>
