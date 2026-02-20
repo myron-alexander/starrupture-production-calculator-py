@@ -903,6 +903,28 @@ async function handleDeleteCore() {
 }
 
 // Factory Modal Functions
+function populateFactoryCoreOptions(pinId, selectedCoreId = '') {
+    const cores = (pins[pinId] && pins[pinId].cores) ? pins[pinId].cores : {};
+    const coreIds = Object.keys(cores).sort();
+
+    factoryDefaultCore.innerHTML = '';
+
+    coreIds.forEach(coreId => {
+        const option = document.createElement('option');
+        option.value = coreId;
+        option.textContent = coreId;
+        factoryDefaultCore.appendChild(option);
+    });
+
+    factoryDefaultCore.disabled = coreIds.length === 0;
+
+    if (selectedCoreId && coreIds.includes(selectedCoreId)) {
+        factoryDefaultCore.value = selectedCoreId;
+    } else if (coreIds.length > 0) {
+        factoryDefaultCore.value = coreIds[0];
+    }
+}
+
 function openAddFactoryModal(pinId) {
     selectedPinId = pinId;
     editingFactoryId = null;
@@ -910,7 +932,7 @@ function openAddFactoryModal(pinId) {
     factoryId.value = '';
     factoryId.disabled = false;
     factoryPurpose.value = '';
-    factoryDefaultCore.value = '';
+    populateFactoryCoreOptions(pinId);
     deleteFactoryBtn.style.display = 'none';
     factoryModal.classList.add('show');
 }
@@ -924,7 +946,7 @@ function openEditFactoryModal(pinId, facId) {
     factoryId.value = facId;
     factoryId.disabled = true;
     factoryPurpose.value = factory.purpose || '';
-    factoryDefaultCore.value = factory.default_core || '';
+    populateFactoryCoreOptions(pinId, factory.default_core || '');
     deleteFactoryBtn.style.display = 'block';
     factoryModal.classList.add('show');
 }
@@ -949,9 +971,22 @@ async function handleSaveFactory() {
         return;
     }
     
+    const coreIds = pins[selectedPinId] && pins[selectedPinId].cores
+        ? Object.keys(pins[selectedPinId].cores)
+        : [];
+    const selectedCoreId = factoryDefaultCore.value.trim();
+    if (!selectedCoreId) {
+        alert('Please select a core ID');
+        return;
+    }
+    if (!coreIds.includes(selectedCoreId)) {
+        alert('Please select a valid core ID');
+        return;
+    }
+
     const factoryData = {
         purpose: factoryPurpose.value.trim(),
-        default_core: factoryDefaultCore.value.trim(),
+        default_core: selectedCoreId,
         machines: {}
     };
     
