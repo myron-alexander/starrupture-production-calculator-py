@@ -179,6 +179,41 @@
         </div>
     </div>
 
+    <div id="crafterModal" class="modal">
+        <div class="modal-content">
+            <span class="close" data-modal="crafterModal">&times;</span>
+            <h2 id="crafterModalTitle">Add Crafter</h2>
+            <div class="form-group">
+                <label for="crafterId">Crafter ID:</label>
+                <input type="text" id="crafterId" placeholder="Unique identifier">
+            </div>
+            <div class="form-group">
+                <label for="crafterItem">Crafted Item:</label>
+                <select id="crafterItem">
+                    <option value="">Select item</option>
+                    {% for item in valid_items %}
+                    <option value="{{ item }}">{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Inputs:</label>
+                <div id="crafterInputsContainer"></div>
+                <button id="addCrafterInputBtn" class="btn btn-secondary" type="button">Add Input</button>
+            </div>
+            <div class="form-group">
+                <label for="crafterCoreId">Core ID (optional):</label>
+                <select id="crafterCoreId">
+                    <option value=""></option>
+                </select>
+            </div>
+            <div class="modal-buttons">
+                <button id="saveCrafterBtn" class="btn btn-primary">Save</button>
+                <button id="deleteCrafterBtn" class="btn btn-danger" style="display:none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <div id="receiverModal" class="modal">
         <div class="modal-content">
             <span class="close" data-modal="receiverModal">&times;</span>

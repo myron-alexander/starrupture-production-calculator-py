@@ -70,6 +70,17 @@ const dispatcherBuildingId = document.getElementById('dispatcherBuildingId');
 const saveDispatcherBtn = document.getElementById('saveDispatcherBtn');
 const deleteDispatcherBtn = document.getElementById('deleteDispatcherBtn');
 
+// Crafter Modal Elements
+const crafterModal = document.getElementById('crafterModal');
+const crafterModalTitle = document.getElementById('crafterModalTitle');
+const crafterId = document.getElementById('crafterId');
+const crafterItem = document.getElementById('crafterItem');
+const crafterInputsContainer = document.getElementById('crafterInputsContainer');
+const addCrafterInputBtn = document.getElementById('addCrafterInputBtn');
+const crafterCoreId = document.getElementById('crafterCoreId');
+const saveCrafterBtn = document.getElementById('saveCrafterBtn');
+const deleteCrafterBtn = document.getElementById('deleteCrafterBtn');
+
 // Non-Production Building Modal Elements
 const nonProdBuildingModal = document.getElementById('nonProdBuildingModal');
 const nonProdBuildingModalTitle = document.getElementById('nonProdBuildingModalTitle');
@@ -88,6 +99,7 @@ let editingReceiverId = null;
 let editingDispatcherId = null;
 let selectedCoreId = null;
 let editingBuildingIndex = null;
+let editingCrafterId = null;
 
 // Grid configuration
 const GRID_ORIGIN_X = 350;  // Pixel X coordinate of grid origin
@@ -167,6 +179,16 @@ function attachEventListeners() {
     });
     saveDispatcherBtn.addEventListener('click', handleSaveDispatcher);
     deleteDispatcherBtn.addEventListener('click', handleDeleteDispatcher);
+
+    // Crafter Modal controls
+    document.querySelectorAll('[data-modal="crafterModal"]').forEach(el => {
+        el.addEventListener('click', closeCrafterModal);
+    });
+    addCrafterInputBtn.addEventListener('click', () => {
+        addCrafterInputRow();
+    });
+    saveCrafterBtn.addEventListener('click', handleSaveCrafter);
+    deleteCrafterBtn.addEventListener('click', handleDeleteCrafter);
     
     // Non-Production Building Modal controls
     document.querySelectorAll('[data-modal="nonProdBuildingModal"]').forEach(el => {
@@ -193,6 +215,9 @@ function attachEventListeners() {
         }
         if (event.target === dispatcherModal) {
             closeDispatcherModal();
+        }
+        if (event.target === crafterModal) {
+            closeCrafterModal();
         }
         if (event.target === nonProdBuildingModal) {
             closeNonProdBuildingModal();
@@ -436,6 +461,8 @@ function renderPinsList() {
                     openAddReceiverModal(id, factoryId);
                 } else if (sectionHeader.includes('Dispatchers') && factoryId) {
                     openAddDispatcherModal(id, factoryId);
+                } else if (sectionHeader.includes('Crafters') && factoryId) {
+                    openAddCrafterModal(id, factoryId);
                 } else if (sectionHeader.includes('Non-Production Buildings') && coreId) {
                     openAddNonProdBuildingModal(id, coreId);
                 }
@@ -457,6 +484,8 @@ function renderPinsList() {
                     openEditReceiverModal(id, factoryId, itemId);
                 } else if (sectionHeader.includes('Dispatchers') && factoryId) {
                     openEditDispatcherModal(id, factoryId, itemId);
+                } else if (sectionHeader.includes('Crafters') && factoryId) {
+                    openEditCrafterModal(id, factoryId, itemId);
                 } else if (sectionHeader.includes('Non-Production Buildings') && coreId && buildingIndex !== undefined) {
                     openEditNonProdBuildingModal(id, coreId, parseInt(buildingIndex));
                 }
@@ -493,6 +522,40 @@ function renderTreeSection(title, items) {
         html += `
             <div class="tree-block add-button">
                 + Add ${title.slice(0, -1)}
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    return html;
+}
+
+function renderCraftersTree(crafters, factoryId) {
+    const crafterIds = Object.keys(crafters).sort();
+    let html = `
+        <div class="tree-section" style="margin-left: 20px; margin-top: 10px;">
+            <div class="tree-section-header">Crafters (${crafterIds.length})</div>
+    `;
+    
+    if (crafterIds.length === 0) {
+        html += `
+            <div class="tree-block add-button" data-factory-id="${factoryId}">
+                + Add Crafter
+            </div>
+        `;
+    } else {
+        crafterIds.forEach(crafterId => {
+            const crafter = crafters[crafterId];
+            html += `
+                <div class="tree-block" data-item-id="${crafterId}" data-factory-id="${factoryId}">
+                    <div class="tree-block-label">${crafterId}</div>
+                    ${renderItemDetails('Crafters', crafter)}
+                </div>
+            `;
+        });
+        html += `
+            <div class="tree-block add-button" data-factory-id="${factoryId}">
+                + Add Crafter
             </div>
         `;
     }
@@ -623,7 +686,12 @@ function renderItemDetails(sectionType, item, itemId = null) {
         let html = `
             <div class="tree-block-value">${item.purpose || 'No purpose set'}</div>
         `;
-        // Add receivers and dispatchers as children of factory
+        // Add crafters, receivers, and dispatchers as children of factory
+        if (item.machines && item.machines.crafters && Object.keys(item.machines.crafters).length > 0) {
+            html += renderCraftersTree(item.machines.crafters, itemId);
+        } else {
+            html += renderCraftersTree({}, itemId);
+        }
         if (item.receivers && Object.keys(item.receivers).length > 0) {
             html += renderReceiversTree(item.receivers, itemId);
         } else {
@@ -647,6 +715,16 @@ function renderItemDetails(sectionType, item, itemId = null) {
             <div class="tree-block-value">Out: ${item.output_rate_limit_ipm || 0} ipm, In: ${item.input_rate_limit_ipm || 0} ipm</div>
             <div class="tree-block-value">From: ${fromIds}</div>
             ${item.building_id ? `<div class="tree-block-value">Building: ${item.building_id}</div>` : ''}
+        `;
+    } else if (sectionType === 'Crafters') {
+        const inputItems = Array.isArray(item.inputs)
+            ? item.inputs.map(input => input.input_item).filter(Boolean)
+            : [];
+        const inputsLabel = inputItems.length > 0 ? inputItems.join(', ') : 'None';
+        return `
+            <div class="tree-block-value">Crafts: ${item.crafted_item || 'Unknown item'}</div>
+            <div class="tree-block-value">Inputs: ${inputsLabel}</div>
+            ${item.core_id ? `<div class="tree-block-value">Core: ${item.core_id}</div>` : ''}
         `;
     }
     return '';
@@ -1085,10 +1163,11 @@ async function handleSaveFactory() {
         return;
     }
 
+    const existingFactory = editingFactoryId ? pins[selectedPinId].factories[editingFactoryId] : null;
     const factoryData = {
         purpose: factoryPurpose.value.trim(),
         default_core: selectedCoreId,
-        machines: {}
+        machines: existingFactory && existingFactory.machines ? existingFactory.machines : {}
     };
     
     if (!pins[selectedPinId].factories) {
@@ -1148,6 +1227,278 @@ async function handleDeleteFactory() {
     } catch (error) {
         console.error('Error deleting factory:', error);
         alert('Error deleting factory');
+    }
+}
+
+function populateCrafterCoreOptions(pinId, selectedCoreId = '') {
+    const cores = (pins[pinId] && pins[pinId].cores) ? pins[pinId].cores : {};
+    const coreIds = Object.keys(cores).sort();
+
+    crafterCoreId.innerHTML = '';
+
+    const emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    emptyOption.textContent = '';
+    crafterCoreId.appendChild(emptyOption);
+
+    coreIds.forEach(coreIdValue => {
+        const option = document.createElement('option');
+        option.value = coreIdValue;
+        option.textContent = coreIdValue;
+        crafterCoreId.appendChild(option);
+    });
+
+    if (selectedCoreId && coreIds.includes(selectedCoreId)) {
+        crafterCoreId.value = selectedCoreId;
+    } else {
+        crafterCoreId.value = '';
+    }
+}
+
+function createCrafterInputRow(inputData = {}) {
+    const row = document.createElement('div');
+    row.className = 'crafter-input-row';
+
+    const itemField = document.createElement('div');
+    itemField.className = 'crafter-input-field';
+    const itemLabel = document.createElement('label');
+    itemLabel.textContent = 'Input Item';
+    const itemSelect = document.createElement('select');
+    itemSelect.className = 'crafter-input-item';
+    Array.from(crafterItem.options).forEach(option => {
+        itemSelect.appendChild(option.cloneNode(true));
+    });
+    itemSelect.value = inputData.input_item || '';
+    itemField.appendChild(itemLabel);
+    itemField.appendChild(itemSelect);
+
+    const fromIdsField = document.createElement('div');
+    fromIdsField.className = 'crafter-input-field';
+    const fromIdsLabel = document.createElement('label');
+    fromIdsLabel.textContent = 'From IDs';
+    const fromIdsInput = document.createElement('input');
+    fromIdsInput.type = 'text';
+    fromIdsInput.className = 'crafter-input-from-ids';
+    fromIdsInput.placeholder = 'from ids (comma-separated)';
+    fromIdsInput.value = Array.isArray(inputData.from_ids)
+        ? inputData.from_ids.join(', ')
+        : (inputData.from_ids || '');
+    fromIdsField.appendChild(fromIdsLabel);
+    fromIdsField.appendChild(fromIdsInput);
+
+    const rateField = document.createElement('div');
+    rateField.className = 'crafter-input-field';
+    const rateLabel = document.createElement('label');
+    rateLabel.textContent = 'Rate Limit IPM';
+    const rateInput = document.createElement('input');
+    rateInput.type = 'number';
+    rateInput.className = 'crafter-input-rate';
+    rateInput.min = '1';
+    rateInput.value = inputData.rate_limit_ipm || 1;
+    rateField.appendChild(rateLabel);
+    rateField.appendChild(rateInput);
+
+    const actions = document.createElement('div');
+    actions.className = 'crafter-input-actions';
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-danger';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', () => {
+        row.remove();
+    });
+    actions.appendChild(removeBtn);
+
+    row.appendChild(itemField);
+    row.appendChild(fromIdsField);
+    row.appendChild(rateField);
+    row.appendChild(actions);
+
+    return row;
+}
+
+function addCrafterInputRow(inputData = {}) {
+    crafterInputsContainer.appendChild(createCrafterInputRow(inputData));
+}
+
+function resetCrafterInputs() {
+    crafterInputsContainer.innerHTML = '';
+}
+
+// Crafter Modal Functions
+function openAddCrafterModal(pinId, factoryId) {
+    selectedPinId = pinId;
+    selectedFactoryId = factoryId;
+    editingCrafterId = null;
+    crafterModalTitle.textContent = 'Add Crafter';
+    crafterId.value = '';
+    crafterId.disabled = false;
+    crafterItem.value = '';
+    resetCrafterInputs();
+    addCrafterInputRow();
+    populateCrafterCoreOptions(pinId);
+    deleteCrafterBtn.style.display = 'none';
+    crafterModal.classList.add('show');
+}
+
+function openEditCrafterModal(pinId, factoryId, machineId) {
+    selectedPinId = pinId;
+    selectedFactoryId = factoryId;
+    editingCrafterId = machineId;
+    const crafter = pins[pinId].factories[factoryId].machines.crafters[machineId];
+
+    crafterModalTitle.textContent = 'Edit Crafter';
+    crafterId.value = machineId;
+    crafterId.disabled = true;
+    crafterItem.value = crafter.crafted_item || '';
+    resetCrafterInputs();
+    if (Array.isArray(crafter.inputs) && crafter.inputs.length > 0) {
+        crafter.inputs.forEach(input => addCrafterInputRow(input));
+    } else {
+        addCrafterInputRow();
+    }
+    populateCrafterCoreOptions(pinId, crafter.core_id || '');
+    deleteCrafterBtn.style.display = 'block';
+    crafterModal.classList.add('show');
+}
+
+function closeCrafterModal() {
+    crafterModal.classList.remove('show');
+    editingCrafterId = null;
+    selectedFactoryId = null;
+}
+
+function parseCrafterInputs() {
+    const rows = Array.from(crafterInputsContainer.querySelectorAll('.crafter-input-row'));
+    const inputs = [];
+
+    for (const row of rows) {
+        const inputItem = row.querySelector('.crafter-input-item').value.trim();
+        const fromIdsValue = row.querySelector('.crafter-input-from-ids').value.trim();
+        const rateValue = row.querySelector('.crafter-input-rate').value.trim();
+
+        if (!inputItem) {
+            return { error: 'Each input row must include an input item' };
+        }
+
+        const rate = parseInt(rateValue);
+        if (isNaN(rate) || rate < 1) {
+            return { error: 'Each input row must include a positive rate_limit_ipm' };
+        }
+
+        const fromIds = fromIdsValue
+            ? fromIdsValue.split(',').map(id => id.trim()).filter(id => id)
+            : [];
+
+        inputs.push({
+            input_item: inputItem,
+            from_ids: fromIds,
+            rate_limit_ipm: rate
+        });
+    }
+
+    if (inputs.length === 0) {
+        return { error: 'Please add at least one input row' };
+    }
+
+    return { inputs };
+}
+
+async function handleSaveCrafter() {
+    if (!selectedPinId || !selectedFactoryId) return;
+
+    const machineId = crafterId.value.trim();
+    if (!machineId) {
+        alert('Please enter a crafter ID');
+        return;
+    }
+
+    const craftedItem = crafterItem.value.trim();
+    if (!craftedItem) {
+        alert('Please select a crafted item');
+        return;
+    }
+
+    if (!pins[selectedPinId].factories[selectedFactoryId].machines) {
+        pins[selectedPinId].factories[selectedFactoryId].machines = {};
+    }
+    if (!pins[selectedPinId].factories[selectedFactoryId].machines.crafters) {
+        pins[selectedPinId].factories[selectedFactoryId].machines.crafters = {};
+    }
+
+    if (!editingCrafterId && pins[selectedPinId].factories[selectedFactoryId].machines.crafters[machineId]) {
+        alert('A crafter with this ID already exists');
+        return;
+    }
+
+    const parseResult = parseCrafterInputs();
+    if (parseResult.error) {
+        alert(parseResult.error);
+        return;
+    }
+
+    const crafterData = {
+        crafted_item: craftedItem,
+        inputs: parseResult.inputs
+    };
+
+    const coreIdValue = crafterCoreId.value.trim();
+    if (coreIdValue) {
+        crafterData.core_id = coreIdValue;
+    }
+
+    if (editingCrafterId && editingCrafterId !== machineId) {
+        delete pins[selectedPinId].factories[selectedFactoryId].machines.crafters[editingCrafterId];
+    }
+
+    pins[selectedPinId].factories[selectedFactoryId].machines.crafters[machineId] = crafterData;
+
+    try {
+        const response = await fetch(`/api/pins/${selectedPinId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ factories: pins[selectedPinId].factories })
+        });
+
+        if (response.ok) {
+            const updatedPin = await response.json();
+            pins[selectedPinId] = updatedPin;
+            renderPins();
+            renderPinsList();
+            closeCrafterModal();
+        }
+    } catch (error) {
+        console.error('Error saving crafter:', error);
+        alert('Error saving crafter');
+    }
+}
+
+async function handleDeleteCrafter() {
+    if (!selectedPinId || !selectedFactoryId || !editingCrafterId) return;
+
+    delete pins[selectedPinId].factories[selectedFactoryId].machines.crafters[editingCrafterId];
+
+    try {
+        const response = await fetch(`/api/pins/${selectedPinId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ factories: pins[selectedPinId].factories })
+        });
+
+        if (response.ok) {
+            const updatedPin = await response.json();
+            pins[selectedPinId] = updatedPin;
+            renderPins();
+            renderPinsList();
+            closeCrafterModal();
+        }
+    } catch (error) {
+        console.error('Error deleting crafter:', error);
+        alert('Error deleting crafter');
     }
 }
 
