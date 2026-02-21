@@ -301,6 +301,12 @@
                     {% endfor %}
                 </select>
             </div>
+            <div class="form-group" id="receiverCoreGroup" style="display:none;">
+                <label for="receiverCoreId">Core ID (optional):</label>
+                <select id="receiverCoreId">
+                    <option value=""></option>
+                </select>
+            </div>
             <div class="modal-buttons">
                 <button id="saveReceiverBtn" class="btn btn-primary">Save</button>
                 <button id="deleteReceiverBtn" class="btn btn-danger" style="display:none;">Delete</button>
@@ -344,6 +350,12 @@
                     {% for building in dispatcher_buildings %}
                     <option value="{{ building }}">{{ building }}</option>
                     {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" id="dispatcherCoreGroup" style="display: none;">
+                <label for="dispatcherCoreId">Core ID:</label>
+                <select id="dispatcherCoreId">
+                    <option value=""></option>
                 </select>
             </div>
             <div class="modal-buttons">

@@ -59,6 +59,8 @@ const receiverSiteId = document.getElementById('receiverSiteId');
 const receiverFactoryId = document.getElementById('receiverFactoryId');
 const receiverDispatcherId = document.getElementById('receiverDispatcherId');
 const receiverBuildingId = document.getElementById('receiverBuildingId');
+const receiverCoreGroup = document.getElementById('receiverCoreGroup');
+const receiverCoreId = document.getElementById('receiverCoreId');
 const saveReceiverBtn = document.getElementById('saveReceiverBtn');
 const deleteReceiverBtn = document.getElementById('deleteReceiverBtn');
 
@@ -71,6 +73,8 @@ const dispatcherOutputRate = document.getElementById('dispatcherOutputRate');
 const dispatcherInputRate = document.getElementById('dispatcherInputRate');
 const dispatcherFromIds = document.getElementById('dispatcherFromIds');
 const dispatcherBuildingId = document.getElementById('dispatcherBuildingId');
+const dispatcherCoreGroup = document.getElementById('dispatcherCoreGroup');
+const dispatcherCoreId = document.getElementById('dispatcherCoreId');
 const saveDispatcherBtn = document.getElementById('saveDispatcherBtn');
 const deleteDispatcherBtn = document.getElementById('deleteDispatcherBtn');
 
@@ -192,6 +196,7 @@ function attachEventListeners() {
     document.querySelectorAll('[data-modal="receiverModal"]').forEach(el => {
         el.addEventListener('click', closeReceiverModal);
     });
+    receiverBuildingId.addEventListener('change', handleReceiverBuildingChange);
     saveReceiverBtn.addEventListener('click', handleSaveReceiver);
     deleteReceiverBtn.addEventListener('click', handleDeleteReceiver);
     
@@ -199,6 +204,7 @@ function attachEventListeners() {
     document.querySelectorAll('[data-modal="dispatcherModal"]').forEach(el => {
         el.addEventListener('click', closeDispatcherModal);
     });
+    dispatcherBuildingId.addEventListener('change', handleDispatcherBuildingChange);
     saveDispatcherBtn.addEventListener('click', handleSaveDispatcher);
     deleteDispatcherBtn.addEventListener('click', handleDeleteDispatcher);
 
@@ -784,6 +790,7 @@ function renderItemDetails(sectionType, item, itemId = null) {
         return `
             <div class="tree-block-value">From: ${item.site_id || '?'}/${item.factory_id || '?'}/${item.dispatcher_id || '?'}</div>
             ${item.building_id ? `<div class="tree-block-value">Building: ${item.building_id}</div>` : ''}
+            ${item.core_id ? `<div class="tree-block-value">Core: ${item.core_id}</div>` : ''}
         `;
     } else if (sectionType === 'Dispatchers') {
         const fromIds = Array.isArray(item.from_ids) ? item.from_ids.join(', ') : item.from_ids || 'None';
@@ -792,6 +799,7 @@ function renderItemDetails(sectionType, item, itemId = null) {
             <div class="tree-block-value">Out: ${item.output_rate_limit_ipm || 0} ipm, In: ${item.input_rate_limit_ipm || 0} ipm</div>
             <div class="tree-block-value">From: ${fromIds}</div>
             ${item.building_id ? `<div class="tree-block-value">Building: ${item.building_id}</div>` : ''}
+            ${item.core_id ? `<div class="tree-block-value">Core: ${item.core_id}</div>` : ''}
         `;
     } else if (sectionType === 'Crafters') {
         const inputItems = Array.isArray(item.inputs)
@@ -1902,6 +1910,47 @@ async function handleDeleteStorage() {
 }
 
 // Receiver Modal Functions
+function populateReceiverCoreOptions(pinId, selectedCoreId = '') {
+    const cores = (pins[pinId] && pins[pinId].cores) ? pins[pinId].cores : {};
+    const coreIds = Object.keys(cores).sort();
+
+    receiverCoreId.innerHTML = '';
+
+    const emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    emptyOption.textContent = '';
+    receiverCoreId.appendChild(emptyOption);
+
+    coreIds.forEach(coreIdValue => {
+        const option = document.createElement('option');
+        option.value = coreIdValue;
+        option.textContent = coreIdValue;
+        receiverCoreId.appendChild(option);
+    });
+
+    if (selectedCoreId && coreIds.includes(selectedCoreId)) {
+        receiverCoreId.value = selectedCoreId;
+    } else {
+        receiverCoreId.value = '';
+    }
+}
+
+function handleReceiverBuildingChange() {
+    const buildingId = receiverBuildingId.value.trim();
+    
+    if (buildingId) {
+        // Show core field and populate options
+        receiverCoreGroup.style.display = 'block';
+        if (selectedPinId) {
+            populateReceiverCoreOptions(selectedPinId);
+        }
+    } else {
+        // Hide core field and clear value
+        receiverCoreGroup.style.display = 'none';
+        receiverCoreId.value = '';
+    }
+}
+
 function openAddReceiverModal(pinId, factoryId) {
     selectedPinId = pinId;
     selectedFactoryId = factoryId;
@@ -1913,6 +1962,8 @@ function openAddReceiverModal(pinId, factoryId) {
     receiverFactoryId.value = '';
     receiverDispatcherId.value = '';
     receiverBuildingId.value = '';
+    receiverCoreGroup.style.display = 'none';
+    receiverCoreId.value = '';
     deleteReceiverBtn.style.display = 'none';
     receiverModal.classList.add('show');
 }
@@ -1930,6 +1981,16 @@ function openEditReceiverModal(pinId, factoryId, recId) {
     receiverFactoryId.value = receiver.factory_id || '';
     receiverDispatcherId.value = receiver.dispatcher_id || '';
     receiverBuildingId.value = receiver.building_id || '';
+    
+    // Show/hide core field based on building selection
+    if (receiver.building_id) {
+        receiverCoreGroup.style.display = 'block';
+        populateReceiverCoreOptions(pinId, receiver.core_id || '');
+    } else {
+        receiverCoreGroup.style.display = 'none';
+        receiverCoreId.value = '';
+    }
+    
     deleteReceiverBtn.style.display = 'block';
     receiverModal.classList.add('show');
 }
@@ -1966,6 +2027,15 @@ async function handleSaveReceiver() {
         dispatcher_id: receiverDispatcherId.value.trim(),
         building_id: receiverBuildingId.value.trim()
     };
+    
+    // Add core_id if building is selected and core is specified
+    const buildingIdValue = receiverBuildingId.value.trim();
+    if (buildingIdValue) {
+        const coreIdValue = receiverCoreId.value.trim();
+        if (coreIdValue) {
+            receiverData.core_id = coreIdValue;
+        }
+    }
     
     // If editing and ID changed, delete old entry
     if (editingReceiverId && editingReceiverId !== recId) {
@@ -2024,6 +2094,35 @@ async function handleDeleteReceiver() {
 }
 
 // Dispatcher Modal Functions
+function populateDispatcherCoreOptions(pinId, selectedCoreId = '') {
+    const pin = pins[pinId];
+    dispatcherCoreId.innerHTML = '<option value=""></option>';
+    
+    if (pin && pin.cores) {
+        for (const coreId in pin.cores) {
+            const option = document.createElement('option');
+            option.value = coreId;
+            option.textContent = coreId;
+            if (coreId === selectedCoreId) {
+                option.selected = true;
+            }
+            dispatcherCoreId.appendChild(option);
+        }
+    }
+}
+
+function handleDispatcherBuildingChange() {
+    if (dispatcherBuildingId.value) {
+        dispatcherCoreGroup.style.display = 'block';
+        if (selectedPinId) {
+            populateDispatcherCoreOptions(selectedPinId, dispatcherCoreId.value);
+        }
+    } else {
+        dispatcherCoreGroup.style.display = 'none';
+        dispatcherCoreId.value = '';
+    }
+}
+
 function openAddDispatcherModal(pinId, factoryId) {
     selectedPinId = pinId;
     selectedFactoryId = factoryId;
@@ -2036,6 +2135,8 @@ function openAddDispatcherModal(pinId, factoryId) {
     dispatcherInputRate.value = '100';
     dispatcherFromIds.value = '';
     dispatcherBuildingId.value = '';
+    dispatcherCoreGroup.style.display = 'none';
+    dispatcherCoreId.value = '';
     deleteDispatcherBtn.style.display = 'none';
     dispatcherModal.classList.add('show');
 }
@@ -2055,6 +2156,16 @@ function openEditDispatcherModal(pinId, factoryId, dispId) {
     const fromIds = Array.isArray(dispatcher.from_ids) ? dispatcher.from_ids.join(', ') : dispatcher.from_ids || '';
     dispatcherFromIds.value = fromIds;
     dispatcherBuildingId.value = dispatcher.building_id || '';
+    
+    // Show/hide core field based on building selection
+    if (dispatcher.building_id) {
+        dispatcherCoreGroup.style.display = 'block';
+        populateDispatcherCoreOptions(pinId, dispatcher.core_id || '');
+    } else {
+        dispatcherCoreGroup.style.display = 'none';
+        dispatcherCoreId.value = '';
+    }
+    
     deleteDispatcherBtn.style.display = 'block';
     dispatcherModal.classList.add('show');
 }
@@ -2101,6 +2212,11 @@ async function handleSaveDispatcher() {
         from_ids: fromIds,
         building_id: dispatcherBuildingId.value.trim()
     };
+    
+    // Add core_id only if building is selected and core is specified
+    if (dispatcherBuildingId.value.trim() && dispatcherCoreId.value.trim()) {
+        dispatcherData.core_id = dispatcherCoreId.value.trim();
+    }
     
     // If editing and ID changed, delete old entry
     if (editingDispatcherId && editingDispatcherId !== dispId) {
