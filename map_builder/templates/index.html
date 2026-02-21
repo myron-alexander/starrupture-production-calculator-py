@@ -246,9 +246,13 @@
                 <input type="number" id="storageNumStacks" min="1" placeholder="Leave empty for fixed stacks">
             </div>
             <div class="form-group">
-                <label>Stored Items:</label>
-                <div id="storageItemsContainer"></div>
-                <button id="addStorageItemBtn" class="btn btn-secondary" type="button">Add Stored Item</button>
+                <label for="storageStoredItem">Stored Item:</label>
+                <select id="storageStoredItem" required>
+                    <option value="*" selected>* (All Items)</option>
+                    {% for item in valid_items %}
+                    <option value="{{ item }}">{{ item }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="form-group">
                 <label>Inputs:</label>

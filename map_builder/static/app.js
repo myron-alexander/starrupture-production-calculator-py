@@ -90,9 +90,8 @@ const storageModalTitle = document.getElementById('storageModalTitle');
 const storageId = document.getElementById('storageId');
 const storageBuildingId = document.getElementById('storageBuildingId');
 const storageNumStacks = document.getElementById('storageNumStacks');
+const storageStoredItem = document.getElementById('storageStoredItem');
 const storageCoreId = document.getElementById('storageCoreId');
-const storageItemsContainer = document.getElementById('storageItemsContainer');
-const addStorageItemBtn = document.getElementById('addStorageItemBtn');
 const storageInputsContainer = document.getElementById('storageInputsContainer');
 const addStorageInputBtn = document.getElementById('addStorageInputBtn');
 const saveStorageBtn = document.getElementById('saveStorageBtn');
@@ -214,9 +213,6 @@ function attachEventListeners() {
     // Storage Modal controls
     document.querySelectorAll('[data-modal="storageModal"]').forEach(el => {
         el.addEventListener('click', closeStorageModal);
-    });
-    addStorageItemBtn.addEventListener('click', () => {
-        addStorageItemRow();
     });
     addStorageInputBtn.addEventListener('click', () => {
         addStorageInputRow();
@@ -808,11 +804,10 @@ function renderItemDetails(sectionType, item, itemId = null) {
             ${item.core_id ? `<div class="tree-block-value">Core: ${item.core_id}</div>` : ''}
         `;
     } else if (sectionType === 'Storage') {
-        const storedItems = Array.isArray(item.stored_items) ? item.stored_items : [];
-        const storedLabel = storedItems.length > 0 ? storedItems.join(', ') : 'None';
+        const storedItem = item.stored_item || 'None';
         return `
             <div class="tree-block-value">Building: ${item.building_id || 'Unknown'}</div>
-            <div class="tree-block-value">Items: ${storedLabel}</div>
+            <div class="tree-block-value">Item: ${storedItem}</div>
             ${item.num_stacks ? `<div class="tree-block-value">Stacks: ${item.num_stacks}</div>` : ''}
             ${item.core_id ? `<div class="tree-block-value">Core: ${item.core_id}</div>` : ''}
         `;
@@ -1632,66 +1627,9 @@ async function handleDeleteCrafter() {
 }
 
 // Storage Modal Functions
-function createStorageItemRow(itemName = '') {
-    const row = document.createElement('div');
-    row.className = 'storage-item-row';
-
-    const itemField = document.createElement('div');
-    itemField.className = 'storage-item-field';
-    const itemLabel = document.createElement('label');
-    itemLabel.textContent = 'Item';
-    const itemSelect = document.createElement('select');
-    itemSelect.className = 'storage-item-select';
-    
-    // Get valid items from crafterItem dropdown (already populated)
-    Array.from(crafterItem.options).forEach(option => {
-        itemSelect.appendChild(option.cloneNode(true));
-    });
-    itemSelect.value = itemName || '';
-    itemField.appendChild(itemLabel);
-    itemField.appendChild(itemSelect);
-
-    const actions = document.createElement('div');
-    actions.className = 'storage-item-actions';
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn btn-danger';
-    removeBtn.textContent = 'Remove';
-    removeBtn.addEventListener('click', () => {
-        row.remove();
-    });
-    actions.appendChild(removeBtn);
-
-    row.appendChild(itemField);
-    row.appendChild(actions);
-
-    return row;
-}
-
-function addStorageItemRow(itemName = '') {
-    storageItemsContainer.appendChild(createStorageItemRow(itemName));
-}
-
-function resetStorageItems() {
-    storageItemsContainer.innerHTML = '';
-}
-
 function createStorageInputRow(inputData = {}) {
     const row = document.createElement('div');
     row.className = 'storage-input-row';
-
-    const itemField = document.createElement('div');
-    itemField.className = 'storage-input-field';
-    const itemLabel = document.createElement('label');
-    itemLabel.textContent = 'Input Item';
-    const itemSelect = document.createElement('select');
-    itemSelect.className = 'storage-input-item';
-    Array.from(crafterItem.options).forEach(option => {
-        itemSelect.appendChild(option.cloneNode(true));
-    });
-    itemSelect.value = inputData.input_item || '';
-    itemField.appendChild(itemLabel);
-    itemField.appendChild(itemSelect);
 
     const fromIdsField = document.createElement('div');
     fromIdsField.className = 'storage-input-field';
@@ -1730,7 +1668,6 @@ function createStorageInputRow(inputData = {}) {
     });
     actions.appendChild(removeBtn);
 
-    row.appendChild(itemField);
     row.appendChild(fromIdsField);
     row.appendChild(rateField);
     row.appendChild(actions);
@@ -1780,8 +1717,7 @@ function openAddStorageModal(pinId, factoryId) {
     storageId.disabled = false;
     storageBuildingId.value = '';
     storageNumStacks.value = '';
-    resetStorageItems();
-    addStorageItemRow();
+    storageStoredItem.value = '*';
     resetStorageInputs();
     addStorageInputRow();
     populateStorageCoreOptions(pinId);
@@ -1801,12 +1737,8 @@ function openEditStorageModal(pinId, factoryId, machineId) {
     storageBuildingId.value = storage.building_id || '';
     storageNumStacks.value = storage.num_stacks || '';
     
-    resetStorageItems();
-    if (Array.isArray(storage.stored_items) && storage.stored_items.length > 0) {
-        storage.stored_items.forEach(item => addStorageItemRow(item));
-    } else {
-        addStorageItemRow();
-    }
+    // Set stored item (single value, defaulting to '*' if not set)
+    storageStoredItem.value = storage.stored_item || '*';
     
     resetStorageInputs();
     if (Array.isArray(storage.inputs) && storage.inputs.length > 0) {
@@ -1826,32 +1758,13 @@ function closeStorageModal() {
     selectedFactoryId = null;
 }
 
-function parseStorageItems() {
-    const rows = Array.from(storageItemsContainer.querySelectorAll('.storage-item-row'));
-    const items = [];
-
-    for (const row of rows) {
-        const itemName = row.querySelector('.storage-item-select').value.trim();
-        if (itemName) {
-            items.push(itemName);
-        }
-    }
-
-    return items;
-}
-
 function parseStorageInputs() {
     const rows = Array.from(storageInputsContainer.querySelectorAll('.storage-input-row'));
     const inputs = [];
 
     for (const row of rows) {
-        const inputItem = row.querySelector('.storage-input-item').value.trim();
         const fromIdsValue = row.querySelector('.storage-input-from-ids').value.trim();
         const rateValue = row.querySelector('.storage-input-rate').value.trim();
-
-        if (!inputItem) {
-            return { error: 'Each input row must include an input item' };
-        }
 
         const rate = parseInt(rateValue);
         if (isNaN(rate) || rate < 1) {
@@ -1863,7 +1776,6 @@ function parseStorageInputs() {
             : [];
 
         inputs.push({
-            input_item: inputItem,
             from_ids: fromIds,
             rate_limit_ipm: rate
         });
@@ -1891,6 +1803,12 @@ async function handleSaveStorage() {
         return;
     }
 
+    const storedItem = storageStoredItem.value.trim();
+    if (!storedItem) {
+        alert('Please select a stored item');
+        return;
+    }
+
     if (!pins[selectedPinId].factories[selectedFactoryId].machines) {
         pins[selectedPinId].factories[selectedFactoryId].machines = {};
     }
@@ -1903,12 +1821,6 @@ async function handleSaveStorage() {
         return;
     }
 
-    const storedItems = parseStorageItems();
-    if (storedItems.length === 0) {
-        alert('Please add at least one stored item');
-        return;
-    }
-
     const parseResult = parseStorageInputs();
     if (parseResult.error) {
         alert(parseResult.error);
@@ -1917,7 +1829,7 @@ async function handleSaveStorage() {
 
     const storageData = {
         building_id: buildingId,
-        stored_items: storedItems,
+        stored_item: storedItem,
         inputs: parseResult.inputs
     };
 
