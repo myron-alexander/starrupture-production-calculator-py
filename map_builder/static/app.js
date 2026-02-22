@@ -2459,6 +2459,8 @@ function buildReceiverDispatcherList() {
     for (const [siteId, pin] of Object.entries(pins || {})) {
         if (!pin.factories) continue;
         for (const [factoryId, factory] of Object.entries(pin.factories)) {
+            // May not receive items from dispatchers of the same factory.
+            if (selectedFactoryId === factoryId) continue;
             if (!factory.dispatchers) continue;
             for (const [dispatcherId, dispatcher] of Object.entries(factory.dispatchers)) {
                 const item = dispatcher.dipatched_item || dispatcher.dispatched_item || '';
