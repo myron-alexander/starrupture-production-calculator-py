@@ -386,6 +386,16 @@ async function handleAddPin() {
         alert('Please enter a pin name');
         return;
     }
+
+    const hasConflict = Object.entries(pins).some(([id, pin]) => {
+        if (id === name) return true;
+        if (pin.name && pin.name === name) return true;
+        return false;
+    });
+    if (hasConflict) {
+        alert('Site name must be globally unique');
+        return;
+    }
     
     // Validate grid coordinates
     if (isNaN(x) || isNaN(y)) {
@@ -410,6 +420,9 @@ async function handleAddPin() {
             
             // Close modal
             closeAddPinModal();
+        } else {
+            const errorData = await response.json();
+            alert(errorData.error || 'Error adding pin');
         }
     } catch (error) {
         console.error('Error adding pin:', error);
@@ -421,6 +434,11 @@ async function loadPins() {
     try {
         const response = await fetch('/api/pins');
         pins = await response.json();
+        Object.entries(pins).forEach(([id, pin]) => {
+            if (!pin.id) {
+                pin.id = id;
+            }
+        });
         renderPins();
         renderPinsList();
     } catch (error) {
@@ -452,7 +470,7 @@ function renderPins() {
         
         const tooltip = document.createElement('div');
         tooltip.className = 'pin-tooltip';
-        tooltip.innerHTML = `<strong>${pin.name}</strong><br>Grid: (${pin.x}, ${pin.y})`;
+        tooltip.innerHTML = `<strong>${pin.id}</strong><br>Grid: (${pin.x}, ${pin.y})`;
         
         pinElement.appendChild(tooltip);
         pinElement.addEventListener('click', (e) => {
@@ -481,7 +499,7 @@ function renderPinsList() {
         header.className = 'pin-item-header';
         header.innerHTML = `
             <div>
-                <div class="pin-item-name">${index + 1}. ${pin.name}</div>
+                <div class="pin-item-name">${index + 1}. ${pin.id}</div>
                 <div class="pin-item-coords">Grid: (${pin.x}, ${pin.y})</div>
             </div>
             <span class="pin-item-toggle" data-pin-id="${id}">▼</span>
@@ -913,7 +931,7 @@ function openEditModal(pinId) {
     selectedPinId = pinId;
     const pin = pins[pinId];
     
-    editPinName.value = pin.name;
+    editPinName.value = pin.id;
     editPinX.value = pin.x;
     editPinY.value = pin.y;
     editTeleporter.value = pin.teleporter || '';
@@ -940,6 +958,17 @@ async function handleSavePin() {
         alert('Please enter a site name');
         return;
     }
+
+    const hasConflict = Object.entries(pins).some(([id, pin]) => {
+        if (id === selectedPinId) return false;
+        if (id === name) return true;
+        if (pin.name && pin.name === name) return true;
+        return false;
+    });
+    if (hasConflict) {
+        alert('Site name must be globally unique');
+        return;
+    }
     
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
@@ -952,10 +981,21 @@ async function handleSavePin() {
         
         if (response.ok) {
             const updatedPin = await response.json();
-            pins[selectedPinId] = updatedPin;
+            const previousId = selectedPinId;
+            if (updatedPin.id !== selectedPinId) {
+                delete pins[selectedPinId];
+                selectedPinId = updatedPin.id;
+            }
+            pins[updatedPin.id] = updatedPin;
             renderPins();
             renderPinsList();
             closeEditModal();
+            if (updatedPin.id !== previousId) {
+                loadPins();
+            }
+        } else {
+            const errorData = await response.json();
+            alert(errorData.error || 'Error saving site');
         }
     } catch (error) {
         console.error('Error saving pin:', error);
@@ -2404,7 +2444,7 @@ function handleReceiverBuildingChange() {
 }
 
 function setReceiverDispatcherLabels(selection) {
-    const siteValue = selection ? selection.site_name || selection.site_id : '';
+    const siteValue = selection ? selection.site_id : '';
     const factoryValue = selection ? selection.factory_id : '';
     const dispatcherValue = selection ? selection.dispatcher_id : '';
 
@@ -2425,7 +2465,6 @@ function buildReceiverDispatcherList() {
                 list.push({
                     item,
                     site_id: siteId,
-                    site_name: pin.name || siteId,
                     factory_id: factoryId,
                     dispatcher_id: dispatcherId
                 });
@@ -2436,7 +2475,7 @@ function buildReceiverDispatcherList() {
     list.sort((a, b) => {
         const itemCompare = a.item.localeCompare(b.item);
         if (itemCompare !== 0) return itemCompare;
-        const siteCompare = a.site_name.localeCompare(b.site_name);
+        const siteCompare = a.site_id.localeCompare(b.site_id);
         if (siteCompare !== 0) return siteCompare;
         const factoryCompare = a.factory_id.localeCompare(b.factory_id);
         if (factoryCompare !== 0) return factoryCompare;
@@ -2469,7 +2508,7 @@ function populateReceiverDispatcherTable() {
 
         row.innerHTML = `
             <td style="border: 1px solid #555; padding: 10px;">${entry.item}</td>
-            <td style="border: 1px solid #555; padding: 10px;">${entry.site_name}</td>
+            <td style="border: 1px solid #555; padding: 10px;">${entry.site_id}</td>
             <td style="border: 1px solid #555; padding: 10px;">${entry.factory_id}</td>
             <td style="border: 1px solid #555; padding: 10px;">${entry.dispatcher_id}</td>
         `;

@@ -184,10 +184,17 @@ def add_pin():
     data = request.json
     pins = load_pins()
 
-    pin_id = str(int(datetime.now().timestamp() * 1000))
+    site_id = (data.get('name') or '').strip()
+    if not site_id:
+        return jsonify({'error': 'Site name is required'}), 400
+
+    # Enforce globally unique site id (also guard against legacy name fields)
+    for existing_id, existing_pin in pins.items():
+        if existing_id == site_id or existing_pin.get('name') == site_id:
+            return jsonify({'error': 'Site name must be globally unique'}), 400
+
     pin_data = {
-        'id': pin_id,
-        'name': data.get('name', 'Unnamed Site'),
+        'id': site_id,
         'x': data.get('x', 0),
         'y': data.get('y', 0),
         'teleporter': data.get('teleporter', ''),
@@ -198,7 +205,7 @@ def add_pin():
         'created': datetime.now().isoformat()
     }
 
-    pins[pin_id] = pin_data
+    pins[site_id] = pin_data
     save_pins(pins)
 
     return jsonify(pin_data), 201
@@ -210,9 +217,36 @@ def update_pin(pin_id):
     pins = load_pins()
 
     if pin_id in pins:
-        # Update only the fields that are provided
+        old_id = pin_id
+        # Handle site id rename (site name is the id)
+        new_id = pin_id
         if 'name' in data:
-            pins[pin_id]['name'] = data['name']
+            requested_id = (data.get('name') or '').strip()
+            if not requested_id:
+                return jsonify({'error': 'Site name is required'}), 400
+            if requested_id != pin_id:
+                for existing_id, existing_pin in pins.items():
+                    if existing_id == requested_id:
+                        return jsonify({'error': 'Site name must be globally unique'}), 400
+                    if existing_id != pin_id and existing_pin.get('name') == requested_id:
+                        return jsonify({'error': 'Site name must be globally unique'}), 400
+                pin_data = pins.pop(pin_id)
+                pin_data['id'] = requested_id
+                pins[requested_id] = pin_data
+                pin_id = requested_id
+                new_id = requested_id
+
+        if old_id != new_id:
+            # Update receiver references across all sites
+            for pin in pins.values():
+                factories = pin.get('factories', {})
+                for factory in factories.values():
+                    receivers = factory.get('receivers', {})
+                    for receiver in receivers.values():
+                        if receiver.get('site_id') == old_id:
+                            receiver['site_id'] = new_id
+
+        # Update only the fields that are provided
         if 'x' in data:
             pins[pin_id]['x'] = data['x']
         if 'y' in data:
@@ -227,6 +261,12 @@ def update_pin(pin_id):
             pins[pin_id]['cores'] = data['cores']
         if 'factories' in data:
             pins[pin_id]['factories'] = data['factories']
+
+        # Remove legacy name field if present
+        if 'name' in pins[pin_id]:
+            del pins[pin_id]['name']
+
+        pins[pin_id]['id'] = new_id
 
         save_pins(pins)
         return jsonify(pins[pin_id])
