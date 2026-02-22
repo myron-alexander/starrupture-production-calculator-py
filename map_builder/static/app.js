@@ -3036,9 +3036,18 @@ async function handleDeleteDispatcher() {
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
+            
+            // Reload all pins to reflect cascading receiver deletions across all sites
+            await loadPins();
+            
             renderPins();
             renderPinsList();
             closeDispatcherModal();
+            
+            const deletedReceivers = updatedPin.deleted_receivers || 0;
+            if (deletedReceivers > 0) {
+                alert(`Dispatcher deleted. ${deletedReceivers} receiver(s) across all sites referencing this dispatcher were also deleted.`);
+            }
         }
     } catch (error) {
         console.error('Error deleting dispatcher:', error);

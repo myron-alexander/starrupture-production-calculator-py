@@ -259,7 +259,43 @@ def update_pin(pin_id):
             pins[pin_id]['resource_nodes'] = data['resource_nodes']
         if 'cores' in data:
             pins[pin_id]['cores'] = data['cores']
+        
+        deleted_receivers_count = 0
         if 'factories' in data:
+            # Before updating factories, detect deleted dispatchers and cascade delete receivers
+            old_factories = pins[pin_id].get('factories', {})
+            new_factories = data['factories']
+            
+            # Find all dispatchers that were deleted in this site
+            deleted_dispatchers = []  # List of (site_id, factory_id, dispatcher_id)
+            for factory_id in old_factories:
+                if factory_id in new_factories:
+                    old_dispatchers = old_factories[factory_id].get('dispatchers', {})
+                    new_dispatchers = new_factories[factory_id].get('dispatchers', {})
+                    
+                    for dispatcher_id in old_dispatchers:
+                        if dispatcher_id not in new_dispatchers:
+                            deleted_dispatchers.append((pin_id, factory_id, dispatcher_id))
+            
+            # Delete receivers in ALL factories of ALL sites that reference deleted dispatchers
+            if deleted_dispatchers:
+                for pin in pins.values():
+                    factories = pin.get('factories', {})
+                    for factory in factories.values():
+                        receivers = factory.get('receivers', {})
+                        receivers_to_delete = [
+                            rid for rid, receiver in receivers.items()
+                            if any(
+                                receiver.get('site_id') == disp[0] and
+                                receiver.get('factory_id') == disp[1] and
+                                receiver.get('dispatcher_id') == disp[2]
+                                for disp in deleted_dispatchers
+                            )
+                        ]
+                        deleted_receivers_count += len(receivers_to_delete)
+                        for rid in receivers_to_delete:
+                            del receivers[rid]
+            
             pins[pin_id]['factories'] = data['factories']
 
         # Remove legacy name field if present
@@ -269,7 +305,12 @@ def update_pin(pin_id):
         pins[pin_id]['id'] = new_id
 
         save_pins(pins)
-        return jsonify(pins[pin_id])
+        
+        # Return response with deleted receivers count if applicable
+        response_data = pins[pin_id].copy()
+        if deleted_receivers_count > 0:
+            response_data['deleted_receivers'] = deleted_receivers_count
+        return jsonify(response_data)
 
     return jsonify({'error': 'Pin not found'}), 404
 
