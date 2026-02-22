@@ -49,21 +49,23 @@
         <div class="modal-content">
             <span class="close" data-modal="addPinModal">&times;</span>
             <h2>Add Site</h2>
-            <div class="form-group">
-                <label for="addPinName">Site Name:</label>
-                <input type="text" id="addPinName" placeholder="Enter site name" value="New Location">
-            </div>
-            <div class="form-group">
-                <label for="addPinX">Grid X:</label>
-                <input type="number" id="addPinX" value="0">
-            </div>
-            <div class="form-group">
-                <label for="addPinY">Grid Y:</label>
-                <input type="number" id="addPinY" value="0">
-            </div>
-            <div class="modal-buttons">
-                <button id="saveAddPinBtn" class="btn btn-primary">Add Site</button>
-            </div>
+            <form id="addPinForm">
+                <div class="form-group">
+                    <label for="addPinName">Site Name:</label>
+                    <input type="text" id="addPinName" placeholder="Enter site name" value="">
+                </div>
+                <div class="form-group">
+                    <label for="addPinX">Grid X:</label>
+                    <input type="number" id="addPinX" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="addPinY">Grid Y:</label>
+                    <input type="number" id="addPinY" value="0">
+                </div>
+                <div class="modal-buttons">
+                    <button id="saveAddPinBtn" type="submit" class="btn btn-primary">Add Site</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -217,39 +219,41 @@
         <div class="modal-content">
             <span class="close" data-modal="resourceNodeModal">&times;</span>
             <h2 id="resourceNodeModalTitle">Add Resource Node</h2>
-            <div class="form-group">
-                <label for="resourceNodeId">Resource ID:</label>
-                <input type="text" id="resourceNodeId" placeholder="Unique identifier">
-            </div>
-            <div class="form-group">
-                <button id="selectResourceBtn" class="btn btn-secondary" type="button">Select Resource</button>
-            </div>
-            <div class="form-group">
-                <label>Resource Item:</label>
-                <div id="resourceItemLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
-            </div>
-            <div class="form-group">
-                <label>Variant:</label>
-                <div id="resourceVariantLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
-            </div>
-            <div class="form-group">
-                <label>Rate (items/min):</label>
-                <div id="resourceRateLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
-            </div>
-            <div class="form-group">
-                <label>Building:</label>
-                <div id="resourceBuildingLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
-            </div>
-            <div class="form-group">
-                <label for="resourceNodeCoreId">Core ID (optional):</label>
-                <select id="resourceNodeCoreId">
-                    <option value=""></option>
-                </select>
-            </div>
-            <div class="modal-buttons">
-                <button id="saveResourceNodeBtn" class="btn btn-primary">Save</button>
-                <button id="deleteResourceNodeBtn" class="btn btn-danger" style="display:none;">Delete</button>
-            </div>
+            <form id="resourceNodeForm">
+                <div class="form-group">
+                    <label for="resourceNodeId">Resource ID:</label>
+                    <input type="text" id="resourceNodeId" placeholder="Unique identifier">
+                </div>
+                <div class="form-group">
+                    <button id="selectResourceBtn" class="btn btn-secondary" type="button">Select Resource</button>
+                </div>
+                <div class="form-group">
+                    <label>Resource Item:</label>
+                    <div id="resourceItemLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
+                </div>
+                <div class="form-group">
+                    <label>Variant:</label>
+                    <div id="resourceVariantLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
+                </div>
+                <div class="form-group">
+                    <label>Rate (items/min):</label>
+                    <div id="resourceRateLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
+                </div>
+                <div class="form-group">
+                    <label>Building:</label>
+                    <div id="resourceBuildingLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
+                </div>
+                <div class="form-group">
+                    <label for="resourceNodeCoreId">Core ID (optional):</label>
+                    <select id="resourceNodeCoreId">
+                        <option value=""></option>
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button id="saveResourceNodeBtn" type="submit" class="btn btn-primary">Save</button>
+                    <button id="deleteResourceNodeBtn" class="btn btn-danger" style="display:none;">Delete</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -258,24 +262,26 @@
         <div class="modal-content">
             <span class="close" data-modal="coreModal">&times;</span>
             <h2 id="coreModalTitle">Add Core</h2>
-            <div class="form-group">
-                <label for="coreId">Core ID:</label>
-                <input type="text" id="coreId" placeholder="Unique identifier">
-            </div>
-            <div class="form-group">
-                <label for="coreLevel">Core Level:</label>
-                <select id="coreLevel">
-                    <option value="0" selected>0 (1000 heat)</option>
-                    <option value="1">1 (2500 heat)</option>
-                    <option value="2">2 (4000 heat)</option>
-                    <option value="3">3 (6000 heat)</option>
-                    <option value="4">4 (10000 heat)</option>
-                </select>
-            </div>
-            <div class="modal-buttons">
-                <button id="saveCoreBtn" class="btn btn-primary">Save</button>
-                <button id="deleteCoreBtn" class="btn btn-danger" style="display:none;">Delete</button>
-            </div>
+            <form id="coreForm">
+                <div class="form-group">
+                    <label for="coreId">Core ID:</label>
+                    <input type="text" id="coreId" placeholder="Unique identifier">
+                </div>
+                <div class="form-group">
+                    <label for="coreLevel">Core Level:</label>
+                    <select id="coreLevel">
+                        <option value="0" selected>0 (1000 heat)</option>
+                        <option value="1">1 (2500 heat)</option>
+                        <option value="2">2 (4000 heat)</option>
+                        <option value="3">3 (6000 heat)</option>
+                        <option value="4">4 (10000 heat)</option>
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button id="saveCoreBtn" type="submit" class="btn btn-primary">Save</button>
+                    <button id="deleteCoreBtn" class="btn btn-danger" style="display:none;">Delete</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -284,23 +290,25 @@
         <div class="modal-content">
             <span class="close" data-modal="factoryModal">&times;</span>
             <h2 id="factoryModalTitle">Add Factory</h2>
-            <div class="form-group">
-                <label for="factoryId">Factory ID:</label>
-                <input type="text" id="factoryId" placeholder="Unique identifier">
-            </div>
-            <div class="form-group">
-                <label for="factoryPurpose">Purpose:</label>
-                <textarea id="factoryPurpose" rows="3" placeholder="Description of factory purpose"></textarea>
-            </div>
-            <div class="form-group">
-                <label for="factoryDefaultCore">Default Core:</label>
-                <select id="factoryDefaultCore">
-                </select>
-            </div>
-            <div class="modal-buttons">
-                <button id="saveFactoryBtn" class="btn btn-primary">Save</button>
-                <button id="deleteFactoryBtn" class="btn btn-danger" style="display:none;">Delete</button>
-            </div>
+            <form id="factoryForm">
+                <div class="form-group">
+                    <label for="factoryId">Factory ID:</label>
+                    <input type="text" id="factoryId" placeholder="Unique identifier">
+                </div>
+                <div class="form-group">
+                    <label for="factoryPurpose">Purpose:</label>
+                    <textarea id="factoryPurpose" rows="3" placeholder="Description of factory purpose"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="factoryDefaultCore">Default Core:</label>
+                    <select id="factoryDefaultCore">
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button id="saveFactoryBtn" type="submit" class="btn btn-primary">Save</button>
+                    <button id="deleteFactoryBtn" class="btn btn-danger" style="display:none;">Delete</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -390,44 +398,46 @@
         <div class="modal-content">
             <span class="close" data-modal="receiverModal">&times;</span>
             <h2 id="receiverModalTitle">Add Receiver</h2>
-            <div class="form-group">
-                <label for="receiverId">Receiver ID:</label>
-                <input type="text" id="receiverId" placeholder="Unique identifier">
-            </div>
-            <div class="form-group">
-                <button id="receiverSelectDispatcherBtn" class="btn btn-secondary" type="button">Select Dispatcher</button>
-            </div>
-            <div class="form-group">
-                <label>Source Site ID:</label>
-                <div id="receiverSiteLabel" class="from-ids-badges"></div>
-            </div>
-            <div class="form-group">
-                <label>Source Factory ID:</label>
-                <div id="receiverFactoryLabel" class="from-ids-badges"></div>
-            </div>
-            <div class="form-group">
-                <label>Dispatcher ID:</label>
-                <div id="receiverDispatcherLabel" class="from-ids-badges"></div>
-            </div>
-            <div class="form-group">
-                <label for="receiverBuildingId">Building ID (optional):</label>
-                <select id="receiverBuildingId">
-                    <option value=""></option>
-                    {% for building in receiving_buildings %}
-                    <option value="{{ building }}">{{ building }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group" id="receiverCoreGroup" style="display:none;">
-                <label for="receiverCoreId">Core ID (optional):</label>
-                <select id="receiverCoreId">
-                    <option value=""></option>
-                </select>
-            </div>
-            <div class="modal-buttons">
-                <button id="saveReceiverBtn" class="btn btn-primary">Save</button>
-                <button id="deleteReceiverBtn" class="btn btn-danger" style="display:none;">Delete</button>
-            </div>
+            <form id="receiverForm">
+                <div class="form-group">
+                    <label for="receiverId">Receiver ID:</label>
+                    <input type="text" id="receiverId" placeholder="Unique identifier">
+                </div>
+                <div class="form-group">
+                    <button id="receiverSelectDispatcherBtn" class="btn btn-secondary" type="button">Select Dispatcher</button>
+                </div>
+                <div class="form-group">
+                    <label>Source Site ID:</label>
+                    <div id="receiverSiteLabel" class="from-ids-badges"></div>
+                </div>
+                <div class="form-group">
+                    <label>Source Factory ID:</label>
+                    <div id="receiverFactoryLabel" class="from-ids-badges"></div>
+                </div>
+                <div class="form-group">
+                    <label>Dispatcher ID:</label>
+                    <div id="receiverDispatcherLabel" class="from-ids-badges"></div>
+                </div>
+                <div class="form-group">
+                    <label for="receiverBuildingId">Building ID (optional):</label>
+                    <select id="receiverBuildingId">
+                        <option value=""></option>
+                        {% for building in receiving_buildings %}
+                        <option value="{{ building }}">{{ building }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" id="receiverCoreGroup" style="display:none;">
+                    <label for="receiverCoreId">Core ID (optional):</label>
+                    <select id="receiverCoreId">
+                        <option value=""></option>
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button id="saveReceiverBtn" type="submit" class="btn btn-primary">Save</button>
+                    <button id="deleteReceiverBtn" class="btn btn-danger" style="display:none;">Delete</button>
+                </div>
+            </form>
         </div>
     </div>
 

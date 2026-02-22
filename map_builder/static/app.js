@@ -189,7 +189,10 @@ function attachEventListeners() {
     document.querySelectorAll('[data-modal="addPinModal"]').forEach(el => {
         el.addEventListener('click', closeAddPinModal);
     });
-    saveAddPinBtn.addEventListener('click', handleAddPin);
+    document.getElementById('addPinForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleAddPin();
+    });
     
     // Edit Site Modal controls
     document.querySelectorAll('[data-modal="editModal"]').forEach(el => {
@@ -206,21 +209,30 @@ function attachEventListeners() {
         el.addEventListener('click', closeSelectResourceModal);
     });
     selectResourceBtn.addEventListener('click', openSelectResourceModal);
-    saveResourceNodeBtn.addEventListener('click', handleSaveResourceNode);
+    document.getElementById('resourceNodeForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleSaveResourceNode();
+    });
     deleteResourceNodeBtn.addEventListener('click', handleDeleteResourceNode);
     
     // Core Modal controls
     document.querySelectorAll('[data-modal="coreModal"]').forEach(el => {
         el.addEventListener('click', closeCoreModal);
     });
-    saveCoreBtn.addEventListener('click', handleSaveCore);
+    document.getElementById('coreForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleSaveCore();
+    });
     deleteCoreBtn.addEventListener('click', handleDeleteCore);
     
     // Factory Modal controls
     document.querySelectorAll('[data-modal="factoryModal"]').forEach(el => {
         el.addEventListener('click', closeFactoryModal);
     });
-    saveFactoryBtn.addEventListener('click', handleSaveFactory);
+    document.getElementById('factoryForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleSaveFactory();
+    });
     deleteFactoryBtn.addEventListener('click', handleDeleteFactory);
     
     // Receiver Modal controls
@@ -229,7 +241,10 @@ function attachEventListeners() {
     });
     receiverBuildingId.addEventListener('change', handleReceiverBuildingChange);
     receiverSelectDispatcherBtn.addEventListener('click', openSelectReceiverDispatcherModal);
-    saveReceiverBtn.addEventListener('click', handleSaveReceiver);
+    document.getElementById('receiverForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleSaveReceiver();
+    });
     deleteReceiverBtn.addEventListener('click', handleDeleteReceiver);
 
     // Receiver Dispatcher Selector Modal controls
@@ -946,11 +961,12 @@ function toggleDetails(pinId) {
 }
 
 function openAddPinModal(gridX, gridY) {
-    addPinName.value = 'New Location';
+    addPinName.value = '';
     addPinX.value = gridX;
     addPinY.value = gridY;
     
     addPinModal.classList.add('show');
+    addPinName.focus()
 }
 
 function closeAddPinModal() {
