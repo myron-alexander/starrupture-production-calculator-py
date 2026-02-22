@@ -866,7 +866,15 @@ function renderItemDetails(sectionType, item, itemId = null) {
         }
         return html;
     } else if (sectionType === 'Receivers') {
+        // Look up the dispatcher to get the item being received
+        let receivedItem = 'Unknown item';
+        const dispatcher = pins[item.site_id]?.factories[item.factory_id]?.dispatchers[item.dispatcher_id];
+        if (dispatcher) {
+            receivedItem = dispatcher.dispatched_item || dispatcher.dipatched_item || 'Unknown item';
+        }
+        
         return `
+            <div class="tree-block-value">Item: ${receivedItem}</div>
             <div class="tree-block-value">From: ${item.site_id || '?'}/${item.factory_id || '?'}/${item.dispatcher_id || '?'}</div>
             ${item.building_id ? `<div class="tree-block-value">Building: ${item.building_id}</div>` : ''}
             ${item.core_id ? `<div class="tree-block-value">Core: ${item.core_id}</div>` : ''}
