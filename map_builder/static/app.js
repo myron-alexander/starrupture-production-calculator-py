@@ -2952,6 +2952,7 @@ function openAddReceiverModal(pinId, factoryId) {
     receiverCoreId.value = '';
     deleteReceiverBtn.style.display = 'none';
     receiverModal.classList.add('show');
+    openSelectReceiverDispatcherModal();
 }
 
 function openEditReceiverModal(pinId, factoryId, recId) {
