@@ -132,6 +132,18 @@ def index():
     """Serve the main page."""
     if game_data is None:
         load_game_data()
+    
+    # Convert raw_item_definitions to list of dicts for JSON serialization
+    raw_items_list = [
+        {
+            'item_name': item.item_name,
+            'variant': item.variant,
+            'items_per_minute': item.items_per_minute,
+            'factory': item.factory
+        }
+        for item in game_data.raw_item_definitions
+    ]
+    
     return render_template(
         'index.html',
         valid_raw_items=game_data.valid_raw_items,
@@ -141,7 +153,8 @@ def index():
         non_production_buildings=game_data.non_production_buildings,
         storage_buildings=game_data.storage_buildings,
         craftable_items = game_data.craftable_items,
-        item_recipes = game_data.item_recipes
+        item_recipes = game_data.item_recipes,
+        raw_item_definitions = raw_items_list
     )
 
 @app.route('/map-image')

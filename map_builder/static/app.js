@@ -25,14 +25,21 @@ const editDescription = document.getElementById('editDescription');
 
 // Resource Node Modal Elements
 const resourceNodeModal = document.getElementById('resourceNodeModal');
+const selectResourceModal = document.getElementById('selectResourceModal');
 const resourceNodeModalTitle = document.getElementById('resourceNodeModalTitle');
 const resourceNodeId = document.getElementById('resourceNodeId');
-const resourceItem = document.getElementById('resourceItem');
-const resourceRate = document.getElementById('resourceRate');
-const resourceVariant = document.getElementById('resourceVariant');
-const resourceCoreId = document.getElementById('resourceCoreId');
+const selectResourceBtn = document.getElementById('selectResourceBtn');
+const resourceItemLabel = document.getElementById('resourceItemLabel');
+const resourceVariantLabel = document.getElementById('resourceVariantLabel');
+const resourceRateLabel = document.getElementById('resourceRateLabel');
+const resourceBuildingLabel = document.getElementById('resourceBuildingLabel');
+const resourceNodeCoreId = document.getElementById('resourceNodeCoreId');
 const saveResourceNodeBtn = document.getElementById('saveResourceNodeBtn');
 const deleteResourceNodeBtn = document.getElementById('deleteResourceNodeBtn');
+const resourceSelectionTable = document.getElementById('resourceSelectionTable');
+
+// Store selected resource data
+let selectedResourceData = null;
 
 // Core Modal Elements
 const coreModal = document.getElementById('coreModal');
@@ -175,6 +182,10 @@ function attachEventListeners() {
     document.querySelectorAll('[data-modal="resourceNodeModal"]').forEach(el => {
         el.addEventListener('click', closeResourceNodeModal);
     });
+    document.querySelectorAll('[data-modal="selectResourceModal"]').forEach(el => {
+        el.addEventListener('click', closeSelectResourceModal);
+    });
+    selectResourceBtn.addEventListener('click', openSelectResourceModal);
     saveResourceNodeBtn.addEventListener('click', handleSaveResourceNode);
     deleteResourceNodeBtn.addEventListener('click', handleDeleteResourceNode);
     
@@ -748,6 +759,8 @@ function renderItemDetails(sectionType, item, itemId = null) {
         return `
             <div class="tree-block-value">${item.resource_item || 'Unknown'} - ${item.rate_ipm || 0} ipm</div>
             <div class="tree-block-value">${item.variant || 'normal'}</div>
+            ${item.building ? `<div class="tree-block-value">Building: ${item.building}</div>` : ''}
+            ${item.core_id ? `<div class="tree-block-value">Core: ${item.core_id}</div>` : ''}
         `;
     } else if (sectionType === 'Cores') {
         let html = `
@@ -927,37 +940,95 @@ function populateResourceNodeCoreOptions(pinId, selectedCoreId = '') {
     const cores = (pins[pinId] && pins[pinId].cores) ? pins[pinId].cores : {};
     const coreIds = Object.keys(cores).sort();
 
-    resourceCoreId.innerHTML = '';
+    resourceNodeCoreId.innerHTML = '';
     const emptyOption = document.createElement('option');
     emptyOption.value = '';
     emptyOption.textContent = '';
-    resourceCoreId.appendChild(emptyOption);
+    resourceNodeCoreId.appendChild(emptyOption);
 
     coreIds.forEach(coreId => {
         const option = document.createElement('option');
         option.value = coreId;
         option.textContent = coreId;
-        resourceCoreId.appendChild(option);
+        resourceNodeCoreId.appendChild(option);
     });
 
     if (selectedCoreId && coreIds.includes(selectedCoreId)) {
-        resourceCoreId.value = selectedCoreId;
+        resourceNodeCoreId.value = selectedCoreId;
     } else {
-        resourceCoreId.value = '';
+        resourceNodeCoreId.value = '';
     }
+}
+
+function populateResourceSelectionTable() {
+    const tbody = resourceSelectionTable.querySelector('tbody');
+    tbody.innerHTML = '';
+    
+    // rawItemDefinitions should be available from the template
+    if (!window.rawItemDefinitions) return;
+    
+    window.rawItemDefinitions.forEach(item => {
+        const row = document.createElement('tr');
+        row.style.cursor = 'pointer';
+        row.style.borderBottom = '1px solid #555';
+        row.addEventListener('mouseenter', () => {
+            row.style.backgroundColor = '#404040';
+        });
+        row.addEventListener('mouseleave', () => {
+            row.style.backgroundColor = '';
+        });
+        row.addEventListener('click', () => {
+            selectResourceRow(item);
+        });
+        
+        row.innerHTML = `
+            <td style="border: 1px solid #555; padding: 10px;">${item.item_name}</td>
+            <td style="border: 1px solid #555; padding: 10px;">${item.variant}</td>
+            <td style="border: 1px solid #555; padding: 10px; text-align: right;">${item.items_per_minute}</td>
+            <td style="border: 1px solid #555; padding: 10px;">${item.factory}</td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function selectResourceRow(item) {
+    selectedResourceData = {
+        item_name: item.item_name,
+        variant: item.variant,
+        items_per_minute: item.items_per_minute,
+        factory: item.factory
+    };
+    
+    // Update form labels
+    resourceItemLabel.textContent = item.item_name;
+    resourceVariantLabel.textContent = item.variant;
+    resourceRateLabel.textContent = item.items_per_minute + ' ipm';
+    resourceBuildingLabel.textContent = item.factory;
+    
+    closeSelectResourceModal();
+}
+
+function openSelectResourceModal() {
+    populateResourceSelectionTable();
+    selectResourceModal.classList.add('show');
+}
+
+function closeSelectResourceModal() {
+    selectResourceModal.classList.remove('show');
 }
 
 function openAddResourceNodeModal(pinId) {
     selectedPinId = pinId;
     editingResourceNodeId = null;
+    selectedResourceData = null;
     resourceNodeModalTitle.textContent = 'Add Resource Node';
     resourceNodeId.value = '';
     resourceNodeId.disabled = false;
-    if (resourceItem.options.length > 0) {
-        resourceItem.value = resourceItem.options[0].value;
-    }
-    resourceRate.value = '60';
-    resourceVariant.value = 'normal';
+    resourceItemLabel.textContent = '-';
+    resourceVariantLabel.textContent = '-';
+    resourceRateLabel.textContent = '-';
+    resourceBuildingLabel.textContent = '-';
     populateResourceNodeCoreOptions(pinId);
     deleteResourceNodeBtn.style.display = 'none';
     resourceNodeModal.classList.add('show');
@@ -968,12 +1039,21 @@ function openEditResourceNodeModal(pinId, nodeId) {
     editingResourceNodeId = nodeId;
     const node = pins[pinId].resource_nodes[nodeId];
     
+    // Restore selected resource data
+    selectedResourceData = {
+        item_name: node.resource_item,
+        variant: node.variant,
+        items_per_minute: node.rate_ipm,
+        factory: node.building || ''
+    };
+    
     resourceNodeModalTitle.textContent = 'Edit Resource Node';
     resourceNodeId.value = nodeId;
     resourceNodeId.disabled = true;
-    resourceItem.value = node.resource_item || 'calcium ore';
-    resourceRate.value = node.rate_ipm || 60;
-    resourceVariant.value = node.variant || 'normal';
+    resourceItemLabel.textContent = node.resource_item || '-';
+    resourceVariantLabel.textContent = node.variant || '-';
+    resourceRateLabel.textContent = (node.rate_ipm || '-') + (node.rate_ipm ? ' ipm' : '');
+    resourceBuildingLabel.textContent = node.building || '-';
     populateResourceNodeCoreOptions(pinId, node.core_id || '');
     deleteResourceNodeBtn.style.display = 'block';
     resourceNodeModal.classList.add('show');
@@ -993,6 +1073,11 @@ async function handleSaveResourceNode() {
         return;
     }
     
+    if (!selectedResourceData) {
+        alert('Please select a resource using the Select Resource button');
+        return;
+    }
+    
     // Check for duplicate ID when adding new
     if (!editingResourceNodeId && pins[selectedPinId].resource_nodes && pins[selectedPinId].resource_nodes[nodeId]) {
         alert('A resource node with this ID already exists');
@@ -1003,16 +1088,17 @@ async function handleSaveResourceNode() {
     const coreIds = pins[selectedPinId] && pins[selectedPinId].cores
         ? Object.keys(pins[selectedPinId].cores)
         : [];
-    const selectedCoreId = resourceCoreId.value.trim();
+    const selectedCoreId = resourceNodeCoreId.value.trim();
     if (selectedCoreId && !coreIds.includes(selectedCoreId)) {
         alert('Please select a valid core ID');
         return;
     }
     
     const nodeData = {
-        resource_item: resourceItem.value,
-        rate_ipm: parseInt(resourceRate.value),
-        variant: resourceVariant.value,
+        resource_item: selectedResourceData.item_name,
+        rate_ipm: selectedResourceData.items_per_minute,
+        variant: selectedResourceData.variant,
+        building: selectedResourceData.factory,
         core_id: selectedCoreId
     };
     

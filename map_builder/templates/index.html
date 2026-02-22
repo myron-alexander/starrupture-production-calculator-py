@@ -8,6 +8,7 @@
     <script>
         // Game data passed from server
         window.itemRecipes = {{ item_recipes | tojson }};
+        window.rawItemDefinitions = {{ raw_item_definitions | tojson }};
     </script>
 </head>
 <body class="dark-mode">
@@ -98,6 +99,25 @@
     </div>
 
     <!-- Modal for Resource Node -->
+    <!-- Modal for Resource Selection -->
+    <div id="selectResourceModal" class="modal">
+        <div class="resource-selector-modal-content">
+            <span class="close" data-modal="selectResourceModal">&times;</span>
+            <h2>Select Resource</h2>
+            <table id="resourceSelectionTable" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #333; position: sticky; top: 0;">
+                        <th style="border: 1px solid #555; padding: 10px; text-align: left;">Resource</th>
+                        <th style="border: 1px solid #555; padding: 10px; text-align: left;">Variant</th>
+                        <th style="border: 1px solid #555; padding: 10px; text-align: right;">Rate IPM</th>
+                        <th style="border: 1px solid #555; padding: 10px; text-align: left;">Building</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
     <div id="resourceNodeModal" class="modal">
         <div class="modal-content">
             <span class="close" data-modal="resourceNodeModal">&times;</span>
@@ -107,28 +127,27 @@
                 <input type="text" id="resourceNodeId" placeholder="Unique identifier">
             </div>
             <div class="form-group">
-                <label for="resourceItem">Resource Item:</label>
-                <select id="resourceItem">
-                    {% for item in valid_raw_items %}
-                    <option value="{{ item }}">{{ item }}</option>
-                    {% endfor %}
-                </select>
+                <button id="selectResourceBtn" class="btn btn-secondary" type="button">Select Resource</button>
             </div>
             <div class="form-group">
-                <label for="resourceRate">Rate (items/min):</label>
-                <input type="number" id="resourceRate" min="1" value="60">
+                <label>Resource Item:</label>
+                <div id="resourceItemLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
             </div>
             <div class="form-group">
-                <label for="resourceVariant">Variant:</label>
-                <select id="resourceVariant">
-                    <option value="impure">Impure</option>
-                    <option value="normal" selected>Normal</option>
-                    <option value="pure">Pure</option>
-                </select>
+                <label>Variant:</label>
+                <div id="resourceVariantLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
             </div>
             <div class="form-group">
-                <label for="resourceCoreId">Core ID (optional):</label>
-                <select id="resourceCoreId">
+                <label>Rate (items/min):</label>
+                <div id="resourceRateLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
+            </div>
+            <div class="form-group">
+                <label>Building:</label>
+                <div id="resourceBuildingLabel" style="padding: 8px; background-color: #2a2a2a; border-radius: 4px; min-height: 20px;">-</div>
+            </div>
+            <div class="form-group">
+                <label for="resourceNodeCoreId">Core ID (optional):</label>
+                <select id="resourceNodeCoreId">
                     <option value=""></option>
                 </select>
             </div>

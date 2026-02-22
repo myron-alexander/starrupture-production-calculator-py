@@ -82,12 +82,8 @@ sites:
         # server. May not be an empty string, must always be one of the valid items.
         resource_item: "selected valid resource name"
 
-        # Required. Available rate of supply in items per minute. This is a user provided value.
-        # Only positive integer values greater than one are allowed.
-        rate_ipm: 1
-
-        # Required. Values are: "impure", "normal", "pure". This is purely descriptive and is
-        # selected by the user.
+        # Required. The combination of resource_item and variant determine the rate of supply in
+        # items per minute. Values are: "impure", "normal", "pure". This is selected by the user.
         variant: "variant name"
 
         # Value is optional until specified as an input to a factory machine, then required. This
