@@ -101,7 +101,7 @@
 
     <!-- Modal for Resource Node -->
     <!-- Modal for Resource Selection -->
-    <div id="selectResourceModal" class="modal">
+    <div id="selectResourceModal" class="modal selector-modal">
         <div class="resource-selector-modal-content">
             <span class="close" data-modal="selectResourceModal">&times;</span>
             <h2>Select Resource</h2>
@@ -120,7 +120,7 @@
     </div>
 
     <!-- Modal for Crafter Source Selection -->
-    <div id="selectCrafterSourcesModal" class="modal">
+    <div id="selectCrafterSourcesModal" class="modal selector-modal">
         <div class="resource-selector-modal-content">
             <span class="close" data-modal="selectCrafterSourcesModal">&times;</span>
             <h2>Select Sources</h2>
@@ -140,6 +140,31 @@
             <div class="modal-buttons" style="margin-top: 20px;">
                 <button id="selectSourcesBtn" class="btn btn-primary">Select</button>
                 <button id="cancelSourcesBtn" class="btn btn-secondary" data-modal="selectCrafterSourcesModal">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Dispatcher Source Selection -->
+    <div id="selectDispatcherSourcesModal" class="modal selector-modal">
+        <div class="resource-selector-modal-content">
+            <span class="close" data-modal="selectDispatcherSourcesModal">&times;</span>
+            <h2>Select Sources</h2>
+            <table id="dispatcherSourcesSelectionTable" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #333; position: sticky; top: 0;">
+                        <th style="border: 1px solid #555; padding: 10px; text-align: center; width: 40px;">
+                            <input type="checkbox" id="selectAllDispatcherSourcesCheckbox">
+                        </th>
+                        <th style="border: 1px solid #555; padding: 10px; text-align: left;">From ID</th>
+                        <th style="border: 1px solid #555; padding: 10px; text-align: left;">Item</th>
+                        <th style="border: 1px solid #555; padding: 10px; text-align: left;">Building</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button id="selectDispatcherSourcesBtn" class="btn btn-primary">Select</button>
+                <button id="cancelDispatcherSourcesBtn" class="btn btn-secondary" data-modal="selectDispatcherSourcesModal">Cancel</button>
             </div>
         </div>
     </div>
@@ -385,8 +410,9 @@
                 <input type="number" id="dispatcherInputRate" min="1" value="100">
             </div>
             <div class="form-group">
-                <label for="dispatcherFromIds">Source IDs (comma-separated):</label>
-                <textarea id="dispatcherFromIds" rows="2" placeholder="Machine, resource, or receiver IDs"></textarea>
+                <label>From IDs:</label>
+                <div id="dispatcherFromIdsBadges" class="from-ids-badges"></div>
+                <button id="dispatcherSelectSourcesBtn" class="btn btn-secondary" type="button">Select Sources</button>
             </div>
             <div class="form-group">
                 <label for="dispatcherBuildingId">Building ID (optional):</label>

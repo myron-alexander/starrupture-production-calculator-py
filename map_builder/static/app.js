@@ -78,7 +78,8 @@ const dispatcherId = document.getElementById('dispatcherId');
 const dispatchedItem = document.getElementById('dispatchedItem');
 const dispatcherOutputRate = document.getElementById('dispatcherOutputRate');
 const dispatcherInputRate = document.getElementById('dispatcherInputRate');
-const dispatcherFromIds = document.getElementById('dispatcherFromIds');
+const dispatcherFromIdsBadges = document.getElementById('dispatcherFromIdsBadges');
+const dispatcherSelectSourcesBtn = document.getElementById('dispatcherSelectSourcesBtn');
 const dispatcherBuildingId = document.getElementById('dispatcherBuildingId');
 const dispatcherCoreGroup = document.getElementById('dispatcherCoreGroup');
 const dispatcherCoreId = document.getElementById('dispatcherCoreId');
@@ -100,6 +101,12 @@ const selectCrafterSourcesModal = document.getElementById('selectCrafterSourcesM
 const crafterSourcesSelectionTable = document.getElementById('crafterSourcesSelectionTable');
 const selectAllSourcesCheckbox = document.getElementById('selectAllSourcesCheckbox');
 const selectSourcesBtn = document.getElementById('selectSourcesBtn');
+
+// Dispatcher Source Selector Modal Elements
+const selectDispatcherSourcesModal = document.getElementById('selectDispatcherSourcesModal');
+const dispatcherSourcesSelectionTable = document.getElementById('dispatcherSourcesSelectionTable');
+const selectAllDispatcherSourcesCheckbox = document.getElementById('selectAllDispatcherSourcesCheckbox');
+const selectDispatcherSourcesBtn = document.getElementById('selectDispatcherSourcesBtn');
 
 // Storage Modal Elements
 const storageModal = document.getElementById('storageModal');
@@ -222,6 +229,7 @@ function attachEventListeners() {
         el.addEventListener('click', closeDispatcherModal);
     });
     dispatcherBuildingId.addEventListener('change', handleDispatcherBuildingChange);
+    dispatcherSelectSourcesBtn.addEventListener('click', openSelectDispatcherSourcesModal);
     saveDispatcherBtn.addEventListener('click', handleSaveDispatcher);
     deleteDispatcherBtn.addEventListener('click', handleDeleteDispatcher);
 
@@ -239,6 +247,13 @@ function attachEventListeners() {
     });
     selectAllSourcesCheckbox.addEventListener('change', handleSelectAllSources);
     selectSourcesBtn.addEventListener('click', handleSelectSources);
+
+    // Dispatcher Source Selector Modal controls
+    document.querySelectorAll('[data-modal="selectDispatcherSourcesModal"]').forEach(el => {
+        el.addEventListener('click', closeSelectDispatcherSourcesModal);
+    });
+    selectAllDispatcherSourcesCheckbox.addEventListener('change', handleSelectAllDispatcherSources);
+    selectDispatcherSourcesBtn.addEventListener('click', handleSelectDispatcherSources);
     
     // Add event delegation for "Select Sources" buttons in crafter input rows
     document.addEventListener('click', (e) => {
@@ -2471,6 +2486,164 @@ function handleDispatcherBuildingChange() {
     }
 }
 
+function setDispatcherFromIdsBadges(fromIds) {
+    dispatcherFromIdsBadges.innerHTML = '';
+    const ids = Array.isArray(fromIds)
+        ? fromIds
+        : (fromIds ? fromIds.split(/,\s*/) : []);
+
+    ids.forEach(id => {
+        const trimmedId = id.trim();
+        if (!trimmedId) return;
+        const badge = document.createElement('span');
+        badge.className = 'from-id-badge';
+        badge.textContent = trimmedId;
+        dispatcherFromIdsBadges.appendChild(badge);
+    });
+}
+
+function buildDispatcherSourcesList(dispatchItem) {
+    const sources = [];
+    const dispatchItemLower = dispatchItem.toLowerCase();
+    const pin = pins[selectedPinId];
+    if (!pin) return sources;
+
+    // Resource nodes with matching item
+    if (pin.resource_nodes) {
+        for (const [resId, resNode] of Object.entries(pin.resource_nodes)) {
+            if (resNode.resource_item && resNode.resource_item.toLowerCase() === dispatchItemLower) {
+                sources.push({
+                    fromId: resId,
+                    item: resNode.resource_item,
+                    building: resNode.building || '',
+                    type: 'resource'
+                });
+            }
+        }
+    }
+
+    const factory = pin.factories[selectedFactoryId];
+
+    // Crafters with matching crafted item
+    if (factory && factory.machines && factory.machines.crafters) {
+        for (const [crafterId, crafter] of Object.entries(factory.machines.crafters)) {
+            if (crafter.crafted_item && crafter.crafted_item.toLowerCase() === dispatchItemLower) {
+                let building = '';
+                if (window.itemDefinitions) {
+                    const itemDef = window.itemDefinitions.find(item =>
+                        item.item_name.toLowerCase() === crafter.crafted_item.toLowerCase()
+                    );
+                    if (itemDef) {
+                        building = itemDef.factory || '';
+                    }
+                }
+                sources.push({
+                    fromId: crafterId,
+                    item: crafter.crafted_item,
+                    building: building,
+                    type: 'crafter'
+                });
+            }
+        }
+    }
+
+    // Storage with matching stored item
+    if (factory && factory.machines && factory.machines.storage) {
+        for (const [storageId, storage] of Object.entries(factory.machines.storage)) {
+            if (storage.stored_item && storage.stored_item.toLowerCase() === dispatchItemLower) {
+                sources.push({
+                    fromId: storageId,
+                    item: storage.stored_item,
+                    building: storage.building_id || '',
+                    type: 'storage'
+                });
+            }
+        }
+    }
+
+    sources.sort((a, b) => a.fromId.localeCompare(b.fromId));
+    return sources;
+}
+
+function populateDispatcherSourcesTable(dispatchItem) {
+    const tbody = dispatcherSourcesSelectionTable.querySelector('tbody');
+    tbody.innerHTML = '';
+
+    const sources = buildDispatcherSourcesList(dispatchItem);
+    sources.forEach((source, index) => {
+        const row = document.createElement('tr');
+        row.style.borderBottom = '1px solid #555';
+        row.addEventListener('mouseenter', () => {
+            row.style.backgroundColor = '#404040';
+        });
+        row.addEventListener('mouseleave', () => {
+            row.style.backgroundColor = '';
+        });
+
+        const checkboxCell = document.createElement('td');
+        checkboxCell.style.border = '1px solid #555';
+        checkboxCell.style.padding = '10px';
+        checkboxCell.style.textAlign = 'center';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = source.fromId;
+        checkbox.className = 'dispatcher-source-checkbox';
+        checkbox.dataset.sourceIndex = index;
+        checkboxCell.appendChild(checkbox);
+
+        const fromIdCell = document.createElement('td');
+        fromIdCell.style.border = '1px solid #555';
+        fromIdCell.style.padding = '10px';
+        fromIdCell.textContent = source.fromId;
+
+        const itemCell = document.createElement('td');
+        itemCell.style.border = '1px solid #555';
+        itemCell.style.padding = '10px';
+        itemCell.textContent = source.item;
+
+        const buildingCell = document.createElement('td');
+        buildingCell.style.border = '1px solid #555';
+        buildingCell.style.padding = '10px';
+        buildingCell.textContent = source.building;
+
+        row.appendChild(checkboxCell);
+        row.appendChild(fromIdCell);
+        row.appendChild(itemCell);
+        row.appendChild(buildingCell);
+        tbody.appendChild(row);
+    });
+}
+
+function openSelectDispatcherSourcesModal() {
+    const dispatchItem = dispatchedItem.value.trim();
+    if (!dispatchItem) {
+        alert('Please select a dispatched item first');
+        return;
+    }
+
+    populateDispatcherSourcesTable(dispatchItem);
+    selectAllDispatcherSourcesCheckbox.checked = false;
+    selectDispatcherSourcesModal.classList.add('show');
+}
+
+function closeSelectDispatcherSourcesModal() {
+    selectDispatcherSourcesModal.classList.remove('show');
+}
+
+function handleSelectAllDispatcherSources(event) {
+    const checkboxes = Array.from(dispatcherSourcesSelectionTable.querySelectorAll('.dispatcher-source-checkbox'));
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = event.target.checked;
+    });
+}
+
+function handleSelectDispatcherSources() {
+    const checkboxes = Array.from(dispatcherSourcesSelectionTable.querySelectorAll('.dispatcher-source-checkbox:checked'));
+    const selectedIds = checkboxes.map(checkbox => checkbox.value);
+    setDispatcherFromIdsBadges(selectedIds);
+    closeSelectDispatcherSourcesModal();
+}
+
 function openAddDispatcherModal(pinId, factoryId) {
     selectedPinId = pinId;
     selectedFactoryId = factoryId;
@@ -2481,7 +2654,7 @@ function openAddDispatcherModal(pinId, factoryId) {
     dispatchedItem.value = '';
     dispatcherOutputRate.value = '100';
     dispatcherInputRate.value = '100';
-    dispatcherFromIds.value = '';
+    setDispatcherFromIdsBadges([]);
     dispatcherBuildingId.value = '';
     dispatcherCoreGroup.style.display = 'none';
     dispatcherCoreId.value = '';
@@ -2501,8 +2674,7 @@ function openEditDispatcherModal(pinId, factoryId, dispId) {
     dispatchedItem.value = dispatcher.dipatched_item || dispatcher.dispatched_item || '';
     dispatcherOutputRate.value = dispatcher.output_rate_limit_ipm || 100;
     dispatcherInputRate.value = dispatcher.input_rate_limit_ipm || 100;
-    const fromIds = Array.isArray(dispatcher.from_ids) ? dispatcher.from_ids.join(', ') : dispatcher.from_ids || '';
-    dispatcherFromIds.value = fromIds;
+    setDispatcherFromIdsBadges(dispatcher.from_ids || []);
     dispatcherBuildingId.value = dispatcher.building_id || '';
     
     // Show/hide core field based on building selection
@@ -2549,9 +2721,9 @@ async function handleSaveDispatcher() {
         return;
     }
     
-    // Parse from_ids from textarea (comma-separated)
-    const fromIdsText = dispatcherFromIds.value.trim();
-    const fromIds = fromIdsText ? fromIdsText.split(',').map(id => id.trim()).filter(id => id) : [];
+    const fromIds = Array.from(dispatcherFromIdsBadges.querySelectorAll('.from-id-badge'))
+        .map(badge => badge.textContent.trim())
+        .filter(id => id);
     
     const dispatcherData = {
         dipatched_item: dispatchedItem.value.trim(),
