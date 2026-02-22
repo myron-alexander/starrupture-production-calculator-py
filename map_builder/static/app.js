@@ -273,17 +273,39 @@ function attachEventListeners() {
         if (e.target.classList.contains('crafter-select-sources-btn')) {
             openSelectCrafterSourcesModal(e.target);
         }
+        if (e.target.classList.contains('storage-select-sources-btn')) {
+            openSelectStorageSourcesModal(e.target);
+        }
     });
     
     // Storage Modal controls
     document.querySelectorAll('[data-modal="storageModal"]').forEach(el => {
         el.addEventListener('click', closeStorageModal);
     });
+    document.querySelectorAll('[data-modal="selectStorageSourcesModal"]').forEach(el => {
+        el.addEventListener('click', closeSelectStorageSourcesModal);
+    });
+    storageStoredItem.addEventListener('change', () => {
+        // If stored item changes to anything other than asterisk, clear the inputs list
+        if (storageStoredItem.value !== '*') {
+            resetStorageInputs();
+            addStorageInputRow();
+        }
+    });
     addStorageInputBtn.addEventListener('click', () => {
         addStorageInputRow();
     });
     saveStorageBtn.addEventListener('click', handleSaveStorage);
     deleteStorageBtn.addEventListener('click', handleDeleteStorage);
+    
+    const selectAllStorageSourcesCheckbox = document.getElementById('selectAllStorageSourcesCheckbox');
+    if (selectAllStorageSourcesCheckbox) {
+        selectAllStorageSourcesCheckbox.addEventListener('change', handleSelectAllStorageSources);
+    }
+    const selectStorageSourcesBtn = document.getElementById('selectStorageSourcesBtn');
+    if (selectStorageSourcesBtn) {
+        selectStorageSourcesBtn.addEventListener('click', handleSelectStorageSources);
+    }
     
     // Non-Production Building Modal controls
     document.querySelectorAll('[data-modal="nonProdBuildingModal"]').forEach(el => {
@@ -2113,6 +2135,225 @@ function handleSelectSources() {
     closeSelectCrafterSourcesModal();
 }
 
+let currentSelectStorageSourcesButton = null;
+
+function buildStorageSourcesList(storedItem, excludeStorageId = null) {
+    const sources = [];
+    
+    const pin = pins[selectedPinId];
+    if (!pin) return sources;
+    
+    const factory = pin.factories[selectedFactoryId];
+    if (!factory) return sources;
+    
+    // If stored item is "*", return all possible sources; otherwise match by item
+    const storedItemLower = storedItem.toLowerCase();
+    const matchAny = storedItem === '*';
+    
+    // Add resource nodes (match only if stored_item matches or is "*")
+    if (pin.resource_nodes) {
+        for (const [resId, resNode] of Object.entries(pin.resource_nodes)) {
+            if (matchAny || resNode.resource_item.toLowerCase() === storedItemLower) {
+                sources.push({
+                    fromId: resId,
+                    item: resNode.resource_item,
+                    building: resNode.building || '',
+                    type: 'resource'
+                });
+            }
+        }
+    }
+    
+    // Add crafters (match only if stored_item matches or is "*")
+    if (factory.machines && factory.machines.crafters) {
+        for (const [crafterId, crafter] of Object.entries(factory.machines.crafters)) {
+            if (matchAny || crafter.crafted_item.toLowerCase() === storedItemLower) {
+                let building = '';
+                if (window.itemDefinitions) {
+                    const itemDef = window.itemDefinitions.find(item => 
+                        item.item_name.toLowerCase() === crafter.crafted_item.toLowerCase()
+                    );
+                    if (itemDef) {
+                        building = itemDef.factory || '';
+                    }
+                }
+                sources.push({
+                    fromId: crafterId,
+                    item: crafter.crafted_item,
+                    building: building,
+                    type: 'crafter'
+                });
+            }
+        }
+    }
+    
+    // Add storage (match only if stored_item matches or is "*", and exclude self)
+    if (factory.machines && factory.machines.storage) {
+        for (const [storageId, storage] of Object.entries(factory.machines.storage)) {
+            if (storageId === excludeStorageId) continue; // Skip self
+            if (matchAny || storage.stored_item === '*' || storage.stored_item.toLowerCase() === storedItemLower) {
+                sources.push({
+                    fromId: storageId,
+                    item: storage.stored_item,
+                    building: storage.building_id || '',
+                    type: 'storage'
+                });
+            }
+        }
+    }
+    
+    // Add receivers (match dispatcher item, or all if stored_item is "*")
+    if (factory.receivers) {
+        for (const [receiverId, receiver] of Object.entries(factory.receivers)) {
+            if (receiver.site_id && receiver.factory_id && receiver.dispatcher_id) {
+                const dispatcherPin = pins[receiver.site_id];
+                if (dispatcherPin && dispatcherPin.factories && dispatcherPin.factories[receiver.factory_id]) {
+                    const dispatcherFactory = dispatcherPin.factories[receiver.factory_id];
+                    if (dispatcherFactory.dispatchers && dispatcherFactory.dispatchers[receiver.dispatcher_id]) {
+                        const dispatcher = dispatcherFactory.dispatchers[receiver.dispatcher_id];
+                        const dispatchedItem = dispatcher.dipatched_item || dispatcher.dispatched_item || '';
+                        if (matchAny || dispatchedItem.toLowerCase() === storedItemLower) {
+                            sources.push({
+                                fromId: receiverId,
+                                item: dispatchedItem,
+                                building: receiver.building_id || '',
+                                type: 'receiver'
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Sort by fromId
+    sources.sort((a, b) => a.fromId.localeCompare(b.fromId));
+    
+    return sources;
+}
+
+function populateStorageSourcesTable(storedItem, excludeStorageId = null) {
+    const tbody = document.querySelector('#storageSourcesSelectionTable tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    const sources = buildStorageSourcesList(storedItem, excludeStorageId);
+    
+    sources.forEach((source, index) => {
+        const row = document.createElement('tr');
+        row.style.borderBottom = '1px solid #555';
+        row.addEventListener('mouseenter', () => {
+            row.style.backgroundColor = '#404040';
+        });
+        row.addEventListener('mouseleave', () => {
+            row.style.backgroundColor = '';
+        });
+        
+        const checkboxCell = document.createElement('td');
+        checkboxCell.style.border = '1px solid #555';
+        checkboxCell.style.padding = '10px';
+        checkboxCell.style.textAlign = 'center';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = source.fromId;
+        checkbox.className = 'storage-source-checkbox';
+        checkbox.dataset.sourceIndex = index;
+        checkboxCell.appendChild(checkbox);
+        
+        const fromIdCell = document.createElement('td');
+        fromIdCell.style.border = '1px solid #555';
+        fromIdCell.style.padding = '10px';
+        fromIdCell.textContent = source.fromId;
+        
+        const itemCell = document.createElement('td');
+        itemCell.style.border = '1px solid #555';
+        itemCell.style.padding = '10px';
+        itemCell.textContent = source.item;
+        
+        const buildingCell = document.createElement('td');
+        buildingCell.style.border = '1px solid #555';
+        buildingCell.style.padding = '10px';
+        buildingCell.textContent = source.building;
+        
+        row.appendChild(checkboxCell);
+        row.appendChild(fromIdCell);
+        row.appendChild(itemCell);
+        row.appendChild(buildingCell);
+        tbody.appendChild(row);
+    });
+}
+
+function openSelectStorageSourcesModal(button) {
+    currentSelectStorageSourcesButton = button;
+    const row = button.closest('.storage-input-row');
+    if (!row) return;
+    
+    // Get the stored item from the storage modal
+    const storedItem = storageStoredItem.value || '*';
+    
+    // Pass the current storage ID to exclude it from the list
+    populateStorageSourcesTable(storedItem, editingStorageId);
+    
+    const selectAllCheckbox = document.querySelector('#selectAllStorageSourcesCheckbox');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+    
+    const modal = document.getElementById('selectStorageSourcesModal');
+    if (modal) {
+        modal.classList.add('show');
+    }
+}
+
+function closeSelectStorageSourcesModal() {
+    const modal = document.getElementById('selectStorageSourcesModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+    currentSelectStorageSourcesButton = null;
+}
+
+function handleSelectAllStorageSources(event) {
+    const checkboxes = Array.from(document.querySelectorAll('#storageSourcesSelectionTable .storage-source-checkbox'));
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = event.target.checked;
+    });
+}
+
+function handleSelectStorageSources() {
+    const checkboxes = Array.from(document.querySelectorAll('#storageSourcesSelectionTable .storage-source-checkbox:checked'));
+    const selectedIds = checkboxes.map(checkbox => checkbox.value);
+    
+    if (currentSelectStorageSourcesButton && currentSelectStorageSourcesButton.closest('.storage-input-row')) {
+        const row = currentSelectStorageSourcesButton.closest('.storage-input-row');
+        if (row) {
+            const badgesContainer = row.querySelector('.storage-from-ids-badges');
+            if (badgesContainer) {
+                // Clear existing badges
+                badgesContainer.innerHTML = '';
+                
+                // Add new badges
+                selectedIds.forEach(id => {
+                    const badge = document.createElement('span');
+                    badge.className = 'from-id-badge';
+                    badge.textContent = id;
+                    badge.style.display = 'inline-block';
+                    badge.style.padding = '6px 12px';
+                    badge.style.backgroundColor = '#3a4a6a';
+                    badge.style.border = '1px solid #5568d3';
+                    badge.style.borderRadius = '20px';
+                    badge.style.color = '#e0e0e0';
+                    badge.style.fontSize = '12px';
+                    badgesContainer.appendChild(badge);
+                });
+            }
+        }
+    }
+    
+    closeSelectStorageSourcesModal();
+}
+
 async function handleSaveCrafter() {
     if (!selectedPinId || !selectedFactoryId) return;
 
@@ -2239,15 +2480,53 @@ function createStorageInputRow(inputData = {}) {
     fromIdsField.className = 'storage-input-field';
     const fromIdsLabel = document.createElement('label');
     fromIdsLabel.textContent = 'From IDs';
-    const fromIdsInput = document.createElement('input');
-    fromIdsInput.type = 'text';
-    fromIdsInput.className = 'storage-input-from-ids';
-    fromIdsInput.placeholder = 'from ids (comma-separated)';
-    fromIdsInput.value = Array.isArray(inputData.from_ids)
-        ? inputData.from_ids.join(', ')
-        : (inputData.from_ids || '');
+    
+    // Create badges container
+    const fromIdsBadgesContainer = document.createElement('div');
+    fromIdsBadgesContainer.className = 'storage-from-ids-badges';
+    fromIdsBadgesContainer.style.display = 'flex';
+    fromIdsBadgesContainer.style.flexWrap = 'wrap';
+    fromIdsBadgesContainer.style.gap = '8px';
+    fromIdsBadgesContainer.style.padding = '12px';
+    fromIdsBadgesContainer.style.backgroundColor = '#2a2a2a';
+    fromIdsBadgesContainer.style.borderRadius = '4px';
+    fromIdsBadgesContainer.style.border = '1px solid #444';
+    fromIdsBadgesContainer.style.minHeight = '20px';
+    fromIdsBadgesContainer.dataset.value = Array.isArray(inputData.from_ids) 
+        ? JSON.stringify(inputData.from_ids) 
+        : (inputData.from_ids ? JSON.stringify(inputData.from_ids.split(', ')) : JSON.stringify([]));
+    
+    // Populate badges from input data
+    const fromIds = Array.isArray(inputData.from_ids) 
+        ? inputData.from_ids 
+        : (inputData.from_ids ? inputData.from_ids.split(/,\s*/) : []);
+    
+    fromIds.forEach(id => {
+        if (id.trim()) {
+            const badge = document.createElement('span');
+            badge.className = 'from-id-badge';
+            badge.textContent = id.trim();
+            badge.style.display = 'inline-block';
+            badge.style.padding = '6px 12px';
+            badge.style.backgroundColor = '#3a4a6a';
+            badge.style.border = '1px solid #5568d3';
+            badge.style.borderRadius = '20px';
+            badge.style.color = '#e0e0e0';
+            badge.style.fontSize = '12px';
+            fromIdsBadgesContainer.appendChild(badge);
+        }
+    });
+    
+    const selectSourcesBtn = document.createElement('button');
+    selectSourcesBtn.type = 'button';
+    selectSourcesBtn.className = 'btn btn-secondary storage-select-sources-btn';
+    selectSourcesBtn.textContent = 'Select Sources';
+    selectSourcesBtn.style.marginTop = '8px';
+    selectSourcesBtn.style.width = '100%';
+    
     fromIdsField.appendChild(fromIdsLabel);
-    fromIdsField.appendChild(fromIdsInput);
+    fromIdsField.appendChild(fromIdsBadgesContainer);
+    fromIdsField.appendChild(selectSourcesBtn);
 
     const rateField = document.createElement('div');
     rateField.className = 'storage-input-field';
@@ -2275,6 +2554,9 @@ function createStorageInputRow(inputData = {}) {
     row.appendChild(fromIdsField);
     row.appendChild(rateField);
     row.appendChild(actions);
+    
+    // Store badge container reference
+    row.badgesContainer = fromIdsBadgesContainer;
 
     return row;
 }
@@ -2367,7 +2649,6 @@ function parseStorageInputs() {
     const inputs = [];
 
     for (const row of rows) {
-        const fromIdsValue = row.querySelector('.storage-input-from-ids').value.trim();
         const rateValue = row.querySelector('.storage-input-rate').value.trim();
 
         const rate = parseInt(rateValue);
@@ -2375,9 +2656,15 @@ function parseStorageInputs() {
             return { error: 'Each input row must include a positive rate_limit_ipm' };
         }
 
-        const fromIds = fromIdsValue
-            ? fromIdsValue.split(',').map(id => id.trim()).filter(id => id)
-            : [];
+        // Extract from_ids from badges container
+        const badgesContainer = row.querySelector('.storage-from-ids-badges');
+        const fromIds = [];
+        if (badgesContainer) {
+            const badges = badgesContainer.querySelectorAll('.from-id-badge');
+            badges.forEach(badge => {
+                fromIds.push(badge.textContent.trim());
+            });
+        }
 
         inputs.push({
             from_ids: fromIds,
