@@ -165,9 +165,10 @@ sites:
           # Optional list of machines that craft items from other items.
           crafters:
 
-            # The machine ID that identifies the crafting machine. Must be unique within the
-            # factory and cannot be the same as a resource ID since those are treated as machines
-            # shared across factories.
+            # The machine ID that identifies the crafting machine. Within the factory, cannot be
+            # the same as any other crafter machine id, storage machine id, receiver id, or dispatcher
+            # id. Also cannot be the same as a resource id of the site since those are treated as
+            # machines shared across factories.
             # The machine ID is a name provided by the user when creating the machine.
             # No building is defined for the crafting machine as the crafted item can only be
             # made in a specific building so the building details are inferred from the crafted
@@ -214,9 +215,10 @@ sites:
           # machine.
           storage:
 
-            # The machine ID that identifies the storage. Must be unique within the
-            # factory and cannot be the same as a resource ID since those are treated as machines
-            # shared across factories.
+            # The machine ID that identifies the storage. Within the factory, cannot be
+            # the same as any other crafter machine id, storage machine id, receiver id, or dispatcher
+            # id. Also cannot be the same as a resource id of the site since those are treated as
+            # machines shared across factories.
             # The machine ID is a name provided by the user when creating the machine.
             <machine id>:
 
@@ -263,7 +265,10 @@ sites:
         # the factory.
         receivers:
 
-          # Identifies the receiver and must be unique within the factory.
+          # Identifies the receiver. Within the factory, cannot be
+          # the same as any other crafter machine id, storage machine id, receiver id, or dispatcher
+          # id. Also cannot be the same as a resource id of the site since those are treated as
+          # machines shared across factories.
           <receiver id>:
             # Rates and items are determined from the corresponding dispatcher.
             # The dispatcher must be from another factory.
@@ -288,7 +293,10 @@ sites:
         # another factory.
         dispatchers:
 
-          # Identifies the dispatcher and must be unique within the factory.
+          # Identifies the dispatcher. Within the factory, cannot be
+          # the same as any other crafter machine id, storage machine id, receiver id, or dispatcher
+          # id. Also cannot be the same as a resource id of the site since those are treated as
+          # machines shared across factories.
           <dispatcher id>:
 
             # Item that is dispatched. This was added to the spec for validation purposes as well

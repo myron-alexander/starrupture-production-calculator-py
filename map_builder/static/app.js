@@ -1100,6 +1100,41 @@ function closeResourceNodeModal() {
     editingResourceNodeId = null;
 }
 
+function getFactoryIdConflicts(factory, candidateId, exclude = null) {
+    const conflicts = [];
+    const machines = factory && factory.machines ? factory.machines : {};
+
+    const checkMap = (map, type) => {
+        if (!map) return;
+        if (Object.prototype.hasOwnProperty.call(map, candidateId)) {
+            if (!exclude || exclude.type !== type || exclude.id !== candidateId) {
+                conflicts.push(type);
+            }
+        }
+    };
+
+    checkMap(machines.crafters, 'crafter');
+    checkMap(machines.storage, 'storage');
+    checkMap(factory.receivers, 'receiver');
+    checkMap(factory.dispatchers, 'dispatcher');
+
+    return conflicts;
+}
+
+function getSiteFactoryIdConflicts(pin, candidateId) {
+    const results = [];
+    const factories = pin && pin.factories ? pin.factories : {};
+
+    for (const [factoryId, factory] of Object.entries(factories)) {
+        const conflicts = getFactoryIdConflicts(factory, candidateId);
+        if (conflicts.length) {
+            results.push({ factoryId, conflicts });
+        }
+    }
+
+    return results;
+}
+
 async function handleSaveResourceNode() {
     if (!selectedPinId) return;
     
@@ -1117,6 +1152,15 @@ async function handleSaveResourceNode() {
     // Check for duplicate ID when adding new
     if (!editingResourceNodeId && pins[selectedPinId].resource_nodes && pins[selectedPinId].resource_nodes[nodeId]) {
         alert('A resource node with this ID already exists');
+        return;
+    }
+
+    // Ensure resource ID does not conflict with any factory entity IDs in this site
+    const pin = pins[selectedPinId];
+    const factoryConflicts = getSiteFactoryIdConflicts(pin, nodeId);
+    if (factoryConflicts.length > 0) {
+        const firstConflict = factoryConflicts[0];
+        alert(`Resource ID conflicts with existing ${firstConflict.conflicts.join(', ')} ID in factory ${firstConflict.factoryId}`);
         return;
     }
     
@@ -1926,6 +1970,22 @@ async function handleSaveCrafter() {
         return;
     }
 
+    const pin = pins[selectedPinId];
+    if (pin.resource_nodes && pin.resource_nodes[machineId]) {
+        alert('This ID is already used by a resource node in this site');
+        return;
+    }
+
+    const factory = pin.factories[selectedFactoryId];
+    const exclude = (editingCrafterId && editingCrafterId === machineId)
+        ? { type: 'crafter', id: editingCrafterId }
+        : null;
+    const conflicts = getFactoryIdConflicts(factory, machineId, exclude);
+    if (conflicts.length > 0) {
+        alert(`This ID is already used by ${conflicts.join(', ')} in this factory`);
+        return;
+    }
+
     const parseResult = parseCrafterInputs();
     if (parseResult.error) {
         alert(parseResult.error);
@@ -2192,6 +2252,22 @@ async function handleSaveStorage() {
         return;
     }
 
+    const pin = pins[selectedPinId];
+    if (pin.resource_nodes && pin.resource_nodes[machineId]) {
+        alert('This ID is already used by a resource node in this site');
+        return;
+    }
+
+    const factory = pin.factories[selectedFactoryId];
+    const exclude = (editingStorageId && editingStorageId === machineId)
+        ? { type: 'storage', id: editingStorageId }
+        : null;
+    const conflicts = getFactoryIdConflicts(factory, machineId, exclude);
+    if (conflicts.length > 0) {
+        alert(`This ID is already used by ${conflicts.join(', ')} in this factory`);
+        return;
+    }
+
     const parseResult = parseStorageInputs();
     if (parseResult.error) {
         alert(parseResult.error);
@@ -2381,6 +2457,22 @@ async function handleSaveReceiver() {
     // Check for duplicate ID when adding new
     if (!editingReceiverId && pins[selectedPinId].factories[selectedFactoryId].receivers[recId]) {
         alert('A receiver with this ID already exists');
+        return;
+    }
+
+    const pin = pins[selectedPinId];
+    if (pin.resource_nodes && pin.resource_nodes[recId]) {
+        alert('This ID is already used by a resource node in this site');
+        return;
+    }
+
+    const factory = pin.factories[selectedFactoryId];
+    const exclude = (editingReceiverId && editingReceiverId === recId)
+        ? { type: 'receiver', id: editingReceiverId }
+        : null;
+    const conflicts = getFactoryIdConflicts(factory, recId, exclude);
+    if (conflicts.length > 0) {
+        alert(`This ID is already used by ${conflicts.join(', ')} in this factory`);
         return;
     }
     
@@ -2718,6 +2810,22 @@ async function handleSaveDispatcher() {
     // Check for duplicate ID when adding new
     if (!editingDispatcherId && pins[selectedPinId].factories[selectedFactoryId].dispatchers[dispId]) {
         alert('A dispatcher with this ID already exists');
+        return;
+    }
+
+    const pin = pins[selectedPinId];
+    if (pin.resource_nodes && pin.resource_nodes[dispId]) {
+        alert('This ID is already used by a resource node in this site');
+        return;
+    }
+
+    const factory = pin.factories[selectedFactoryId];
+    const exclude = (editingDispatcherId && editingDispatcherId === dispId)
+        ? { type: 'dispatcher', id: editingDispatcherId }
+        : null;
+    const conflicts = getFactoryIdConflicts(factory, dispId, exclude);
+    if (conflicts.length > 0) {
+        alert(`This ID is already used by ${conflicts.join(', ')} in this factory`);
         return;
     }
     
