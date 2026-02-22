@@ -1196,6 +1196,112 @@ function getSiteFactoryIdConflicts(pin, candidateId) {
     return results;
 }
 
+function removeFromIdsReference(deletedId, pinId = null, factoryId = null) {
+    // Helper to normalize and filter from_ids array
+    const normalizeAndFilter = (fromIds) => {
+        let idsArray = [];
+        if (Array.isArray(fromIds)) {
+            idsArray = [...fromIds];
+        } else if (typeof fromIds === 'string') {
+            idsArray = fromIds.split(/,\s*/).map(id => id.trim()).filter(id => id);
+        }
+        const filtered = idsArray.filter(id => id !== deletedId);
+        if (filtered.length !== idsArray.length) {
+            console.log(`Removed "${deletedId}" from from_ids: [${idsArray}] -> [${filtered}]`);
+        }
+        return filtered;
+    };
+    
+    console.log(`removeFromIdsReference called with deletedId="${deletedId}", pinId="${pinId}", factoryId="${factoryId}"`);
+    
+    if (pinId && factoryId) {
+        // Clean up only the specific factory
+        const factory = pins[pinId]?.factories?.[factoryId];
+        console.log(`Cleaning specific factory: ${factoryId} in pin ${pinId}`);
+        if (factory) {
+            // Remove from crafters
+            const crafters = factory.machines?.crafters || {};
+            console.log('Crafters found:', Object.keys(crafters));
+            for (const [crafterId, crafter] of Object.entries(crafters)) {
+                if (crafter.inputs && Array.isArray(crafter.inputs)) {
+                    for (const input of crafter.inputs) {
+                        if (input.from_ids) {
+                            input.from_ids = normalizeAndFilter(input.from_ids);
+                        }
+                    }
+                }
+            }
+            
+            // Remove from storage
+            const storage = factory.machines?.storage || {};
+            console.log('Storage found:', Object.keys(storage));
+            for (const [storageId, storageItem] of Object.entries(storage)) {
+                if (storageItem.inputs && Array.isArray(storageItem.inputs)) {
+                    for (const input of storageItem.inputs) {
+                        if (input.from_ids) {
+                            input.from_ids = normalizeAndFilter(input.from_ids);
+                        }
+                    }
+                }
+            }
+            
+            // Remove from dispatchers
+            const dispatchers = factory.dispatchers || {};
+            console.log('Dispatchers found:', Object.keys(dispatchers));
+            for (const [dispatcherId, dispatcher] of Object.entries(dispatchers)) {
+                if (dispatcher.from_ids) {
+                    dispatcher.from_ids = normalizeAndFilter(dispatcher.from_ids);
+                }
+            }
+        }
+    } else if (pinId) {
+        // Clean up all factories in the pin (for site-level deletions)
+        const pin = pins[pinId];
+        console.log(`Cleaning all factories in pin ${pinId}`);
+        if (pin) {
+            const factories = pin.factories || {};
+            console.log('All factories in pin:', Object.keys(factories));
+            for (const [fId, factory] of Object.entries(factories)) {
+                console.log(`  Processing factory: ${fId}`);
+                // Remove from crafters
+                const crafters = factory.machines?.crafters || {};
+                console.log(`    Crafters found: ${Object.keys(crafters)}`);
+                for (const [crafterId, crafter] of Object.entries(crafters)) {
+                    if (crafter.inputs && Array.isArray(crafter.inputs)) {
+                        for (const input of crafter.inputs) {
+                            if (input.from_ids) {
+                                input.from_ids = normalizeAndFilter(input.from_ids);
+                            }
+                        }
+                    }
+                }
+                
+                // Remove from storage
+                const storage = factory.machines?.storage || {};
+                console.log(`    Storage found: ${Object.keys(storage)}`);
+                for (const [storageId, storageItem] of Object.entries(storage)) {
+                    if (storageItem.inputs && Array.isArray(storageItem.inputs)) {
+                        for (const input of storageItem.inputs) {
+                            if (input.from_ids) {
+                                input.from_ids = normalizeAndFilter(input.from_ids);
+                            }
+                        }
+                    }
+                }
+                
+                // Remove from dispatchers
+                const dispatchers = factory.dispatchers || {};
+                console.log(`    Dispatchers found: ${Object.keys(dispatchers)}`);
+                for (const [dispatcherId, dispatcher] of Object.entries(dispatchers)) {
+                    if (dispatcher.from_ids) {
+                        dispatcher.from_ids = normalizeAndFilter(dispatcher.from_ids);
+                    }
+                }
+            }
+        }
+    }
+}
+
 async function handleSaveResourceNode() {
     if (!selectedPinId) return;
     
@@ -1279,6 +1385,9 @@ async function handleSaveResourceNode() {
 async function handleDeleteResourceNode() {
     if (!selectedPinId || !editingResourceNodeId) return;
     
+    // Remove references to this resource node from all from_ids in all factories of this site
+    removeFromIdsReference(editingResourceNodeId, selectedPinId);
+    
     delete pins[selectedPinId].resource_nodes[editingResourceNodeId];
     
     try {
@@ -1287,7 +1396,7 @@ async function handleDeleteResourceNode() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ resource_nodes: pins[selectedPinId].resource_nodes })
+            body: JSON.stringify({ resource_nodes: pins[selectedPinId].resource_nodes, factories: pins[selectedPinId].factories })
         });
         
         if (response.ok) {
@@ -2094,6 +2203,9 @@ async function handleSaveCrafter() {
 async function handleDeleteCrafter() {
     if (!selectedPinId || !selectedFactoryId || !editingCrafterId) return;
 
+    // Remove references to this crafter from all from_ids in this factory
+    removeFromIdsReference(editingCrafterId, selectedPinId, selectedFactoryId);
+    
     delete pins[selectedPinId].factories[selectedFactoryId].machines.crafters[editingCrafterId];
 
     try {
@@ -2385,6 +2497,9 @@ async function handleSaveStorage() {
 async function handleDeleteStorage() {
     if (!selectedPinId || !selectedFactoryId || !editingStorageId) return;
 
+    // Remove references to this storage from all from_ids in this factory
+    removeFromIdsReference(editingStorageId, selectedPinId, selectedFactoryId);
+    
     delete pins[selectedPinId].factories[selectedFactoryId].machines.storage[editingStorageId];
 
     try {
@@ -2677,6 +2792,9 @@ async function handleSaveReceiver() {
 
 async function handleDeleteReceiver() {
     if (!selectedPinId || !selectedFactoryId || !editingReceiverId) return;
+    
+    // Remove references to this receiver from all from_ids in this factory
+    removeFromIdsReference(editingReceiverId, selectedPinId, selectedFactoryId);
     
     delete pins[selectedPinId].factories[selectedFactoryId].receivers[editingReceiverId];
     
