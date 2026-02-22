@@ -144,6 +144,15 @@ def index():
         for item in game_data.raw_item_definitions
     ]
     
+    # Convert item_definitions to list of dicts for JSON serialization
+    item_defs_list = [
+        {
+            'item_name': item.item_name,
+            'factory': item.factory
+        }
+        for item in game_data.item_definitions
+    ]
+    
     return render_template(
         'index.html',
         valid_raw_items=game_data.valid_raw_items,
@@ -154,7 +163,8 @@ def index():
         storage_buildings=game_data.storage_buildings,
         craftable_items = game_data.craftable_items,
         item_recipes = game_data.item_recipes,
-        raw_item_definitions = raw_items_list
+        raw_item_definitions = raw_items_list,
+        item_definitions = item_defs_list
     )
 
 @app.route('/map-image')

@@ -440,7 +440,16 @@ header p {
     background-color: rgba(0, 0, 0, 0.7);
 }
 
+/* Selector modals (resource, sources, etc) should appear above regular modals */
+.selector-modal {
+    z-index: 1001;
+}
+
 #selectResourceModal {
+    z-index: 1001;
+}
+
+#selectCrafterSourcesModal {
     z-index: 1001;
 }
 
