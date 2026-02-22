@@ -1032,6 +1032,7 @@ function openAddResourceNodeModal(pinId) {
     populateResourceNodeCoreOptions(pinId);
     deleteResourceNodeBtn.style.display = 'none';
     resourceNodeModal.classList.add('show');
+    openSelectResourceModal();
 }
 
 function openEditResourceNodeModal(pinId, nodeId) {
