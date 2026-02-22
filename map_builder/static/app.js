@@ -62,14 +62,21 @@ const deleteFactoryBtn = document.getElementById('deleteFactoryBtn');
 const receiverModal = document.getElementById('receiverModal');
 const receiverModalTitle = document.getElementById('receiverModalTitle');
 const receiverId = document.getElementById('receiverId');
-const receiverSiteId = document.getElementById('receiverSiteId');
-const receiverFactoryId = document.getElementById('receiverFactoryId');
-const receiverDispatcherId = document.getElementById('receiverDispatcherId');
+const receiverSelectDispatcherBtn = document.getElementById('receiverSelectDispatcherBtn');
+const receiverSiteLabel = document.getElementById('receiverSiteLabel');
+const receiverFactoryLabel = document.getElementById('receiverFactoryLabel');
+const receiverDispatcherLabel = document.getElementById('receiverDispatcherLabel');
 const receiverBuildingId = document.getElementById('receiverBuildingId');
 const receiverCoreGroup = document.getElementById('receiverCoreGroup');
 const receiverCoreId = document.getElementById('receiverCoreId');
 const saveReceiverBtn = document.getElementById('saveReceiverBtn');
 const deleteReceiverBtn = document.getElementById('deleteReceiverBtn');
+
+// Receiver Dispatcher Selector Modal Elements
+const selectReceiverDispatcherModal = document.getElementById('selectReceiverDispatcherModal');
+const receiverDispatcherSelectionTable = document.getElementById('receiverDispatcherSelectionTable');
+
+let selectedReceiverDispatcher = null;
 
 // Dispatcher Modal Elements
 const dispatcherModal = document.getElementById('dispatcherModal');
@@ -221,8 +228,14 @@ function attachEventListeners() {
         el.addEventListener('click', closeReceiverModal);
     });
     receiverBuildingId.addEventListener('change', handleReceiverBuildingChange);
+    receiverSelectDispatcherBtn.addEventListener('click', openSelectReceiverDispatcherModal);
     saveReceiverBtn.addEventListener('click', handleSaveReceiver);
     deleteReceiverBtn.addEventListener('click', handleDeleteReceiver);
+
+    // Receiver Dispatcher Selector Modal controls
+    document.querySelectorAll('[data-modal="selectReceiverDispatcherModal"]').forEach(el => {
+        el.addEventListener('click', closeSelectReceiverDispatcherModal);
+    });
     
     // Dispatcher Modal controls
     document.querySelectorAll('[data-modal="dispatcherModal"]').forEach(el => {
@@ -2390,16 +2403,99 @@ function handleReceiverBuildingChange() {
     }
 }
 
+function setReceiverDispatcherLabels(selection) {
+    const siteValue = selection ? selection.site_name || selection.site_id : '';
+    const factoryValue = selection ? selection.factory_id : '';
+    const dispatcherValue = selection ? selection.dispatcher_id : '';
+
+    receiverSiteLabel.textContent = siteValue || '-';
+    receiverFactoryLabel.textContent = factoryValue || '-';
+    receiverDispatcherLabel.textContent = dispatcherValue || '-';
+}
+
+function buildReceiverDispatcherList() {
+    const list = [];
+
+    for (const [siteId, pin] of Object.entries(pins || {})) {
+        if (!pin.factories) continue;
+        for (const [factoryId, factory] of Object.entries(pin.factories)) {
+            if (!factory.dispatchers) continue;
+            for (const [dispatcherId, dispatcher] of Object.entries(factory.dispatchers)) {
+                const item = dispatcher.dipatched_item || dispatcher.dispatched_item || '';
+                list.push({
+                    item,
+                    site_id: siteId,
+                    site_name: pin.name || siteId,
+                    factory_id: factoryId,
+                    dispatcher_id: dispatcherId
+                });
+            }
+        }
+    }
+
+    list.sort((a, b) => {
+        const itemCompare = a.item.localeCompare(b.item);
+        if (itemCompare !== 0) return itemCompare;
+        const siteCompare = a.site_name.localeCompare(b.site_name);
+        if (siteCompare !== 0) return siteCompare;
+        const factoryCompare = a.factory_id.localeCompare(b.factory_id);
+        if (factoryCompare !== 0) return factoryCompare;
+        return a.dispatcher_id.localeCompare(b.dispatcher_id);
+    });
+
+    return list;
+}
+
+function populateReceiverDispatcherTable() {
+    const tbody = receiverDispatcherSelectionTable.querySelector('tbody');
+    tbody.innerHTML = '';
+
+    const list = buildReceiverDispatcherList();
+    list.forEach(entry => {
+        const row = document.createElement('tr');
+        row.style.borderBottom = '1px solid #555';
+        row.style.cursor = 'pointer';
+        row.addEventListener('mouseenter', () => {
+            row.style.backgroundColor = '#404040';
+        });
+        row.addEventListener('mouseleave', () => {
+            row.style.backgroundColor = '';
+        });
+        row.addEventListener('click', () => {
+            selectedReceiverDispatcher = entry;
+            setReceiverDispatcherLabels(entry);
+            closeSelectReceiverDispatcherModal();
+        });
+
+        row.innerHTML = `
+            <td style="border: 1px solid #555; padding: 10px;">${entry.item}</td>
+            <td style="border: 1px solid #555; padding: 10px;">${entry.site_name}</td>
+            <td style="border: 1px solid #555; padding: 10px;">${entry.factory_id}</td>
+            <td style="border: 1px solid #555; padding: 10px;">${entry.dispatcher_id}</td>
+        `;
+
+        tbody.appendChild(row);
+    });
+}
+
+function openSelectReceiverDispatcherModal() {
+    populateReceiverDispatcherTable();
+    selectReceiverDispatcherModal.classList.add('show');
+}
+
+function closeSelectReceiverDispatcherModal() {
+    selectReceiverDispatcherModal.classList.remove('show');
+}
+
 function openAddReceiverModal(pinId, factoryId) {
     selectedPinId = pinId;
     selectedFactoryId = factoryId;
     editingReceiverId = null;
+    selectedReceiverDispatcher = null;
     receiverModalTitle.textContent = 'Add Receiver';
     receiverId.value = '';
     receiverId.disabled = false;
-    receiverSiteId.value = '';
-    receiverFactoryId.value = '';
-    receiverDispatcherId.value = '';
+    setReceiverDispatcherLabels(null);
     receiverBuildingId.value = '';
     receiverCoreGroup.style.display = 'none';
     receiverCoreId.value = '';
@@ -2416,9 +2512,13 @@ function openEditReceiverModal(pinId, factoryId, recId) {
     receiverModalTitle.textContent = 'Edit Receiver';
     receiverId.value = recId;
     receiverId.disabled = true;
-    receiverSiteId.value = receiver.site_id || '';
-    receiverFactoryId.value = receiver.factory_id || '';
-    receiverDispatcherId.value = receiver.dispatcher_id || '';
+    selectedReceiverDispatcher = {
+        site_id: receiver.site_id || '',
+        factory_id: receiver.factory_id || '',
+        dispatcher_id: receiver.dispatcher_id || '',
+        item: ''
+    };
+    setReceiverDispatcherLabels(selectedReceiverDispatcher);
     receiverBuildingId.value = receiver.building_id || '';
     
     // Show/hide core field based on building selection
@@ -2446,6 +2546,11 @@ async function handleSaveReceiver() {
     const recId = receiverId.value.trim();
     if (!recId) {
         alert('Please enter a receiver ID');
+        return;
+    }
+
+    if (!selectedReceiverDispatcher || !selectedReceiverDispatcher.site_id || !selectedReceiverDispatcher.factory_id || !selectedReceiverDispatcher.dispatcher_id) {
+        alert('Please select a dispatcher');
         return;
     }
     
@@ -2477,9 +2582,9 @@ async function handleSaveReceiver() {
     }
     
     const receiverData = {
-        site_id: receiverSiteId.value.trim(),
-        factory_id: receiverFactoryId.value.trim(),
-        dispatcher_id: receiverDispatcherId.value.trim(),
+        site_id: selectedReceiverDispatcher.site_id,
+        factory_id: selectedReceiverDispatcher.factory_id,
+        dispatcher_id: selectedReceiverDispatcher.dispatcher_id,
         building_id: receiverBuildingId.value.trim()
     };
     
