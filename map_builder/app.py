@@ -67,7 +67,7 @@ class GameData:
         production_buildings |= set([b for b in self.receiving_buildings])
 
         self.non_production_buildings = [
-            b.building_name for b in self.building_definitions 
+            b.building_name for b in self.building_definitions
                 if b.building_name not in production_buildings
         ]
 
@@ -132,7 +132,7 @@ def index():
     """Serve the main page."""
     if game_data is None:
         load_game_data()
-    
+
     # Convert raw_item_definitions to list of dicts for JSON serialization
     raw_items_list = [
         {
@@ -143,7 +143,7 @@ def index():
         }
         for item in game_data.raw_item_definitions
     ]
-    
+
     # Convert item_definitions to list of dicts for JSON serialization
     item_defs_list = [
         {
@@ -152,7 +152,7 @@ def index():
         }
         for item in game_data.item_definitions
     ]
-    
+
     return render_template(
         'index.html',
         valid_raw_items=game_data.valid_raw_items,
@@ -259,24 +259,29 @@ def update_pin(pin_id):
             pins[pin_id]['resource_nodes'] = data['resource_nodes']
         if 'cores' in data:
             pins[pin_id]['cores'] = data['cores']
-        
+
         deleted_receivers_count = 0
         if 'factories' in data:
             # Before updating factories, detect deleted dispatchers and cascade delete receivers
             old_factories = pins[pin_id].get('factories', {})
             new_factories = data['factories']
-            
+
             # Find all dispatchers that were deleted in this site
             deleted_dispatchers = []  # List of (site_id, factory_id, dispatcher_id)
             for factory_id in old_factories:
                 if factory_id in new_factories:
                     old_dispatchers = old_factories[factory_id].get('dispatchers', {})
                     new_dispatchers = new_factories[factory_id].get('dispatchers', {})
-                    
+
                     for dispatcher_id in old_dispatchers:
                         if dispatcher_id not in new_dispatchers:
                             deleted_dispatchers.append((pin_id, factory_id, dispatcher_id))
-            
+
+            # Before the receiver deletion operation, copy the new factories. The deletions are
+            # done on the pins instance so if data is copied to pins, it will undo the deletions
+            # within all factories of pins[pin_id].
+            pins[pin_id]['factories'] = data['factories']
+
             # Delete receivers in ALL factories of ALL sites that reference deleted dispatchers
             if deleted_dispatchers:
                 for pin in pins.values():
@@ -295,8 +300,6 @@ def update_pin(pin_id):
                         deleted_receivers_count += len(receivers_to_delete)
                         for rid in receivers_to_delete:
                             del receivers[rid]
-            
-            pins[pin_id]['factories'] = data['factories']
 
         # Remove legacy name field if present
         if 'name' in pins[pin_id]:
@@ -305,7 +308,7 @@ def update_pin(pin_id):
         pins[pin_id]['id'] = new_id
 
         save_pins(pins)
-        
+
         # Return response with deleted receivers count if applicable
         response_data = pins[pin_id].copy()
         if deleted_receivers_count > 0:
