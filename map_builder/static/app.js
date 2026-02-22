@@ -1037,6 +1037,61 @@ async function handleDeletePin() {
     if (!selectedPinId) return;
     
     try {
+        // Before deleting the site, find and remove all receivers that reference dispatchers from this site
+        const deletedSiteId = selectedPinId;
+        const deletedSite = pins[deletedSiteId];
+        
+        // Collect all dispatcher IDs from all factories in the site being deleted
+        const deletedDispatchers = [];
+        if (deletedSite && deletedSite.factories) {
+            for (const [factoryId, factory] of Object.entries(deletedSite.factories)) {
+                if (factory.dispatchers) {
+                    for (const dispatcherId of Object.keys(factory.dispatchers)) {
+                        deletedDispatchers.push({ factoryId, dispatcherId });
+                    }
+                }
+            }
+        }
+        
+        // Find and delete receivers in other sites that reference these dispatchers
+        for (const [siteId, site] of Object.entries(pins)) {
+            if (siteId === deletedSiteId) continue; // Skip the site being deleted
+            
+            if (site.factories) {
+                for (const [factoryId, factory] of Object.entries(site.factories)) {
+                    if (factory.receivers) {
+                        const receiversToDelete = [];
+                        for (const [receiverId, receiver] of Object.entries(factory.receivers)) {
+                            // Check if this receiver references a dispatcher from the deleted site
+                            if (receiver.site_id === deletedSiteId) {
+                                receiversToDelete.push(receiverId);
+                            }
+                        }
+                        
+                        // Delete the receivers
+                        receiversToDelete.forEach(receiverId => {
+                            delete factory.receivers[receiverId];
+                        });
+                        
+                        // If any receivers were deleted, update the site
+                        if (receiversToDelete.length > 0) {
+                            // Save the updated factory/site
+                            fetch(`/api/pins/${siteId}`, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ factories: site.factories })
+                            }).catch(error => {
+                                console.error(`Error updating site ${siteId}:`, error);
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Now delete the site
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'DELETE'
         });
@@ -2870,7 +2925,7 @@ function buildReceiverDispatcherList() {
         if (!pin.factories) continue;
         for (const [factoryId, factory] of Object.entries(pin.factories)) {
             // May not receive items from dispatchers of the same factory.
-            if (selectedFactoryId === factoryId) continue;
+            if (selectedPinId === siteId && selectedFactoryId === factoryId) continue;
             if (!factory.dispatchers) continue;
             for (const [dispatcherId, dispatcher] of Object.entries(factory.dispatchers)) {
                 const item = dispatcher.dipatched_item || dispatcher.dispatched_item || '';
