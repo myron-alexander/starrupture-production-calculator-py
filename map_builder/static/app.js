@@ -2066,7 +2066,7 @@ function openEditCrafterModal(pinId, factoryId, machineId) {
 
     crafterModalTitle.textContent = 'Edit Crafter';
     crafterId.value = machineId;
-    crafterId.disabled = true;
+    crafterId.disabled = false;
     crafterItem.value = crafter.crafted_item || '';
     
     // Populate inputs from recipe with existing data
@@ -2558,9 +2558,12 @@ async function handleSaveCrafter() {
         pins[selectedPinId].factories[selectedFactoryId].machines.crafters = {};
     }
 
-    if (!editingCrafterId && pins[selectedPinId].factories[selectedFactoryId].machines.crafters[machineId]) {
-        alert('A crafter with this ID already exists');
-        return;
+    // Check for duplicate ID (allow current ID when editing)
+    if (pins[selectedPinId].factories[selectedFactoryId].machines.crafters[machineId]) {
+        if (!editingCrafterId || editingCrafterId !== machineId) {
+            alert('A crafter with this ID already exists');
+            return;
+        }
     }
 
     const pin = pins[selectedPinId];
@@ -2595,8 +2598,53 @@ async function handleSaveCrafter() {
         crafterData.core_id = coreIdValue;
     }
 
+    // If editing and ID changed, delete old entry and update all from_ids references
     if (editingCrafterId && editingCrafterId !== machineId) {
         delete pins[selectedPinId].factories[selectedFactoryId].machines.crafters[editingCrafterId];
+        
+        // Update all from_ids references in this factory
+        const factory = pins[selectedPinId].factories[selectedFactoryId];
+        
+        // Update crafters
+        const crafters = factory.machines?.crafters || {};
+        for (const crafter of Object.values(crafters)) {
+            if (crafter.inputs && Array.isArray(crafter.inputs)) {
+                for (const input of crafter.inputs) {
+                    if (input.from_ids && Array.isArray(input.from_ids)) {
+                        const index = input.from_ids.indexOf(editingCrafterId);
+                        if (index !== -1) {
+                            input.from_ids[index] = machineId;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Update storage
+        const storage = factory.machines?.storage || {};
+        for (const storageItem of Object.values(storage)) {
+            if (storageItem.inputs && Array.isArray(storageItem.inputs)) {
+                for (const input of storageItem.inputs) {
+                    if (input.from_ids && Array.isArray(input.from_ids)) {
+                        const index = input.from_ids.indexOf(editingCrafterId);
+                        if (index !== -1) {
+                            input.from_ids[index] = machineId;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Update dispatchers
+        const dispatchers = factory.dispatchers || {};
+        for (const dispatcher of Object.values(dispatchers)) {
+            if (dispatcher.from_ids && Array.isArray(dispatcher.from_ids)) {
+                const index = dispatcher.from_ids.indexOf(editingCrafterId);
+                if (index !== -1) {
+                    dispatcher.from_ids[index] = machineId;
+                }
+            }
+        }
     }
 
     pins[selectedPinId].factories[selectedFactoryId].machines.crafters[machineId] = crafterData;
