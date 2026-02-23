@@ -3644,7 +3644,7 @@ function openEditDispatcherModal(pinId, factoryId, dispId) {
     
     dispatcherModalTitle.textContent = 'Edit Dispatcher';
     dispatcherId.value = dispId;
-    dispatcherId.disabled = true;
+    dispatcherId.disabled = false;
     dispatchedItem.value = dispatcher.dipatched_item || dispatcher.dispatched_item || '';
     dispatcherOutputRate.value = dispatcher.output_rate_limit_ipm || 100;
     dispatcherInputRate.value = dispatcher.input_rate_limit_ipm || 100;
@@ -3728,29 +3728,46 @@ async function handleSaveDispatcher() {
         dispatcherData.core_id = dispatcherCoreId.value.trim();
     }
     
-    // If editing and ID changed, delete old entry
+    // If editing and ID changed, delete old entry and update all receiver references
     if (editingDispatcherId && editingDispatcherId !== dispId) {
         delete pins[selectedPinId].factories[selectedFactoryId].dispatchers[editingDispatcherId];
+        
+        // Update all receivers across all sites that reference this dispatcher
+        // Receivers identify dispatchers by the combination of site_id, factory_id, and dispatcher_id
+        for (const pin of Object.values(pins)) {
+            for (const factory of Object.values(pin.factories || {})) {
+                const receivers = factory.receivers || {};
+                for (const receiver of Object.values(receivers)) {
+                    if (receiver.site_id === selectedPinId && 
+                        receiver.factory_id === selectedFactoryId && 
+                        receiver.dispatcher_id === editingDispatcherId) {
+                        receiver.dispatcher_id = dispId;
+                    }
+                }
+            }
+        }
     }
     
     pins[selectedPinId].factories[selectedFactoryId].dispatchers[dispId] = dispatcherData;
     
     try {
-        const response = await fetch(`/api/pins/${selectedPinId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ factories: pins[selectedPinId].factories })
-        });
-        
-        if (response.ok) {
+        // Send updates sequentially to avoid concurrent writes to pins_data.json
+        for (const pinId of Object.keys(pins)) {
+            const response = await fetch(`/api/pins/${pinId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ factories: pins[pinId].factories })
+            });
+            if (!response.ok) throw new Error(`Failed to update pin ${pinId}`);
             const updatedPin = await response.json();
-            pins[selectedPinId] = updatedPin;
-            renderPins();
-            renderPinsList();
-            closeDispatcherModal();
+            pins[pinId] = updatedPin;
         }
+        
+        renderPins();
+        renderPinsList();
+        closeDispatcherModal();
     } catch (error) {
         console.error('Error saving dispatcher:', error);
         alert('Error saving dispatcher');
