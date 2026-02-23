@@ -586,6 +586,13 @@ function renderPinsList() {
         pinItem.appendChild(header);
         pinItem.appendChild(details);
         
+        // Restore expanded state from localStorage
+        if (loadPinExpandedState(id)) {
+            details.classList.add('expanded');
+            const toggle = header.querySelector('.pin-item-toggle');
+            toggle.textContent = '▲';
+        }
+        
         // Add toggle functionality
         const toggle = header.querySelector('.pin-item-toggle');
         toggle.addEventListener('click', (e) => {
@@ -960,9 +967,31 @@ function toggleDetails(pinId) {
     if (details.classList.contains('expanded')) {
         details.classList.remove('expanded');
         toggle.textContent = '▼';
+        savePinExpandedState(pinId, false);
     } else {
         details.classList.add('expanded');
         toggle.textContent = '▲';
+        savePinExpandedState(pinId, true);
+    }
+}
+
+function savePinExpandedState(pinId, isExpanded) {
+    try {
+        const expandedPins = JSON.parse(localStorage.getItem('expandedPins') || '{}');
+        expandedPins[pinId] = isExpanded;
+        localStorage.setItem('expandedPins', JSON.stringify(expandedPins));
+    } catch (e) {
+        console.error('Error saving pin expanded state:', e);
+    }
+}
+
+function loadPinExpandedState(pinId) {
+    try {
+        const expandedPins = JSON.parse(localStorage.getItem('expandedPins') || '{}');
+        return expandedPins[pinId] === true;
+    } catch (e) {
+        console.error('Error loading pin expanded state:', e);
+        return false;
     }
 }
 
@@ -1037,6 +1066,17 @@ async function handleSavePin() {
             if (updatedPin.id !== selectedPinId) {
                 delete pins[selectedPinId];
                 selectedPinId = updatedPin.id;
+                // Update localStorage key for expanded state
+                try {
+                    const expandedPins = JSON.parse(localStorage.getItem('expandedPins') || '{}');
+                    if (expandedPins[previousId] !== undefined) {
+                        expandedPins[updatedPin.id] = expandedPins[previousId];
+                        delete expandedPins[previousId];
+                        localStorage.setItem('expandedPins', JSON.stringify(expandedPins));
+                    }
+                } catch (e) {
+                    console.error('Error updating pin expanded state:', e);
+                }
             }
             pins[updatedPin.id] = updatedPin;
             renderPins();
@@ -1120,6 +1160,14 @@ async function handleDeletePin() {
         
         if (response.ok) {
             delete pins[selectedPinId];
+            // Clean up expanded state from localStorage
+            try {
+                const expandedPins = JSON.parse(localStorage.getItem('expandedPins') || '{}');
+                delete expandedPins[selectedPinId];
+                localStorage.setItem('expandedPins', JSON.stringify(expandedPins));
+            } catch (e) {
+                console.error('Error cleaning up pin expanded state:', e);
+            }
             renderPins();
             renderPinsList();
             closeEditModal();
