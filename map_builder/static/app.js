@@ -368,6 +368,44 @@ function attachEventListeners() {
             closeNonProdBuildingModal();
         }
     });
+    
+    // Escape key closes any open modal
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            // Close modals in order of priority (nested modals first)
+            if (selectResourceModal.classList.contains('show')) {
+                closeSelectResourceModal();
+            } else if (selectCrafterSourcesModal.classList.contains('show')) {
+                closeSelectCrafterSourcesModal();
+            } else if (selectStorageSourcesModal.classList.contains('show')) {
+                closeSelectStorageSourcesModal();
+            } else if (selectDispatcherSourcesModal.classList.contains('show')) {
+                closeSelectDispatcherSourcesModal();
+            } else if (selectReceiverDispatcherModal.classList.contains('show')) {
+                closeSelectReceiverDispatcherModal();
+            } else if (addPinModal.classList.contains('show')) {
+                closeAddPinModal();
+            } else if (editModal.classList.contains('show')) {
+                closeEditModal();
+            } else if (resourceNodeModal.classList.contains('show')) {
+                closeResourceNodeModal();
+            } else if (coreModal.classList.contains('show')) {
+                closeCoreModal();
+            } else if (factoryModal.classList.contains('show')) {
+                closeFactoryModal();
+            } else if (receiverModal.classList.contains('show')) {
+                closeReceiverModal();
+            } else if (dispatcherModal.classList.contains('show')) {
+                closeDispatcherModal();
+            } else if (crafterModal.classList.contains('show')) {
+                closeCrafterModal();
+            } else if (storageModal.classList.contains('show')) {
+                closeStorageModal();
+            } else if (nonProdBuildingModal.classList.contains('show')) {
+                closeNonProdBuildingModal();
+            }
+        }
+    });
 }
 
 function handleMapClick(event) {
