@@ -1205,6 +1205,10 @@ function openSelectResourceModal() {
 
 function closeSelectResourceModal() {
     selectResourceModal.classList.remove('show');
+
+    // When the selector is closed, move the cursor to the resource id so that the id can be
+    // set to a name that makes sense for the selected resource.
+    resourceNodeId.focus()
 }
 
 function openAddResourceNodeModal(pinId) {
@@ -1515,6 +1519,7 @@ function openAddCoreModal(pinId) {
     coreLevel.value = '0';
     deleteCoreBtn.style.display = 'none';
     coreModal.classList.add('show');
+    coreId.focus()
 }
 
 function openEditCoreModal(pinId, corId) {
@@ -1648,6 +1653,7 @@ function openAddFactoryModal(pinId) {
     populateFactoryCoreOptions(pinId);
     deleteFactoryBtn.style.display = 'none';
     factoryModal.classList.add('show');
+    factoryId.focus()
 }
 
 function openEditFactoryModal(pinId, facId) {
@@ -1945,6 +1951,7 @@ function openAddCrafterModal(pinId, factoryId) {
     populateCrafterCoreOptions(pinId);
     deleteCrafterBtn.style.display = 'none';
     crafterModal.classList.add('show');
+    crafterId.focus()
 }
 
 function openEditCrafterModal(pinId, factoryId, machineId) {
@@ -2680,6 +2687,7 @@ function openAddStorageModal(pinId, factoryId) {
     populateStorageCoreOptions(pinId);
     deleteStorageBtn.style.display = 'none';
     storageModal.classList.add('show');
+    storageId.focus()
 }
 
 function openEditStorageModal(pinId, factoryId, machineId) {
@@ -3007,6 +3015,8 @@ function openSelectReceiverDispatcherModal() {
 
 function closeSelectReceiverDispatcherModal() {
     selectReceiverDispatcherModal.classList.remove('show');
+
+    receiverId.focus()
 }
 
 function openAddReceiverModal(pinId, factoryId) {
@@ -3383,6 +3393,7 @@ function openAddDispatcherModal(pinId, factoryId) {
     dispatcherCoreId.value = '';
     deleteDispatcherBtn.style.display = 'none';
     dispatcherModal.classList.add('show');
+    dispatcherId.focus()
 }
 
 function openEditDispatcherModal(pinId, factoryId, dispId) {
