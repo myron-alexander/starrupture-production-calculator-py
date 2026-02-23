@@ -1981,7 +1981,7 @@ function createCrafterInputRow(inputItem, inputData = {}) {
     rateInput.type = 'number';
     rateInput.className = 'crafter-input-rate';
     rateInput.min = '1';
-    rateInput.value = inputData.rate_limit_ipm || 1;
+    rateInput.value = inputData.rate_limit_ipm || 120;
     rateField.appendChild(rateLabel);
     rateField.appendChild(rateInput);
 
@@ -2766,7 +2766,7 @@ function createStorageInputRow(inputData = {}) {
     rateInput.type = 'number';
     rateInput.className = 'storage-input-rate';
     rateInput.min = '1';
-    rateInput.value = inputData.rate_limit_ipm || 1;
+    rateInput.value = inputData.rate_limit_ipm || 120;
     rateField.appendChild(rateLabel);
     rateField.appendChild(rateInput);
 
@@ -3626,7 +3626,7 @@ function openAddDispatcherModal(pinId, factoryId) {
     dispatcherId.disabled = false;
     dispatchedItem.value = '';
     dispatcherOutputRate.value = '100';
-    dispatcherInputRate.value = '100';
+    dispatcherInputRate.value = '120';
     setDispatcherFromIdsBadges([]);
     dispatcherBuildingId.value = '';
     dispatcherCoreGroup.style.display = 'none';
