@@ -1297,7 +1297,7 @@ function openEditResourceNodeModal(pinId, nodeId) {
     
     resourceNodeModalTitle.textContent = 'Edit Resource Node';
     resourceNodeId.value = nodeId;
-    resourceNodeId.disabled = true;
+    resourceNodeId.disabled = false;
     resourceItemLabel.textContent = node.resource_item || '-';
     resourceVariantLabel.textContent = node.variant || '-';
     resourceRateLabel.textContent = (node.rate_ipm || '-') + (node.rate_ipm ? ' ipm' : '');
@@ -1467,10 +1467,12 @@ async function handleSaveResourceNode() {
         return;
     }
     
-    // Check for duplicate ID when adding new
-    if (!editingResourceNodeId && pins[selectedPinId].resource_nodes && pins[selectedPinId].resource_nodes[nodeId]) {
-        alert('A resource node with this ID already exists');
-        return;
+    // Check for duplicate ID (allow current ID when editing)
+    if (pins[selectedPinId].resource_nodes && pins[selectedPinId].resource_nodes[nodeId]) {
+        if (!editingResourceNodeId || editingResourceNodeId !== nodeId) {
+            alert('A resource node with this ID already exists');
+            return;
+        }
     }
 
     // Ensure resource ID does not conflict with any factory entity IDs in this site
@@ -1504,9 +1506,54 @@ async function handleSaveResourceNode() {
         pins[selectedPinId].resource_nodes = {};
     }
     
-    // If editing and ID changed, delete old entry
+    // If editing and ID changed, delete old entry and update all from_ids references
     if (editingResourceNodeId && editingResourceNodeId !== nodeId) {
         delete pins[selectedPinId].resource_nodes[editingResourceNodeId];
+        
+        // Update all from_ids references across all factories in this site
+        const factories = pins[selectedPinId].factories || {};
+        for (const [factoryId, factory] of Object.entries(factories)) {
+            // Update crafters
+            const crafters = factory.machines?.crafters || {};
+            for (const crafter of Object.values(crafters)) {
+                if (crafter.inputs && Array.isArray(crafter.inputs)) {
+                    for (const input of crafter.inputs) {
+                        if (input.from_ids && Array.isArray(input.from_ids)) {
+                            const index = input.from_ids.indexOf(editingResourceNodeId);
+                            if (index !== -1) {
+                                input.from_ids[index] = nodeId;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Update storage
+            const storage = factory.machines?.storage || {};
+            for (const storageItem of Object.values(storage)) {
+                if (storageItem.inputs && Array.isArray(storageItem.inputs)) {
+                    for (const input of storageItem.inputs) {
+                        if (input.from_ids && Array.isArray(input.from_ids)) {
+                            const index = input.from_ids.indexOf(editingResourceNodeId);
+                            if (index !== -1) {
+                                input.from_ids[index] = nodeId;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Update dispatchers
+            const dispatchers = factory.dispatchers || {};
+            for (const dispatcher of Object.values(dispatchers)) {
+                if (dispatcher.from_ids && Array.isArray(dispatcher.from_ids)) {
+                    const index = dispatcher.from_ids.indexOf(editingResourceNodeId);
+                    if (index !== -1) {
+                        dispatcher.from_ids[index] = nodeId;
+                    }
+                }
+            }
+        }
     }
     
     pins[selectedPinId].resource_nodes[nodeId] = nodeData;
@@ -1517,7 +1564,10 @@ async function handleSaveResourceNode() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ resource_nodes: pins[selectedPinId].resource_nodes })
+            body: JSON.stringify({ 
+                resource_nodes: pins[selectedPinId].resource_nodes,
+                factories: pins[selectedPinId].factories 
+            })
         });
         
         if (response.ok) {
