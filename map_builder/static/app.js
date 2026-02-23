@@ -2850,7 +2850,7 @@ function openEditStorageModal(pinId, factoryId, machineId) {
 
     storageModalTitle.textContent = 'Edit Storage';
     storageId.value = machineId;
-    storageId.disabled = true;
+    storageId.disabled = false;
     storageBuildingId.value = storage.building_id || '';
     storageNumStacks.value = storage.num_stacks || '';
     
@@ -2986,6 +2986,50 @@ async function handleSaveStorage() {
 
     if (editingStorageId && editingStorageId !== machineId) {
         delete pins[selectedPinId].factories[selectedFactoryId].machines.storage[editingStorageId];
+        
+        // Update all from_ids references in this factory
+        const factory = pins[selectedPinId].factories[selectedFactoryId];
+        
+        // Update crafters
+        const crafters = factory.machines?.crafters || {};
+        for (const crafter of Object.values(crafters)) {
+            if (crafter.inputs && Array.isArray(crafter.inputs)) {
+                for (const input of crafter.inputs) {
+                    if (input.from_ids && Array.isArray(input.from_ids)) {
+                        const index = input.from_ids.indexOf(editingStorageId);
+                        if (index !== -1) {
+                            input.from_ids[index] = machineId;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Update storage
+        const storage = factory.machines?.storage || {};
+        for (const storageItem of Object.values(storage)) {
+            if (storageItem.inputs && Array.isArray(storageItem.inputs)) {
+                for (const input of storageItem.inputs) {
+                    if (input.from_ids && Array.isArray(input.from_ids)) {
+                        const index = input.from_ids.indexOf(editingStorageId);
+                        if (index !== -1) {
+                            input.from_ids[index] = machineId;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Update dispatchers
+        const dispatchers = factory.dispatchers || {};
+        for (const dispatcher of Object.values(dispatchers)) {
+            if (dispatcher.from_ids && Array.isArray(dispatcher.from_ids)) {
+                const index = dispatcher.from_ids.indexOf(editingStorageId);
+                if (index !== -1) {
+                    dispatcher.from_ids[index] = machineId;
+                }
+            }
+        }
     }
 
     pins[selectedPinId].factories[selectedFactoryId].machines.storage[machineId] = storageData;
@@ -3196,7 +3240,7 @@ function openEditReceiverModal(pinId, factoryId, recId) {
     
     receiverModalTitle.textContent = 'Edit Receiver';
     receiverId.value = recId;
-    receiverId.disabled = true;
+    receiverId.disabled = false;
     selectedReceiverDispatcher = {
         site_id: receiver.site_id || '',
         factory_id: receiver.factory_id || '',
@@ -3282,9 +3326,53 @@ async function handleSaveReceiver() {
         }
     }
     
-    // If editing and ID changed, delete old entry
+    // If editing and ID changed, delete old entry and update all from_ids references
     if (editingReceiverId && editingReceiverId !== recId) {
         delete pins[selectedPinId].factories[selectedFactoryId].receivers[editingReceiverId];
+        
+        // Update all from_ids references in this factory
+        const factory = pins[selectedPinId].factories[selectedFactoryId];
+        
+        // Update crafters
+        const crafters = factory.machines?.crafters || {};
+        for (const crafter of Object.values(crafters)) {
+            if (crafter.inputs && Array.isArray(crafter.inputs)) {
+                for (const input of crafter.inputs) {
+                    if (input.from_ids && Array.isArray(input.from_ids)) {
+                        const index = input.from_ids.indexOf(editingReceiverId);
+                        if (index !== -1) {
+                            input.from_ids[index] = recId;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Update storage
+        const storage = factory.machines?.storage || {};
+        for (const storageItem of Object.values(storage)) {
+            if (storageItem.inputs && Array.isArray(storageItem.inputs)) {
+                for (const input of storageItem.inputs) {
+                    if (input.from_ids && Array.isArray(input.from_ids)) {
+                        const index = input.from_ids.indexOf(editingReceiverId);
+                        if (index !== -1) {
+                            input.from_ids[index] = recId;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Update dispatchers
+        const dispatchers = factory.dispatchers || {};
+        for (const dispatcher of Object.values(dispatchers)) {
+            if (dispatcher.from_ids && Array.isArray(dispatcher.from_ids)) {
+                const index = dispatcher.from_ids.indexOf(editingReceiverId);
+                if (index !== -1) {
+                    dispatcher.from_ids[index] = recId;
+                }
+            }
+        }
     }
     
     pins[selectedPinId].factories[selectedFactoryId].receivers[recId] = receiverData;
