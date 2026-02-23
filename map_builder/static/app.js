@@ -610,14 +610,23 @@ function renderPinsList() {
             `;
         }
         
-        // Add Resource Nodes section
-        detailsHTML += renderTreeSection('Resource Nodes', pin.resource_nodes || {});
+        /* 
+         * =============
+         * = IMPORTANT =
+         * =============
+         * When changing the value passed into parameter sectionHeader of renderTreeSection
+         * (the first parameter), you must change the corresponding value in function
+         * renderItemDetails as it uses the value to determine how to render the items.
+         */
+
+        // Add Resource Nodes section.
+        detailsHTML += renderTreeSection('Resource Nodes', 'Resource Node', pin.resource_nodes || {});
         
         // Add Cores section
-        detailsHTML += renderTreeSection('Cores', pin.cores || {});
+        detailsHTML += renderTreeSection('Cores', 'Core', pin.cores || {});
         
         // Add Factories section
-        detailsHTML += renderTreeSection('Factories', pin.factories || {});
+        detailsHTML += renderTreeSection('Factories', 'Factory', pin.factories || {});
         
         details.innerHTML = detailsHTML;
         
@@ -705,17 +714,24 @@ function renderPinsList() {
     });
 }
 
-function renderTreeSection(title, items) {
+/*
+Note that the title value is used by renderItemDetails to determine what section to render
+thus the title value is significant. Unfortunately, my AI junior designed this in a way that
+sets the add button for factories to "Add Factorie" which is not valid english and should be
+"Add Factory". The simple fix is to split the purpose of title into section header and component
+name.
+*/
+function renderTreeSection(sectionHeader, componentName, items) {
     const itemIds = Object.keys(items).sort(); // Sort alphabetically
     let html = `
         <div class="tree-section">
-            <div class="tree-section-header">${title} (${itemIds.length})</div>
+            <div class="tree-section-header">${sectionHeader} (${itemIds.length})</div>
     `;
     
     if (itemIds.length === 0) {
         html += `
             <div class="tree-block add-button">
-                + Add ${title.slice(0, -1)}
+                + Add ${componentName}
             </div>
         `;
     } else {
@@ -724,13 +740,13 @@ function renderTreeSection(title, items) {
             html += `
                 <div class="tree-block" data-item-id="${itemId}">
                     <div class="tree-block-label">${itemId}</div>
-                    ${renderItemDetails(title, item, itemId)}
+                    ${renderItemDetails(sectionHeader, item, itemId)}
                 </div>
             `;
         });
         html += `
             <div class="tree-block add-button">
-                + Add ${title.slice(0, -1)}
+                + Add ${componentName}
             </div>
         `;
     }
