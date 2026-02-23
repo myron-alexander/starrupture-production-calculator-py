@@ -153,7 +153,7 @@ def index():
         for item in game_data.item_definitions
     ]
 
-    return render_template(
+    response = render_template(
         'index.html',
         valid_raw_items=game_data.valid_raw_items,
         receiving_buildings=game_data.receiving_buildings,
@@ -166,6 +166,14 @@ def index():
         raw_item_definitions = raw_items_list,
         item_definitions = item_defs_list
     )
+    
+    # Disable caching for the main page to ensure template variables are always fresh
+    from flask import make_response
+    resp = make_response(response)
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 @app.route('/map-image')
 def map_image():

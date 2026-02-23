@@ -172,10 +172,16 @@ function gridToPixel(gridX, gridY) {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    mapImage.onload = () => {
+    // Check if image is already loaded (from cache)
+    if (mapImage.complete && mapImage.naturalHeight !== 0) {
         loadPins();
         attachEventListeners();
-    };
+    } else {
+        mapImage.onload = () => {
+            loadPins();
+            attachEventListeners();
+        };
+    }
 });
 
 function attachEventListeners() {
