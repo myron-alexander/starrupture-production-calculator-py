@@ -19,6 +19,7 @@
 import argparse
 import json
 import math
+from pathlib import Path
 from starrupture.sr_game_data import *
 from dataclasses import dataclass, field
 
@@ -102,12 +103,16 @@ def main():
     # Load item and machine data.
     #
 
+    # Allow the script to find the data files even when the current working directory is not that
+    # of the program.
+    script_dir = Path(__file__).resolve().parent
+
     items, recipe_inputs, raw_items, buildings = \
         load_definitions(
-            'starrupture_recipe_items.csv',
-            'starrupture_recipe_input.csv',
-            'starrupture_recipe_raw.csv',
-            'starrupture_recipe_buildings.csv')
+            str(script_dir.joinpath('starrupture_recipe_items.csv')),
+            str(script_dir.joinpath('starrupture_recipe_input.csv')),
+            str(script_dir.joinpath('starrupture_recipe_raw.csv')),
+            str(script_dir.joinpath('starrupture_recipe_buildings.csv')))
     
     initialize_raw_items(raw_items)
 
