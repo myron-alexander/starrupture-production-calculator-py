@@ -101,6 +101,7 @@ const crafterItem = document.getElementById('crafterItem');
 const crafterInputsContainer = document.getElementById('crafterInputsContainer');
 const crafterCoreId = document.getElementById('crafterCoreId');
 const saveCrafterBtn = document.getElementById('saveCrafterBtn');
+const duplicateCrafterBtn = document.getElementById('duplicateCrafterBtn');
 const deleteCrafterBtn = document.getElementById('deleteCrafterBtn');
 
 // Crafter Source Selector Modal Elements
@@ -273,6 +274,7 @@ function attachEventListeners() {
     });
     crafterItem.addEventListener('change', handleCrafterItemChange);
     saveCrafterBtn.addEventListener('click', handleSaveCrafter);
+    duplicateCrafterBtn.addEventListener('click', handleDuplicateCrafter);
     deleteCrafterBtn.addEventListener('click', handleDeleteCrafter);
     
     // Crafter Source Selector Modal controls
@@ -2107,6 +2109,7 @@ function openAddCrafterModal(pinId, factoryId) {
     crafterItem.value = '';
     resetCrafterInputs(); // Show placeholder
     populateCrafterCoreOptions(pinId);
+    duplicateCrafterBtn.style.display = 'none';
     deleteCrafterBtn.style.display = 'none';
     crafterModal.classList.add('show');
     crafterId.focus()
@@ -2127,14 +2130,29 @@ function openEditCrafterModal(pinId, factoryId, machineId) {
     populateInputsFromRecipeAndData(crafter.crafted_item, crafter.inputs);
     
     populateCrafterCoreOptions(pinId, crafter.core_id || '');
+    duplicateCrafterBtn.style.display = 'inline-block';
     deleteCrafterBtn.style.display = 'block';
     crafterModal.classList.add('show');
+}
+
+function handleDuplicateCrafter() {
+    if (!selectedPinId || !selectedFactoryId) return;
+
+    // Switch to add mode while keeping all existing details
+    editingCrafterId = null;
+    crafterModalTitle.textContent = 'Add Crafter';
+    crafterId.disabled = false;
+    duplicateCrafterBtn.style.display = 'none';
+    deleteCrafterBtn.style.display = 'none';
+    crafterId.focus();
+    crafterId.select();
 }
 
 function closeCrafterModal() {
     crafterModal.classList.remove('show');
     editingCrafterId = null;
     selectedFactoryId = null;
+    duplicateCrafterBtn.style.display = 'none';
 }
 
 function parseCrafterInputs() {
