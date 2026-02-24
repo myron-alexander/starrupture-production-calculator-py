@@ -188,10 +188,10 @@ document.addEventListener('DOMContentLoaded', () => {
 function attachEventListeners() {
     // Map click to add pins
     mapContainer.addEventListener('click', handleMapClick);
-    
+
     // Mouse move to show coordinates
     mapContainer.addEventListener('mousemove', handleMouseMove);
-    
+
     // Add Pin Modal controls
     document.querySelectorAll('[data-modal="addPinModal"]').forEach(el => {
         el.addEventListener('click', closeAddPinModal);
@@ -200,14 +200,14 @@ function attachEventListeners() {
         e.preventDefault();
         handleAddPin();
     });
-    
+
     // Edit Site Modal controls
     document.querySelectorAll('[data-modal="editModal"]').forEach(el => {
         el.addEventListener('click', closeEditModal);
     });
     savePinBtn.addEventListener('click', handleSavePin);
     deletePinBtn.addEventListener('click', handleDeletePin);
-    
+
     // Resource Node Modal controls
     document.querySelectorAll('[data-modal="resourceNodeModal"]').forEach(el => {
         el.addEventListener('click', closeResourceNodeModal);
@@ -221,7 +221,7 @@ function attachEventListeners() {
         handleSaveResourceNode();
     });
     deleteResourceNodeBtn.addEventListener('click', handleDeleteResourceNode);
-    
+
     // Core Modal controls
     document.querySelectorAll('[data-modal="coreModal"]').forEach(el => {
         el.addEventListener('click', closeCoreModal);
@@ -231,7 +231,7 @@ function attachEventListeners() {
         handleSaveCore();
     });
     deleteCoreBtn.addEventListener('click', handleDeleteCore);
-    
+
     // Factory Modal controls
     document.querySelectorAll('[data-modal="factoryModal"]').forEach(el => {
         el.addEventListener('click', closeFactoryModal);
@@ -241,7 +241,7 @@ function attachEventListeners() {
         handleSaveFactory();
     });
     deleteFactoryBtn.addEventListener('click', handleDeleteFactory);
-    
+
     // Receiver Modal controls
     document.querySelectorAll('[data-modal="receiverModal"]').forEach(el => {
         el.addEventListener('click', closeReceiverModal);
@@ -258,7 +258,7 @@ function attachEventListeners() {
     document.querySelectorAll('[data-modal="selectReceiverDispatcherModal"]').forEach(el => {
         el.addEventListener('click', closeSelectReceiverDispatcherModal);
     });
-    
+
     // Dispatcher Modal controls
     document.querySelectorAll('[data-modal="dispatcherModal"]').forEach(el => {
         el.addEventListener('click', closeDispatcherModal);
@@ -276,7 +276,7 @@ function attachEventListeners() {
     saveCrafterBtn.addEventListener('click', handleSaveCrafter);
     duplicateCrafterBtn.addEventListener('click', handleDuplicateCrafter);
     deleteCrafterBtn.addEventListener('click', handleDeleteCrafter);
-    
+
     // Crafter Source Selector Modal controls
     document.querySelectorAll('[data-modal="selectCrafterSourcesModal"]').forEach(el => {
         el.addEventListener('click', closeSelectCrafterSourcesModal);
@@ -290,7 +290,7 @@ function attachEventListeners() {
     });
     selectAllDispatcherSourcesCheckbox.addEventListener('change', handleSelectAllDispatcherSources);
     selectDispatcherSourcesBtn.addEventListener('click', handleSelectDispatcherSources);
-    
+
     // Add event delegation for "Select Sources" buttons in crafter input rows
     document.addEventListener('click', (e) => {
         if (e.target.classList.contains('crafter-select-sources-btn')) {
@@ -300,7 +300,7 @@ function attachEventListeners() {
             openSelectStorageSourcesModal(e.target);
         }
     });
-    
+
     // Storage Modal controls
     document.querySelectorAll('[data-modal="storageModal"]').forEach(el => {
         el.addEventListener('click', closeStorageModal);
@@ -320,7 +320,7 @@ function attachEventListeners() {
     });
     saveStorageBtn.addEventListener('click', handleSaveStorage);
     deleteStorageBtn.addEventListener('click', handleDeleteStorage);
-    
+
     const selectAllStorageSourcesCheckbox = document.getElementById('selectAllStorageSourcesCheckbox');
     if (selectAllStorageSourcesCheckbox) {
         selectAllStorageSourcesCheckbox.addEventListener('change', handleSelectAllStorageSources);
@@ -329,14 +329,14 @@ function attachEventListeners() {
     if (selectStorageSourcesBtn) {
         selectStorageSourcesBtn.addEventListener('click', handleSelectStorageSources);
     }
-    
+
     // Non-Production Building Modal controls
     document.querySelectorAll('[data-modal="nonProdBuildingModal"]').forEach(el => {
         el.addEventListener('click', closeNonProdBuildingModal);
     });
     saveNonProdBuildingBtn.addEventListener('click', handleSaveNonProdBuilding);
     deleteNonProdBuildingBtn.addEventListener('click', handleDeleteNonProdBuilding);
-    
+
     window.addEventListener('click', (event) => {
         if (event.target === addPinModal) {
             closeAddPinModal();
@@ -370,7 +370,7 @@ function attachEventListeners() {
             closeNonProdBuildingModal();
         }
     });
-    
+
     // Escape key closes any open modal
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
@@ -412,50 +412,50 @@ function attachEventListeners() {
 
 function handleMapClick(event) {
     const overlayRect = pinsOverlay.getBoundingClientRect();
-    
+
     // Get click position relative to image
     const clickX = event.clientX - overlayRect.left;
     const clickY = event.clientY - overlayRect.top;
-    
+
     // Scale to image coordinates
     const imageWidth = mapImage.naturalWidth;
     const imageHeight = mapImage.naturalHeight;
     const displayWidth = mapImage.clientWidth;
     const displayHeight = mapImage.clientHeight;
-    
+
     const scaleX = imageWidth / displayWidth;
     const scaleY = imageHeight / displayHeight;
-    
+
     const pixelX = clickX * scaleX;
     const pixelY = clickY * scaleY;
-    
+
     // Convert to grid coordinates and snap to grid
     const { gridX, gridY } = pixelToGrid(pixelX, pixelY);
-    
+
     // Show add pin modal with coordinates pre-filled
     openAddPinModal(gridX, gridY);
 }
 
 function handleMouseMove(event) {
     const overlayRect = pinsOverlay.getBoundingClientRect();
-    
+
     const moveX = event.clientX - overlayRect.left;
     const moveY = event.clientY - overlayRect.top;
-    
+
     const imageWidth = mapImage.naturalWidth;
     const imageHeight = mapImage.naturalHeight;
     const displayWidth = mapImage.clientWidth;
     const displayHeight = mapImage.clientHeight;
-    
+
     const scaleX = imageWidth / displayWidth;
     const scaleY = imageHeight / displayHeight;
-    
+
     const pixelX = moveX * scaleX;
     const pixelY = moveY * scaleY;
-    
+
     // Convert to grid coordinates
     const { gridX, gridY } = pixelToGrid(pixelX, pixelY);
-    
+
     coordXDisplay.textContent = gridX;
     coordYDisplay.textContent = gridY;
 }
@@ -464,7 +464,7 @@ async function handleAddPin() {
     const name = addPinName.value.trim();
     let x = parseInt(addPinX.value);
     let y = parseInt(addPinY.value);
-    
+
     if (!name) {
         alert('Please enter a pin name');
         return;
@@ -479,13 +479,13 @@ async function handleAddPin() {
         alert('Site name must be globally unique');
         return;
     }
-    
+
     // Validate grid coordinates
     if (isNaN(x) || isNaN(y)) {
         alert('Invalid grid coordinates');
         return;
     }
-    
+
     try {
         const response = await fetch('/api/pins', {
             method: 'POST',
@@ -494,13 +494,13 @@ async function handleAddPin() {
             },
             body: JSON.stringify({ name, x, y })
         });
-        
+
         if (response.ok) {
             const pin = await response.json();
             pins[pin.id] = pin;
             renderPins();
             renderPinsList();
-            
+
             // Close modal
             closeAddPinModal();
         } else {
@@ -531,52 +531,52 @@ async function loadPins() {
 
 function renderPins() {
     pinsOverlay.innerHTML = '';
-    
+
     const imageWidth = mapImage.naturalWidth;
     const imageHeight = mapImage.naturalHeight;
     const displayWidth = mapImage.clientWidth;
     const displayHeight = mapImage.clientHeight;
-    
+
     Object.values(pins).forEach((pin, index) => {
         // Convert grid coordinates to pixel coordinates
         const { pixelX, pixelY } = gridToPixel(pin.x, pin.y);
-        
+
         // Scale to display coordinates
         const displayX = (pixelX / imageWidth) * displayWidth;
         const displayY = (pixelY / imageHeight) * displayHeight;
-        
+
         const pinElement = document.createElement('div');
         pinElement.className = 'pin';
         pinElement.style.left = displayX + 'px';
         pinElement.style.top = displayY + 'px';
         pinElement.textContent = index + 1;
-        
+
         const tooltip = document.createElement('div');
         tooltip.className = 'pin-tooltip';
         tooltip.innerHTML = `<strong>${pin.id}</strong><br>Grid: (${pin.x}, ${pin.y})`;
-        
+
         pinElement.appendChild(tooltip);
         pinElement.addEventListener('click', (e) => {
             e.stopPropagation();
             openEditModal(pin.id);
         });
-        
+
         pinsOverlay.appendChild(pinElement);
     });
 }
 
 function renderPinsList() {
     pinsList.innerHTML = '';
-    
+
     if (Object.keys(pins).length === 0) {
         pinsList.innerHTML = '<div class="pin-item empty">No sites yet</div>';
         return;
     }
-    
+
     Object.entries(pins).forEach(([id, pin], index) => {
         const pinItem = document.createElement('div');
         pinItem.className = 'pin-item';
-        
+
         // Create header with name and expand/collapse toggle
         const header = document.createElement('div');
         header.className = 'pin-item-header';
@@ -587,12 +587,12 @@ function renderPinsList() {
             </div>
             <span class="pin-item-toggle" data-pin-id="${id}">▼</span>
         `;
-        
+
         // Create details section (initially hidden)
         const details = document.createElement('div');
         details.className = 'pin-item-details';
         details.id = `details-${id}`;
-        
+
         // Add site details
         let detailsHTML = '';
         if (pin.teleporter) {
@@ -611,8 +611,8 @@ function renderPinsList() {
                 </div>
             `;
         }
-        
-        /* 
+
+        /*
          * =============
          * = IMPORTANT =
          * =============
@@ -623,50 +623,54 @@ function renderPinsList() {
 
         // Add Resource Nodes section.
         detailsHTML += renderTreeSection('Resource Nodes', 'Resource Node', pin.resource_nodes || {});
-        
+
         // Add Cores section
         detailsHTML += renderTreeSection('Cores', 'Core', pin.cores || {});
-        
+
         // Add Factories section
         detailsHTML += renderTreeSection('Factories', 'Factory', pin.factories || {});
-        
+
         details.innerHTML = detailsHTML;
-        
+
         pinItem.appendChild(header);
         pinItem.appendChild(details);
-        
+
         // Restore expanded state from localStorage
         if (loadPinExpandedState(id)) {
             details.classList.add('expanded');
             const toggle = header.querySelector('.pin-item-toggle');
             toggle.textContent = '▲';
         }
-        
+
         // Add toggle functionality
         const toggle = header.querySelector('.pin-item-toggle');
         toggle.addEventListener('click', (e) => {
             e.stopPropagation();
             toggleDetails(id);
         });
-        
+
         // Click on header (not toggle) opens edit modal
         header.addEventListener('click', (e) => {
             if (!e.target.classList.contains('pin-item-toggle')) {
                 openEditModal(id);
             }
         });
-        
+
         // Add event listeners for tree blocks
         details.addEventListener('click', (e) => {
             const addBtn = e.target.closest('.add-button');
+            const visualizeBtn = e.target.closest('.visualize-factory-btn');
             const treeBlock = e.target.closest('.tree-block:not(.add-button)');
-            
-            if (addBtn) {
+
+            if (visualizeBtn) {
+                const factoryId = visualizeBtn.dataset.factoryId;
+                openFactoryVisualization(id, factoryId);
+            } else if (addBtn) {
                 const section = addBtn.closest('.tree-section');
                 const sectionHeader = section.querySelector('.tree-section-header').textContent;
                 const factoryId = addBtn.dataset.factoryId;
                 const coreId = addBtn.dataset.coreId;
-                
+
                 if (sectionHeader.includes('Resource Nodes')) {
                     openAddResourceNodeModal(id);
                 } else if (sectionHeader.includes('Cores')) {
@@ -691,7 +695,7 @@ function renderPinsList() {
                 const buildingIndex = treeBlock.dataset.buildingIndex;
                 const section = treeBlock.closest('.tree-section');
                 const sectionHeader = section.querySelector('.tree-section-header').textContent;
-                
+
                 if (sectionHeader.includes('Resource Nodes')) {
                     openEditResourceNodeModal(id, itemId);
                 } else if (sectionHeader.includes('Cores')) {
@@ -711,7 +715,7 @@ function renderPinsList() {
                 }
             }
         });
-        
+
         pinsList.appendChild(pinItem);
     });
 }
@@ -729,7 +733,7 @@ function renderTreeSection(sectionHeader, componentName, items) {
         <div class="tree-section">
             <div class="tree-section-header">${sectionHeader} (${itemIds.length})</div>
     `;
-    
+
     if (itemIds.length === 0) {
         html += `
             <div class="tree-block add-button">
@@ -752,7 +756,7 @@ function renderTreeSection(sectionHeader, componentName, items) {
             </div>
         `;
     }
-    
+
     html += '</div>';
     return html;
 }
@@ -763,7 +767,7 @@ function renderCraftersTree(crafters, factoryId) {
         <div class="tree-section" style="margin-left: 20px; margin-top: 10px;">
             <div class="tree-section-header">Crafters (${crafterIds.length})</div>
     `;
-    
+
     if (crafterIds.length === 0) {
         html += `
             <div class="tree-block add-button" data-factory-id="${factoryId}">
@@ -786,7 +790,7 @@ function renderCraftersTree(crafters, factoryId) {
             </div>
         `;
     }
-    
+
     html += '</div>';
     return html;
 }
@@ -797,7 +801,7 @@ function renderStorageTree(storage, factoryId) {
         <div class="tree-section" style="margin-left: 20px; margin-top: 10px;">
             <div class="tree-section-header">Storage (${storageIds.length})</div>
     `;
-    
+
     if (storageIds.length === 0) {
         html += `
             <div class="tree-block add-button" data-factory-id="${factoryId}">
@@ -820,7 +824,7 @@ function renderStorageTree(storage, factoryId) {
             </div>
         `;
     }
-    
+
     html += '</div>';
     return html;
 }
@@ -831,7 +835,7 @@ function renderReceiversTree(receivers, factoryId) {
         <div class="tree-section" style="margin-left: 20px; margin-top: 10px;">
             <div class="tree-section-header">Receivers (${receiverIds.length})</div>
     `;
-    
+
     if (receiverIds.length === 0) {
         html += `
             <div class="tree-block add-button" data-factory-id="${factoryId}">
@@ -854,7 +858,7 @@ function renderReceiversTree(receivers, factoryId) {
             </div>
         `;
     }
-    
+
     html += '</div>';
     return html;
 }
@@ -865,7 +869,7 @@ function renderDispatchersTree(dispatchers, factoryId) {
         <div class="tree-section" style="margin-left: 20px; margin-top: 10px;">
             <div class="tree-section-header">Dispatchers (${dispatcherIds.length})</div>
     `;
-    
+
     if (dispatcherIds.length === 0) {
         html += `
             <div class="tree-block add-button" data-factory-id="${factoryId}">
@@ -888,7 +892,7 @@ function renderDispatchersTree(dispatchers, factoryId) {
             </div>
         `;
     }
-    
+
     html += '</div>';
     return html;
 }
@@ -899,7 +903,7 @@ function renderNonProdBuildingsTree(buildings, coreId) {
         <div class="tree-section" style="margin-left: 20px; margin-top: 10px;">
             <div class="tree-section-header">Non-Production Buildings (${buildingsArray.length})</div>
     `;
-    
+
     if (buildingsArray.length === 0) {
         html += `
             <div class="tree-block add-button" data-core-id="${coreId}">
@@ -921,7 +925,7 @@ function renderNonProdBuildingsTree(buildings, coreId) {
             </div>
         `;
     }
-    
+
     html += '</div>';
     return html;
 }
@@ -948,6 +952,7 @@ function renderItemDetails(sectionType, item, itemId = null) {
     } else if (sectionType === 'Factories') {
         let html = `
             <div class="tree-block-value">${item.purpose || 'No purpose set'}</div>
+            <button class="visualize-factory-btn" data-factory-id="${itemId}" style="margin-top: 8px; padding: 4px 8px; font-size: 12px; cursor: pointer;">Visualize</button>
         `;
         // Add crafters, storage, receivers, and dispatchers as children of factory
         if (item.machines && item.machines.crafters && Object.keys(item.machines.crafters).length > 0) {
@@ -978,7 +983,7 @@ function renderItemDetails(sectionType, item, itemId = null) {
         if (dispatcher) {
             receivedItem = dispatcher.dispatched_item || dispatcher.dipatched_item || 'Unknown item';
         }
-        
+
         return `
             <div class="tree-block-value">Item: ${receivedItem}</div>
             <div class="tree-block-value">From: ${item.site_id || '?'}/${item.factory_id || '?'}/${item.dispatcher_id || '?'}</div>
@@ -1019,7 +1024,7 @@ function renderItemDetails(sectionType, item, itemId = null) {
 function toggleDetails(pinId) {
     const details = document.getElementById(`details-${pinId}`);
     const toggle = document.querySelector(`[data-pin-id="${pinId}"]`);
-    
+
     if (details.classList.contains('expanded')) {
         details.classList.remove('expanded');
         toggle.textContent = '▼';
@@ -1055,7 +1060,7 @@ function openAddPinModal(gridX, gridY) {
     addPinName.value = '';
     addPinX.value = gridX;
     addPinY.value = gridY;
-    
+
     addPinModal.classList.add('show');
     addPinName.focus()
 }
@@ -1067,13 +1072,13 @@ function closeAddPinModal() {
 function openEditModal(pinId) {
     selectedPinId = pinId;
     const pin = pins[pinId];
-    
+
     editPinName.value = pin.id;
     editPinX.value = pin.x;
     editPinY.value = pin.y;
     editTeleporter.value = pin.teleporter || '';
     editDescription.value = pin.description || '';
-    
+
     editModal.classList.add('show');
 }
 
@@ -1084,13 +1089,13 @@ function closeEditModal() {
 
 async function handleSavePin() {
     if (!selectedPinId) return;
-    
+
     const name = editPinName.value.trim();
     const x = parseInt(editPinX.value);
     const y = parseInt(editPinY.value);
     const teleporter = editTeleporter.value.trim();
     const description = editDescription.value.trim();
-    
+
     if (!name) {
         alert('Please enter a site name');
         return;
@@ -1106,7 +1111,7 @@ async function handleSavePin() {
         alert('Site name must be globally unique');
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
@@ -1115,7 +1120,7 @@ async function handleSavePin() {
             },
             body: JSON.stringify({ name, x, y, teleporter, description })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             const previousId = selectedPinId;
@@ -1153,12 +1158,12 @@ async function handleSavePin() {
 
 async function handleDeletePin() {
     if (!selectedPinId) return;
-    
+
     try {
         // Before deleting the site, find and remove all receivers that reference dispatchers from this site
         const deletedSiteId = selectedPinId;
         const deletedSite = pins[deletedSiteId];
-        
+
         // Collect all dispatcher IDs from all factories in the site being deleted
         const deletedDispatchers = [];
         if (deletedSite && deletedSite.factories) {
@@ -1170,11 +1175,11 @@ async function handleDeletePin() {
                 }
             }
         }
-        
+
         // Find and delete receivers in other sites that reference these dispatchers
         for (const [siteId, site] of Object.entries(pins)) {
             if (siteId === deletedSiteId) continue; // Skip the site being deleted
-            
+
             if (site.factories) {
                 for (const [factoryId, factory] of Object.entries(site.factories)) {
                     if (factory.receivers) {
@@ -1185,12 +1190,12 @@ async function handleDeletePin() {
                                 receiversToDelete.push(receiverId);
                             }
                         }
-                        
+
                         // Delete the receivers
                         receiversToDelete.forEach(receiverId => {
                             delete factory.receivers[receiverId];
                         });
-                        
+
                         // If any receivers were deleted, update the site
                         if (receiversToDelete.length > 0) {
                             // Save the updated factory/site
@@ -1208,12 +1213,12 @@ async function handleDeletePin() {
                 }
             }
         }
-        
+
         // Now delete the site
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'DELETE'
         });
-        
+
         if (response.ok) {
             delete pins[selectedPinId];
             // Clean up expanded state from localStorage
@@ -1262,10 +1267,10 @@ function populateResourceNodeCoreOptions(pinId, selectedCoreId = '') {
 function populateResourceSelectionTable() {
     const tbody = resourceSelectionTable.querySelector('tbody');
     tbody.innerHTML = '';
-    
+
     // rawItemDefinitions should be available from the template
     if (!window.rawItemDefinitions) return;
-    
+
     window.rawItemDefinitions.forEach(item => {
         const row = document.createElement('tr');
         row.style.cursor = 'pointer';
@@ -1279,14 +1284,14 @@ function populateResourceSelectionTable() {
         row.addEventListener('click', () => {
             selectResourceRow(item);
         });
-        
+
         row.innerHTML = `
             <td style="border: 1px solid #555; padding: 10px;">${item.item_name}</td>
             <td style="border: 1px solid #555; padding: 10px;">${item.variant}</td>
             <td style="border: 1px solid #555; padding: 10px; text-align: right;">${item.items_per_minute}</td>
             <td style="border: 1px solid #555; padding: 10px;">${item.factory}</td>
         `;
-        
+
         tbody.appendChild(row);
     });
 }
@@ -1298,13 +1303,13 @@ function selectResourceRow(item) {
         items_per_minute: item.items_per_minute,
         factory: item.factory
     };
-    
+
     // Update form labels
     resourceItemLabel.textContent = item.item_name;
     resourceVariantLabel.textContent = item.variant;
     resourceRateLabel.textContent = item.items_per_minute + ' ipm';
     resourceBuildingLabel.textContent = item.factory;
-    
+
     closeSelectResourceModal();
 }
 
@@ -1342,7 +1347,7 @@ function openEditResourceNodeModal(pinId, nodeId) {
     selectedPinId = pinId;
     editingResourceNodeId = nodeId;
     const node = pins[pinId].resource_nodes[nodeId];
-    
+
     // Restore selected resource data
     selectedResourceData = {
         item_name: node.resource_item,
@@ -1350,7 +1355,7 @@ function openEditResourceNodeModal(pinId, nodeId) {
         items_per_minute: node.rate_ipm,
         factory: node.building || ''
     };
-    
+
     resourceNodeModalTitle.textContent = 'Edit Resource Node';
     resourceNodeId.value = nodeId;
     resourceNodeId.disabled = false;
@@ -1418,9 +1423,9 @@ function removeFromIdsReference(deletedId, pinId = null, factoryId = null) {
         }
         return filtered;
     };
-    
+
     console.log(`removeFromIdsReference called with deletedId="${deletedId}", pinId="${pinId}", factoryId="${factoryId}"`);
-    
+
     if (pinId && factoryId) {
         // Clean up only the specific factory
         const factory = pins[pinId]?.factories?.[factoryId];
@@ -1438,7 +1443,7 @@ function removeFromIdsReference(deletedId, pinId = null, factoryId = null) {
                     }
                 }
             }
-            
+
             // Remove from storage
             const storage = factory.machines?.storage || {};
             console.log('Storage found:', Object.keys(storage));
@@ -1451,7 +1456,7 @@ function removeFromIdsReference(deletedId, pinId = null, factoryId = null) {
                     }
                 }
             }
-            
+
             // Remove from dispatchers
             const dispatchers = factory.dispatchers || {};
             console.log('Dispatchers found:', Object.keys(dispatchers));
@@ -1482,7 +1487,7 @@ function removeFromIdsReference(deletedId, pinId = null, factoryId = null) {
                         }
                     }
                 }
-                
+
                 // Remove from storage
                 const storage = factory.machines?.storage || {};
                 console.log(`    Storage found: ${Object.keys(storage)}`);
@@ -1495,7 +1500,7 @@ function removeFromIdsReference(deletedId, pinId = null, factoryId = null) {
                         }
                     }
                 }
-                
+
                 // Remove from dispatchers
                 const dispatchers = factory.dispatchers || {};
                 console.log(`    Dispatchers found: ${Object.keys(dispatchers)}`);
@@ -1511,18 +1516,18 @@ function removeFromIdsReference(deletedId, pinId = null, factoryId = null) {
 
 async function handleSaveResourceNode() {
     if (!selectedPinId) return;
-    
+
     const nodeId = resourceNodeId.value.trim();
     if (!nodeId) {
         alert('Please enter a resource ID');
         return;
     }
-    
+
     if (!selectedResourceData) {
         alert('Please select a resource using the Select Resource button');
         return;
     }
-    
+
     // Check for duplicate ID (allow current ID when editing)
     if (pins[selectedPinId].resource_nodes && pins[selectedPinId].resource_nodes[nodeId]) {
         if (!editingResourceNodeId || editingResourceNodeId !== nodeId) {
@@ -1539,7 +1544,7 @@ async function handleSaveResourceNode() {
         alert(`Resource ID conflicts with existing ${firstConflict.conflicts.join(', ')} ID in factory ${firstConflict.factoryId}`);
         return;
     }
-    
+
     // Validate core ID if specified
     const coreIds = pins[selectedPinId] && pins[selectedPinId].cores
         ? Object.keys(pins[selectedPinId].cores)
@@ -1549,7 +1554,7 @@ async function handleSaveResourceNode() {
         alert('Please select a valid core ID');
         return;
     }
-    
+
     const nodeData = {
         resource_item: selectedResourceData.item_name,
         rate_ipm: selectedResourceData.items_per_minute,
@@ -1557,15 +1562,15 @@ async function handleSaveResourceNode() {
         building: selectedResourceData.factory,
         core_id: selectedCoreId
     };
-    
+
     if (!pins[selectedPinId].resource_nodes) {
         pins[selectedPinId].resource_nodes = {};
     }
-    
+
     // If editing and ID changed, delete old entry and update all from_ids references
     if (editingResourceNodeId && editingResourceNodeId !== nodeId) {
         delete pins[selectedPinId].resource_nodes[editingResourceNodeId];
-        
+
         // Update all from_ids references across all factories in this site
         const factories = pins[selectedPinId].factories || {};
         for (const [factoryId, factory] of Object.entries(factories)) {
@@ -1583,7 +1588,7 @@ async function handleSaveResourceNode() {
                     }
                 }
             }
-            
+
             // Update storage
             const storage = factory.machines?.storage || {};
             for (const storageItem of Object.values(storage)) {
@@ -1598,7 +1603,7 @@ async function handleSaveResourceNode() {
                     }
                 }
             }
-            
+
             // Update dispatchers
             const dispatchers = factory.dispatchers || {};
             for (const dispatcher of Object.values(dispatchers)) {
@@ -1611,21 +1616,21 @@ async function handleSaveResourceNode() {
             }
         }
     }
-    
+
     pins[selectedPinId].resource_nodes[nodeId] = nodeData;
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 resource_nodes: pins[selectedPinId].resource_nodes,
-                factories: pins[selectedPinId].factories 
+                factories: pins[selectedPinId].factories
             })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
@@ -1641,12 +1646,12 @@ async function handleSaveResourceNode() {
 
 async function handleDeleteResourceNode() {
     if (!selectedPinId || !editingResourceNodeId) return;
-    
+
     // Remove references to this resource node from all from_ids in all factories of this site
     removeFromIdsReference(editingResourceNodeId, selectedPinId);
-    
+
     delete pins[selectedPinId].resource_nodes[editingResourceNodeId];
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
@@ -1655,7 +1660,7 @@ async function handleDeleteResourceNode() {
             },
             body: JSON.stringify({ resource_nodes: pins[selectedPinId].resource_nodes, factories: pins[selectedPinId].factories })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
@@ -1686,7 +1691,7 @@ function openEditCoreModal(pinId, corId) {
     selectedPinId = pinId;
     editingCoreId = corId;
     const core = pins[pinId].cores[corId];
-    
+
     coreModalTitle.textContent = 'Edit Core';
     coreId.value = corId;
     coreId.disabled = true;
@@ -1702,35 +1707,35 @@ function closeCoreModal() {
 
 async function handleSaveCore() {
     if (!selectedPinId) return;
-    
+
     const corId = coreId.value.trim();
     if (!corId) {
         alert('Please enter a core ID');
         return;
     }
-    
+
     // Check for duplicate ID when adding new
     if (!editingCoreId && pins[selectedPinId].cores && pins[selectedPinId].cores[corId]) {
         alert('A core with this ID already exists');
         return;
     }
-    
+
     const coreData = {
         core_level: parseInt(coreLevel.value),
         non_production_buildings: []
     };
-    
+
     if (!pins[selectedPinId].cores) {
         pins[selectedPinId].cores = {};
     }
-    
+
     // If editing and ID changed, delete old entry
     if (editingCoreId && editingCoreId !== corId) {
         delete pins[selectedPinId].cores[editingCoreId];
     }
-    
+
     pins[selectedPinId].cores[corId] = coreData;
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
@@ -1739,7 +1744,7 @@ async function handleSaveCore() {
             },
             body: JSON.stringify({ cores: pins[selectedPinId].cores })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
@@ -1755,9 +1760,9 @@ async function handleSaveCore() {
 
 async function handleDeleteCore() {
     if (!selectedPinId || !editingCoreId) return;
-    
+
     delete pins[selectedPinId].cores[editingCoreId];
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
@@ -1766,7 +1771,7 @@ async function handleDeleteCore() {
             },
             body: JSON.stringify({ cores: pins[selectedPinId].cores })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
@@ -1820,7 +1825,7 @@ function openEditFactoryModal(pinId, facId) {
     selectedPinId = pinId;
     editingFactoryId = facId;
     const factory = pins[pinId].factories[facId];
-    
+
     factoryModalTitle.textContent = 'Edit Factory';
     factoryId.value = facId;
     factoryId.disabled = true;
@@ -1837,19 +1842,19 @@ function closeFactoryModal() {
 
 async function handleSaveFactory() {
     if (!selectedPinId) return;
-    
+
     const facId = factoryId.value.trim();
     if (!facId) {
         alert('Please enter a factory ID');
         return;
     }
-    
+
     // Check for duplicate ID when adding new
     if (!editingFactoryId && pins[selectedPinId].factories && pins[selectedPinId].factories[facId]) {
         alert('A factory with this ID already exists');
         return;
     }
-    
+
     const coreIds = pins[selectedPinId] && pins[selectedPinId].cores
         ? Object.keys(pins[selectedPinId].cores)
         : [];
@@ -1869,18 +1874,18 @@ async function handleSaveFactory() {
         default_core: selectedCoreId,
         machines: existingFactory && existingFactory.machines ? existingFactory.machines : {}
     };
-    
+
     if (!pins[selectedPinId].factories) {
         pins[selectedPinId].factories = {};
     }
-    
+
     // If editing and ID changed, delete old entry
     if (editingFactoryId && editingFactoryId !== facId) {
         delete pins[selectedPinId].factories[editingFactoryId];
     }
-    
+
     pins[selectedPinId].factories[facId] = factoryData;
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
@@ -1889,7 +1894,7 @@ async function handleSaveFactory() {
             },
             body: JSON.stringify({ factories: pins[selectedPinId].factories })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
@@ -1905,9 +1910,9 @@ async function handleSaveFactory() {
 
 async function handleDeleteFactory() {
     if (!selectedPinId || !editingFactoryId) return;
-    
+
     delete pins[selectedPinId].factories[editingFactoryId];
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
@@ -1916,7 +1921,7 @@ async function handleDeleteFactory() {
             },
             body: JSON.stringify({ factories: pins[selectedPinId].factories })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
@@ -1979,7 +1984,7 @@ function createCrafterInputRow(inputItem, inputData = {}) {
     fromIdsField.className = 'crafter-input-field';
     const fromIdsLabel = document.createElement('label');
     fromIdsLabel.textContent = 'From IDs';
-    
+
     // Create badges container
     const fromIdsBadgesContainer = document.createElement('div');
     fromIdsBadgesContainer.className = 'crafter-from-ids-badges';
@@ -1991,15 +1996,15 @@ function createCrafterInputRow(inputItem, inputData = {}) {
     fromIdsBadgesContainer.style.borderRadius = '4px';
     fromIdsBadgesContainer.style.border = '1px solid #444';
     fromIdsBadgesContainer.style.minHeight = '20px';
-    fromIdsBadgesContainer.dataset.value = Array.isArray(inputData.from_ids) 
-        ? JSON.stringify(inputData.from_ids) 
+    fromIdsBadgesContainer.dataset.value = Array.isArray(inputData.from_ids)
+        ? JSON.stringify(inputData.from_ids)
         : (inputData.from_ids ? JSON.stringify(inputData.from_ids.split(', ')) : JSON.stringify([]));
-    
+
     // Populate badges from input data
-    const fromIds = Array.isArray(inputData.from_ids) 
-        ? inputData.from_ids 
+    const fromIds = Array.isArray(inputData.from_ids)
+        ? inputData.from_ids
         : (inputData.from_ids ? inputData.from_ids.split(/,\s*/) : []);
-    
+
     fromIds.forEach(id => {
         if (id.trim()) {
             const badge = document.createElement('span');
@@ -2015,7 +2020,7 @@ function createCrafterInputRow(inputItem, inputData = {}) {
             fromIdsBadgesContainer.appendChild(badge);
         }
     });
-    
+
     const selectSourcesBtn = document.createElement('button');
     selectSourcesBtn.type = 'button';
     selectSourcesBtn.className = 'btn btn-secondary crafter-select-sources-btn';
@@ -2024,7 +2029,7 @@ function createCrafterInputRow(inputItem, inputData = {}) {
     selectSourcesBtn.style.width = '100%';
     selectSourcesBtn.dataset.inputItem = inputItem;
     selectSourcesBtn.dataset.badgesContainer = '';
-    
+
     fromIdsField.appendChild(fromIdsLabel);
     fromIdsField.appendChild(fromIdsBadgesContainer);
     fromIdsField.appendChild(selectSourcesBtn);
@@ -2044,7 +2049,7 @@ function createCrafterInputRow(inputItem, inputData = {}) {
     row.appendChild(itemField);
     row.appendChild(fromIdsField);
     row.appendChild(rateField);
-    
+
     // Store badge container reference
     selectSourcesBtn.dataset.badgesContainer = fromIdsBadgesContainer.className;
     row.badgesContainer = fromIdsBadgesContainer;
@@ -2059,11 +2064,11 @@ function resetCrafterInputs() {
 function handleCrafterItemChange() {
     const selectedItem = crafterItem.value;
     resetCrafterInputs();
-    
+
     if (!selectedItem || !window.itemRecipes || !window.itemRecipes[selectedItem]) {
         return; // Show placeholder when no item selected or no recipe found
     }
-    
+
     const recipe = window.itemRecipes[selectedItem];
     // recipe is an array of [inputItemName, quantity] tuples
     // We only care about the input item name (first element)
@@ -2075,13 +2080,13 @@ function handleCrafterItemChange() {
 
 function populateInputsFromRecipeAndData(selectedItem, existingInputs = []) {
     resetCrafterInputs();
-    
+
     if (!selectedItem || !window.itemRecipes || !window.itemRecipes[selectedItem]) {
         return;
     }
-    
+
     const recipe = window.itemRecipes[selectedItem];
-    
+
     // Create a map of existing input data by input_item for easy lookup
     const existingDataMap = {};
     if (Array.isArray(existingInputs)) {
@@ -2089,7 +2094,7 @@ function populateInputsFromRecipeAndData(selectedItem, existingInputs = []) {
             existingDataMap[input.input_item] = input;
         });
     }
-    
+
     // Create rows based on recipe, using existing data if available
     recipe.forEach(([inputItemName, _quantity]) => {
         const existingData = existingDataMap[inputItemName] || {};
@@ -2125,10 +2130,10 @@ function openEditCrafterModal(pinId, factoryId, machineId) {
     crafterId.value = machineId;
     crafterId.disabled = false;
     crafterItem.value = crafter.crafted_item || '';
-    
+
     // Populate inputs from recipe with existing data
     populateInputsFromRecipeAndData(crafter.crafted_item, crafter.inputs);
-    
+
     populateCrafterCoreOptions(pinId, crafter.core_id || '');
     duplicateCrafterBtn.style.display = 'inline-block';
     deleteCrafterBtn.style.display = 'block';
@@ -2197,10 +2202,10 @@ let currentSelectSourcesButton = null;
 function buildCrafterSourcesList(inputItem) {
     const sources = [];
     const inputItemLower = inputItem.toLowerCase();
-    
+
     const pin = pins[selectedPinId];
     if (!pin) return sources;
-    
+
     // Add resource nodes with matching item
     if (pin.resource_nodes) {
         for (const [resId, resNode] of Object.entries(pin.resource_nodes)) {
@@ -2215,7 +2220,7 @@ function buildCrafterSourcesList(inputItem) {
             }
         }
     }
-    
+
     // Add crafters with matching item from current factory
     const factory = pin.factories[selectedFactoryId];
     if (factory && factory.machines && factory.machines.crafters) {
@@ -2225,7 +2230,7 @@ function buildCrafterSourcesList(inputItem) {
                 let building = '';
                 let rateIpm = '';
                 if (window.itemDefinitions) {
-                    const itemDef = window.itemDefinitions.find(item => 
+                    const itemDef = window.itemDefinitions.find(item =>
                         item.item_name.toLowerCase() === crafter.crafted_item.toLowerCase()
                     );
                     if (itemDef) {
@@ -2243,7 +2248,7 @@ function buildCrafterSourcesList(inputItem) {
             }
         }
     }
-    
+
     // Add storage with matching item or "*"
     if (factory && factory.machines && factory.machines.storage) {
         for (const [storageId, storage] of Object.entries(factory.machines.storage)) {
@@ -2258,7 +2263,7 @@ function buildCrafterSourcesList(inputItem) {
             }
         }
     }
-    
+
     // Add receivers with matching dispatcher item
     if (factory && factory.receivers) {
         for (const [receiverId, receiver] of Object.entries(factory.receivers)) {
@@ -2283,19 +2288,19 @@ function buildCrafterSourcesList(inputItem) {
             }
         }
     }
-    
+
     // Sort by fromId
     sources.sort((a, b) => a.fromId.localeCompare(b.fromId));
-    
+
     return sources;
 }
 
 function populateCrafterSourcesTable(inputItem) {
     const tbody = crafterSourcesSelectionTable.querySelector('tbody');
     tbody.innerHTML = '';
-    
+
     const sources = buildCrafterSourcesList(inputItem);
-    
+
     sources.forEach((source, index) => {
         const row = document.createElement('tr');
         row.style.borderBottom = '1px solid #555';
@@ -2305,7 +2310,7 @@ function populateCrafterSourcesTable(inputItem) {
         row.addEventListener('mouseleave', () => {
             row.style.backgroundColor = '';
         });
-        
+
         const checkboxCell = document.createElement('td');
         checkboxCell.style.border = '1px solid #555';
         checkboxCell.style.padding = '10px';
@@ -2316,28 +2321,28 @@ function populateCrafterSourcesTable(inputItem) {
         checkbox.className = 'source-checkbox';
         checkbox.dataset.sourceIndex = index;
         checkboxCell.appendChild(checkbox);
-        
+
         const fromIdCell = document.createElement('td');
         fromIdCell.style.border = '1px solid #555';
         fromIdCell.style.padding = '10px';
         fromIdCell.textContent = source.fromId;
-        
+
         const itemCell = document.createElement('td');
         itemCell.style.border = '1px solid #555';
         itemCell.style.padding = '10px';
         itemCell.textContent = source.item;
-        
+
         const rateCell = document.createElement('td');
         rateCell.style.border = '1px solid #555';
         rateCell.style.padding = '10px';
         rateCell.style.textAlign = 'right';
         rateCell.textContent = source.rateIpm ? source.rateIpm : '';
-        
+
         const buildingCell = document.createElement('td');
         buildingCell.style.border = '1px solid #555';
         buildingCell.style.padding = '10px';
         buildingCell.textContent = source.building;
-        
+
         row.appendChild(checkboxCell);
         row.appendChild(fromIdCell);
         row.appendChild(itemCell);
@@ -2350,7 +2355,7 @@ function populateCrafterSourcesTable(inputItem) {
 function openSelectCrafterSourcesModal(button) {
     currentSelectSourcesButton = button;
     const inputItem = button.dataset.inputItem;
-    
+
     populateCrafterSourcesTable(inputItem);
     selectAllSourcesCheckbox.checked = false;
     selectCrafterSourcesModal.classList.add('show');
@@ -2371,7 +2376,7 @@ function handleSelectAllSources(event) {
 function handleSelectSources() {
     const checkboxes = Array.from(crafterSourcesSelectionTable.querySelectorAll('.source-checkbox:checked'));
     const selectedIds = checkboxes.map(checkbox => checkbox.value);
-    
+
     if (currentSelectSourcesButton && currentSelectSourcesButton.parentElement) {
         // Find the badges container in the same input row
         const row = currentSelectSourcesButton.closest('.crafter-input-row');
@@ -2380,7 +2385,7 @@ function handleSelectSources() {
             if (badgesContainer) {
                 // Clear existing badges
                 badgesContainer.innerHTML = '';
-                
+
                 // Add new badges
                 selectedIds.forEach(id => {
                     const badge = document.createElement('span');
@@ -2398,7 +2403,7 @@ function handleSelectSources() {
             }
         }
     }
-    
+
     closeSelectCrafterSourcesModal();
 }
 
@@ -2406,17 +2411,17 @@ let currentSelectStorageSourcesButton = null;
 
 function buildStorageSourcesList(storedItem, excludeStorageId = null) {
     const sources = [];
-    
+
     const pin = pins[selectedPinId];
     if (!pin) return sources;
-    
+
     const factory = pin.factories[selectedFactoryId];
     if (!factory) return sources;
-    
+
     // If stored item is "*", return all possible sources; otherwise match by item
     const storedItemLower = storedItem.toLowerCase();
     const matchAny = storedItem === '*';
-    
+
     // Add resource nodes (match only if stored_item matches or is "*")
     if (pin.resource_nodes) {
         for (const [resId, resNode] of Object.entries(pin.resource_nodes)) {
@@ -2430,14 +2435,14 @@ function buildStorageSourcesList(storedItem, excludeStorageId = null) {
             }
         }
     }
-    
+
     // Add crafters (match only if stored_item matches or is "*")
     if (factory.machines && factory.machines.crafters) {
         for (const [crafterId, crafter] of Object.entries(factory.machines.crafters)) {
             if (matchAny || crafter.crafted_item.toLowerCase() === storedItemLower) {
                 let building = '';
                 if (window.itemDefinitions) {
-                    const itemDef = window.itemDefinitions.find(item => 
+                    const itemDef = window.itemDefinitions.find(item =>
                         item.item_name.toLowerCase() === crafter.crafted_item.toLowerCase()
                     );
                     if (itemDef) {
@@ -2453,7 +2458,7 @@ function buildStorageSourcesList(storedItem, excludeStorageId = null) {
             }
         }
     }
-    
+
     // Add storage (match only if stored_item matches or is "*", and exclude self)
     if (factory.machines && factory.machines.storage) {
         for (const [storageId, storage] of Object.entries(factory.machines.storage)) {
@@ -2468,7 +2473,7 @@ function buildStorageSourcesList(storedItem, excludeStorageId = null) {
             }
         }
     }
-    
+
     // Add receivers (match dispatcher item, or all if stored_item is "*")
     if (factory.receivers) {
         for (const [receiverId, receiver] of Object.entries(factory.receivers)) {
@@ -2492,21 +2497,21 @@ function buildStorageSourcesList(storedItem, excludeStorageId = null) {
             }
         }
     }
-    
+
     // Sort by fromId
     sources.sort((a, b) => a.fromId.localeCompare(b.fromId));
-    
+
     return sources;
 }
 
 function populateStorageSourcesTable(storedItem, excludeStorageId = null) {
     const tbody = document.querySelector('#storageSourcesSelectionTable tbody');
     if (!tbody) return;
-    
+
     tbody.innerHTML = '';
-    
+
     const sources = buildStorageSourcesList(storedItem, excludeStorageId);
-    
+
     sources.forEach((source, index) => {
         const row = document.createElement('tr');
         row.style.borderBottom = '1px solid #555';
@@ -2516,7 +2521,7 @@ function populateStorageSourcesTable(storedItem, excludeStorageId = null) {
         row.addEventListener('mouseleave', () => {
             row.style.backgroundColor = '';
         });
-        
+
         const checkboxCell = document.createElement('td');
         checkboxCell.style.border = '1px solid #555';
         checkboxCell.style.padding = '10px';
@@ -2527,22 +2532,22 @@ function populateStorageSourcesTable(storedItem, excludeStorageId = null) {
         checkbox.className = 'storage-source-checkbox';
         checkbox.dataset.sourceIndex = index;
         checkboxCell.appendChild(checkbox);
-        
+
         const fromIdCell = document.createElement('td');
         fromIdCell.style.border = '1px solid #555';
         fromIdCell.style.padding = '10px';
         fromIdCell.textContent = source.fromId;
-        
+
         const itemCell = document.createElement('td');
         itemCell.style.border = '1px solid #555';
         itemCell.style.padding = '10px';
         itemCell.textContent = source.item;
-        
+
         const buildingCell = document.createElement('td');
         buildingCell.style.border = '1px solid #555';
         buildingCell.style.padding = '10px';
         buildingCell.textContent = source.building;
-        
+
         row.appendChild(checkboxCell);
         row.appendChild(fromIdCell);
         row.appendChild(itemCell);
@@ -2555,18 +2560,18 @@ function openSelectStorageSourcesModal(button) {
     currentSelectStorageSourcesButton = button;
     const row = button.closest('.storage-input-row');
     if (!row) return;
-    
+
     // Get the stored item from the storage modal
     const storedItem = storageStoredItem.value || '*';
-    
+
     // Pass the current storage ID to exclude it from the list
     populateStorageSourcesTable(storedItem, editingStorageId);
-    
+
     const selectAllCheckbox = document.querySelector('#selectAllStorageSourcesCheckbox');
     if (selectAllCheckbox) {
         selectAllCheckbox.checked = false;
     }
-    
+
     const modal = document.getElementById('selectStorageSourcesModal');
     if (modal) {
         modal.classList.add('show');
@@ -2591,7 +2596,7 @@ function handleSelectAllStorageSources(event) {
 function handleSelectStorageSources() {
     const checkboxes = Array.from(document.querySelectorAll('#storageSourcesSelectionTable .storage-source-checkbox:checked'));
     const selectedIds = checkboxes.map(checkbox => checkbox.value);
-    
+
     if (currentSelectStorageSourcesButton && currentSelectStorageSourcesButton.closest('.storage-input-row')) {
         const row = currentSelectStorageSourcesButton.closest('.storage-input-row');
         if (row) {
@@ -2599,7 +2604,7 @@ function handleSelectStorageSources() {
             if (badgesContainer) {
                 // Clear existing badges
                 badgesContainer.innerHTML = '';
-                
+
                 // Add new badges
                 selectedIds.forEach(id => {
                     const badge = document.createElement('span');
@@ -2617,7 +2622,7 @@ function handleSelectStorageSources() {
             }
         }
     }
-    
+
     closeSelectStorageSourcesModal();
 }
 
@@ -2686,10 +2691,10 @@ async function handleSaveCrafter() {
     // If editing and ID changed, delete old entry and update all from_ids references
     if (editingCrafterId && editingCrafterId !== machineId) {
         delete pins[selectedPinId].factories[selectedFactoryId].machines.crafters[editingCrafterId];
-        
+
         // Update all from_ids references in this factory
         const factory = pins[selectedPinId].factories[selectedFactoryId];
-        
+
         // Update crafters
         const crafters = factory.machines?.crafters || {};
         for (const crafter of Object.values(crafters)) {
@@ -2704,7 +2709,7 @@ async function handleSaveCrafter() {
                 }
             }
         }
-        
+
         // Update storage
         const storage = factory.machines?.storage || {};
         for (const storageItem of Object.values(storage)) {
@@ -2719,7 +2724,7 @@ async function handleSaveCrafter() {
                 }
             }
         }
-        
+
         // Update dispatchers
         const dispatchers = factory.dispatchers || {};
         for (const dispatcher of Object.values(dispatchers)) {
@@ -2761,7 +2766,7 @@ async function handleDeleteCrafter() {
 
     // Remove references to this crafter from all from_ids in this factory
     removeFromIdsReference(editingCrafterId, selectedPinId, selectedFactoryId);
-    
+
     delete pins[selectedPinId].factories[selectedFactoryId].machines.crafters[editingCrafterId];
 
     try {
@@ -2795,7 +2800,7 @@ function createStorageInputRow(inputData = {}) {
     fromIdsField.className = 'storage-input-field';
     const fromIdsLabel = document.createElement('label');
     fromIdsLabel.textContent = 'From IDs';
-    
+
     // Create badges container
     const fromIdsBadgesContainer = document.createElement('div');
     fromIdsBadgesContainer.className = 'storage-from-ids-badges';
@@ -2807,15 +2812,15 @@ function createStorageInputRow(inputData = {}) {
     fromIdsBadgesContainer.style.borderRadius = '4px';
     fromIdsBadgesContainer.style.border = '1px solid #444';
     fromIdsBadgesContainer.style.minHeight = '20px';
-    fromIdsBadgesContainer.dataset.value = Array.isArray(inputData.from_ids) 
-        ? JSON.stringify(inputData.from_ids) 
+    fromIdsBadgesContainer.dataset.value = Array.isArray(inputData.from_ids)
+        ? JSON.stringify(inputData.from_ids)
         : (inputData.from_ids ? JSON.stringify(inputData.from_ids.split(', ')) : JSON.stringify([]));
-    
+
     // Populate badges from input data
-    const fromIds = Array.isArray(inputData.from_ids) 
-        ? inputData.from_ids 
+    const fromIds = Array.isArray(inputData.from_ids)
+        ? inputData.from_ids
         : (inputData.from_ids ? inputData.from_ids.split(/,\s*/) : []);
-    
+
     fromIds.forEach(id => {
         if (id.trim()) {
             const badge = document.createElement('span');
@@ -2831,14 +2836,14 @@ function createStorageInputRow(inputData = {}) {
             fromIdsBadgesContainer.appendChild(badge);
         }
     });
-    
+
     const selectSourcesBtn = document.createElement('button');
     selectSourcesBtn.type = 'button';
     selectSourcesBtn.className = 'btn btn-secondary storage-select-sources-btn';
     selectSourcesBtn.textContent = 'Select Sources';
     selectSourcesBtn.style.marginTop = '8px';
     selectSourcesBtn.style.width = '100%';
-    
+
     fromIdsField.appendChild(fromIdsLabel);
     fromIdsField.appendChild(fromIdsBadgesContainer);
     fromIdsField.appendChild(selectSourcesBtn);
@@ -2869,7 +2874,7 @@ function createStorageInputRow(inputData = {}) {
     row.appendChild(fromIdsField);
     row.appendChild(rateField);
     row.appendChild(actions);
-    
+
     // Store badge container reference
     row.badgesContainer = fromIdsBadgesContainer;
 
@@ -2938,17 +2943,17 @@ function openEditStorageModal(pinId, factoryId, machineId) {
     storageId.disabled = false;
     storageBuildingId.value = storage.building_id || '';
     storageNumStacks.value = storage.num_stacks || '';
-    
+
     // Set stored item (single value, defaulting to '*' if not set)
     storageStoredItem.value = storage.stored_item || '*';
-    
+
     resetStorageInputs();
     if (Array.isArray(storage.inputs) && storage.inputs.length > 0) {
         storage.inputs.forEach(input => addStorageInputRow(input));
     } else {
         addStorageInputRow();
     }
-    
+
     populateStorageCoreOptions(pinId, storage.core_id || '');
     deleteStorageBtn.style.display = 'block';
     storageModal.classList.add('show');
@@ -3071,10 +3076,10 @@ async function handleSaveStorage() {
 
     if (editingStorageId && editingStorageId !== machineId) {
         delete pins[selectedPinId].factories[selectedFactoryId].machines.storage[editingStorageId];
-        
+
         // Update all from_ids references in this factory
         const factory = pins[selectedPinId].factories[selectedFactoryId];
-        
+
         // Update crafters
         const crafters = factory.machines?.crafters || {};
         for (const crafter of Object.values(crafters)) {
@@ -3089,7 +3094,7 @@ async function handleSaveStorage() {
                 }
             }
         }
-        
+
         // Update storage
         const storage = factory.machines?.storage || {};
         for (const storageItem of Object.values(storage)) {
@@ -3104,7 +3109,7 @@ async function handleSaveStorage() {
                 }
             }
         }
-        
+
         // Update dispatchers
         const dispatchers = factory.dispatchers || {};
         for (const dispatcher of Object.values(dispatchers)) {
@@ -3146,7 +3151,7 @@ async function handleDeleteStorage() {
 
     // Remove references to this storage from all from_ids in this factory
     removeFromIdsReference(editingStorageId, selectedPinId, selectedFactoryId);
-    
+
     delete pins[selectedPinId].factories[selectedFactoryId].machines.storage[editingStorageId];
 
     try {
@@ -3199,7 +3204,7 @@ function populateReceiverCoreOptions(pinId, selectedCoreId = '') {
 
 function handleReceiverBuildingChange() {
     const buildingId = receiverBuildingId.value.trim();
-    
+
     if (buildingId) {
         // Show core field and populate options
         receiverCoreGroup.style.display = 'block';
@@ -3322,7 +3327,7 @@ function openEditReceiverModal(pinId, factoryId, recId) {
     selectedFactoryId = factoryId;
     editingReceiverId = recId;
     const receiver = pins[pinId].factories[factoryId].receivers[recId];
-    
+
     receiverModalTitle.textContent = 'Edit Receiver';
     receiverId.value = recId;
     receiverId.disabled = false;
@@ -3334,7 +3339,7 @@ function openEditReceiverModal(pinId, factoryId, recId) {
     };
     setReceiverDispatcherLabels(selectedReceiverDispatcher);
     receiverBuildingId.value = receiver.building_id || '';
-    
+
     // Show/hide core field based on building selection
     if (receiver.building_id) {
         receiverCoreGroup.style.display = 'block';
@@ -3343,7 +3348,7 @@ function openEditReceiverModal(pinId, factoryId, recId) {
         receiverCoreGroup.style.display = 'none';
         receiverCoreId.value = '';
     }
-    
+
     deleteReceiverBtn.style.display = 'block';
     receiverModal.classList.add('show');
 }
@@ -3356,7 +3361,7 @@ function closeReceiverModal() {
 
 async function handleSaveReceiver() {
     if (!selectedPinId || !selectedFactoryId) return;
-    
+
     const recId = receiverId.value.trim();
     if (!recId) {
         alert('Please enter a receiver ID');
@@ -3367,12 +3372,12 @@ async function handleSaveReceiver() {
         alert('Please select a dispatcher');
         return;
     }
-    
+
     // Initialize factory.receivers if needed
     if (!pins[selectedPinId].factories[selectedFactoryId].receivers) {
         pins[selectedPinId].factories[selectedFactoryId].receivers = {};
     }
-    
+
     // Check for duplicate ID when adding new
     if (!editingReceiverId && pins[selectedPinId].factories[selectedFactoryId].receivers[recId]) {
         alert('A receiver with this ID already exists');
@@ -3394,14 +3399,14 @@ async function handleSaveReceiver() {
         alert(`This ID is already used by ${conflicts.join(', ')} in this factory`);
         return;
     }
-    
+
     const receiverData = {
         site_id: selectedReceiverDispatcher.site_id,
         factory_id: selectedReceiverDispatcher.factory_id,
         dispatcher_id: selectedReceiverDispatcher.dispatcher_id,
         building_id: receiverBuildingId.value.trim()
     };
-    
+
     // Add core_id if building is selected and core is specified
     const buildingIdValue = receiverBuildingId.value.trim();
     if (buildingIdValue) {
@@ -3410,14 +3415,14 @@ async function handleSaveReceiver() {
             receiverData.core_id = coreIdValue;
         }
     }
-    
+
     // If editing and ID changed, delete old entry and update all from_ids references
     if (editingReceiverId && editingReceiverId !== recId) {
         delete pins[selectedPinId].factories[selectedFactoryId].receivers[editingReceiverId];
-        
+
         // Update all from_ids references in this factory
         const factory = pins[selectedPinId].factories[selectedFactoryId];
-        
+
         // Update crafters
         const crafters = factory.machines?.crafters || {};
         for (const crafter of Object.values(crafters)) {
@@ -3432,7 +3437,7 @@ async function handleSaveReceiver() {
                 }
             }
         }
-        
+
         // Update storage
         const storage = factory.machines?.storage || {};
         for (const storageItem of Object.values(storage)) {
@@ -3447,7 +3452,7 @@ async function handleSaveReceiver() {
                 }
             }
         }
-        
+
         // Update dispatchers
         const dispatchers = factory.dispatchers || {};
         for (const dispatcher of Object.values(dispatchers)) {
@@ -3459,9 +3464,9 @@ async function handleSaveReceiver() {
             }
         }
     }
-    
+
     pins[selectedPinId].factories[selectedFactoryId].receivers[recId] = receiverData;
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
@@ -3470,7 +3475,7 @@ async function handleSaveReceiver() {
             },
             body: JSON.stringify({ factories: pins[selectedPinId].factories })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
@@ -3486,12 +3491,12 @@ async function handleSaveReceiver() {
 
 async function handleDeleteReceiver() {
     if (!selectedPinId || !selectedFactoryId || !editingReceiverId) return;
-    
+
     // Remove references to this receiver from all from_ids in this factory
     removeFromIdsReference(editingReceiverId, selectedPinId, selectedFactoryId);
-    
+
     delete pins[selectedPinId].factories[selectedFactoryId].receivers[editingReceiverId];
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
@@ -3500,7 +3505,7 @@ async function handleDeleteReceiver() {
             },
             body: JSON.stringify({ factories: pins[selectedPinId].factories })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
@@ -3518,7 +3523,7 @@ async function handleDeleteReceiver() {
 function populateDispatcherCoreOptions(pinId, selectedCoreId = '') {
     const pin = pins[pinId];
     dispatcherCoreId.innerHTML = '<option value=""></option>';
-    
+
     if (pin && pin.cores) {
         for (const coreId in pin.cores) {
             const option = document.createElement('option');
@@ -3726,7 +3731,7 @@ function openEditDispatcherModal(pinId, factoryId, dispId) {
     selectedFactoryId = factoryId;
     editingDispatcherId = dispId;
     const dispatcher = pins[pinId].factories[factoryId].dispatchers[dispId];
-    
+
     dispatcherModalTitle.textContent = 'Edit Dispatcher';
     dispatcherId.value = dispId;
     dispatcherId.disabled = false;
@@ -3735,7 +3740,7 @@ function openEditDispatcherModal(pinId, factoryId, dispId) {
     dispatcherInputRate.value = dispatcher.input_rate_limit_ipm || 100;
     setDispatcherFromIdsBadges(dispatcher.from_ids || []);
     dispatcherBuildingId.value = dispatcher.building_id || '';
-    
+
     // Show/hide core field based on building selection
     if (dispatcher.building_id) {
         dispatcherCoreGroup.style.display = 'block';
@@ -3744,7 +3749,7 @@ function openEditDispatcherModal(pinId, factoryId, dispId) {
         dispatcherCoreGroup.style.display = 'none';
         dispatcherCoreId.value = '';
     }
-    
+
     deleteDispatcherBtn.style.display = 'block';
     dispatcherModal.classList.add('show');
 }
@@ -3757,23 +3762,23 @@ function closeDispatcherModal() {
 
 async function handleSaveDispatcher() {
     if (!selectedPinId || !selectedFactoryId) return;
-    
+
     const dispId = dispatcherId.value.trim();
     if (!dispId) {
         alert('Please enter a dispatcher ID');
         return;
     }
-    
+
     if (!dispatchedItem.value.trim()) {
         alert('Please select a dispatched item');
         return;
     }
-    
+
     // Initialize factory.dispatchers if needed
     if (!pins[selectedPinId].factories[selectedFactoryId].dispatchers) {
         pins[selectedPinId].factories[selectedFactoryId].dispatchers = {};
     }
-    
+
     // Check for duplicate ID when adding new
     if (!editingDispatcherId && pins[selectedPinId].factories[selectedFactoryId].dispatchers[dispId]) {
         alert('A dispatcher with this ID already exists');
@@ -3795,11 +3800,11 @@ async function handleSaveDispatcher() {
         alert(`This ID is already used by ${conflicts.join(', ')} in this factory`);
         return;
     }
-    
+
     const fromIds = Array.from(dispatcherFromIdsBadges.querySelectorAll('.from-id-badge'))
         .map(badge => badge.textContent.trim())
         .filter(id => id);
-    
+
     const dispatcherData = {
         dipatched_item: dispatchedItem.value.trim(),
         output_rate_limit_ipm: parseInt(dispatcherOutputRate.value),
@@ -3807,24 +3812,24 @@ async function handleSaveDispatcher() {
         from_ids: fromIds,
         building_id: dispatcherBuildingId.value.trim()
     };
-    
+
     // Add core_id only if building is selected and core is specified
     if (dispatcherBuildingId.value.trim() && dispatcherCoreId.value.trim()) {
         dispatcherData.core_id = dispatcherCoreId.value.trim();
     }
-    
+
     // If editing and ID changed, delete old entry and update all receiver references
     if (editingDispatcherId && editingDispatcherId !== dispId) {
         delete pins[selectedPinId].factories[selectedFactoryId].dispatchers[editingDispatcherId];
-        
+
         // Update all receivers across all sites that reference this dispatcher
         // Receivers identify dispatchers by the combination of site_id, factory_id, and dispatcher_id
         for (const pin of Object.values(pins)) {
             for (const factory of Object.values(pin.factories || {})) {
                 const receivers = factory.receivers || {};
                 for (const receiver of Object.values(receivers)) {
-                    if (receiver.site_id === selectedPinId && 
-                        receiver.factory_id === selectedFactoryId && 
+                    if (receiver.site_id === selectedPinId &&
+                        receiver.factory_id === selectedFactoryId &&
                         receiver.dispatcher_id === editingDispatcherId) {
                         receiver.dispatcher_id = dispId;
                     }
@@ -3832,9 +3837,9 @@ async function handleSaveDispatcher() {
             }
         }
     }
-    
+
     pins[selectedPinId].factories[selectedFactoryId].dispatchers[dispId] = dispatcherData;
-    
+
     try {
         // Send updates sequentially to avoid concurrent writes to pins_data.json
         for (const pinId of Object.keys(pins)) {
@@ -3849,7 +3854,7 @@ async function handleSaveDispatcher() {
             const updatedPin = await response.json();
             pins[pinId] = updatedPin;
         }
-        
+
         renderPins();
         renderPinsList();
         closeDispatcherModal();
@@ -3861,9 +3866,9 @@ async function handleSaveDispatcher() {
 
 async function handleDeleteDispatcher() {
     if (!selectedPinId || !selectedFactoryId || !editingDispatcherId) return;
-    
+
     delete pins[selectedPinId].factories[selectedFactoryId].dispatchers[editingDispatcherId];
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
@@ -3872,18 +3877,18 @@ async function handleDeleteDispatcher() {
             },
             body: JSON.stringify({ factories: pins[selectedPinId].factories })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
-            
+
             // Reload all pins to reflect cascading receiver deletions across all sites
             await loadPins();
-            
+
             renderPins();
             renderPinsList();
             closeDispatcherModal();
-            
+
             const deletedReceivers = updatedPin.deleted_receivers || 0;
             if (deletedReceivers > 0) {
                 alert(`Dispatcher deleted. ${deletedReceivers} receiver(s) across all sites referencing this dispatcher were also deleted.`);
@@ -3913,7 +3918,7 @@ function openEditNonProdBuildingModal(pinId, coreId, buildingIndex) {
     selectedCoreId = coreId;
     editingBuildingIndex = buildingIndex;
     const building = pins[pinId].cores[coreId].non_production_buildings[buildingIndex];
-    
+
     nonProdBuildingModalTitle.textContent = 'Edit Non-Production Building';
     nonProdBuildingId.value = building.building_id || '';
     nonProdBuildingId.disabled = false;
@@ -3930,29 +3935,29 @@ function closeNonProdBuildingModal() {
 
 async function handleSaveNonProdBuilding() {
     if (!selectedPinId || !selectedCoreId) return;
-    
+
     const buildingId = nonProdBuildingId.value.trim();
     if (!buildingId) {
         alert('Please select a building');
         return;
     }
-    
+
     const count = parseInt(nonProdBuildingCount.value);
     if (isNaN(count) || count < 1) {
         alert('Please enter a valid count (minimum 1)');
         return;
     }
-    
+
     // Initialize non_production_buildings if needed
     if (!pins[selectedPinId].cores[selectedCoreId].non_production_buildings) {
         pins[selectedPinId].cores[selectedCoreId].non_production_buildings = [];
     }
-    
+
     const buildingData = {
         building_id: buildingId,
         count: count
     };
-    
+
     if (editingBuildingIndex !== null) {
         // Editing existing building
         pins[selectedPinId].cores[selectedCoreId].non_production_buildings[editingBuildingIndex] = buildingData;
@@ -3960,7 +3965,7 @@ async function handleSaveNonProdBuilding() {
         // Adding new building
         pins[selectedPinId].cores[selectedCoreId].non_production_buildings.push(buildingData);
     }
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
@@ -3969,7 +3974,7 @@ async function handleSaveNonProdBuilding() {
             },
             body: JSON.stringify({ cores: pins[selectedPinId].cores })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
@@ -3985,9 +3990,9 @@ async function handleSaveNonProdBuilding() {
 
 async function handleDeleteNonProdBuilding() {
     if (!selectedPinId || !selectedCoreId || editingBuildingIndex === null) return;
-    
+
     pins[selectedPinId].cores[selectedCoreId].non_production_buildings.splice(editingBuildingIndex, 1);
-    
+
     try {
         const response = await fetch(`/api/pins/${selectedPinId}`, {
             method: 'PUT',
@@ -3996,7 +4001,7 @@ async function handleDeleteNonProdBuilding() {
             },
             body: JSON.stringify({ cores: pins[selectedPinId].cores })
         });
-        
+
         if (response.ok) {
             const updatedPin = await response.json();
             pins[selectedPinId] = updatedPin;
@@ -4009,3 +4014,477 @@ async function handleDeleteNonProdBuilding() {
         alert('Error deleting non-production building');
     }
 }
+
+// Factory Visualization Functions
+function openFactoryVisualization(pinId, factoryId) {
+    const pin = pins[pinId];
+    const factory = pin.factories[factoryId];
+
+    if (!factory) {
+        alert('Factory not found');
+        return;
+    }
+
+    // Generate visualization data
+    const vizData = generateFactoryVisualization(pinId, factoryId);
+
+    // Generate HTML
+    const html = generateVisualizationHTML(factoryId, factory.purpose || 'No purpose set', vizData);
+
+    // Open in new window
+    const newWindow = window.open('', '_blank');
+    newWindow.document.write(html);
+    newWindow.document.close();
+}
+
+/*
+AI attempted to generate a visualization of factory building connections and after 5 hours of
+prompting, including providing images of the visual issues and hand-drawn corrections, the program
+generates a visualization that is very close to working but the grouping of related and unrelated
+blocks is not correct, and the vertical alignment necessary to keep connection lines from
+overlapping, hiding the individual flow endpoints, is missing making the graph unintelligible.
+
+I'll have to build this functionality manually using the generated code as the base. It was a
+good effort but this highlights the difference between excellent pattern matching and actual
+comprehension.
+
+This wasn't a waste of time as I haven't done any serious javascript development in 10 years; I've
+also never rendered SVG other than some brief experiments, thus the base provided here has saved
+me many, many hours of trying to get back up to speed and figuring out the technical elements.
+
+The fact that I was able to use the AI as if they were my junior developer, getting it to do most of
+the work with only some minor manual fixes for some things it could not comprehend, has been
+a very satisfying experiment. At least I'm not getting the usual attitude and hateful looks from
+them when I guide them to the correct solution.
+*/
+
+function generateFactoryVisualization(pinId, factoryId) {
+    const pin = pins[pinId];
+    const factory = pin.factories[factoryId];
+
+    const vizData = {
+        layers: [],          // Components organized by dependency level
+        layerMap: {},        // Maps component ID to layer index
+        connections: [],     // Array of {from, to} connections
+        componentDetails: {} // Stores details for each component
+    };
+
+    // Helper to get component type
+    function getComponentType(id) {
+        const crafters = factory.machines?.crafters || {};
+        const storage = factory.machines?.storage || {};
+        const dispatchers = factory.dispatchers || {};
+
+        if (crafters[id]) return 'crafter';
+        if (storage[id]) return 'storage';
+        if (dispatchers[id]) return 'dispatcher';
+        if (pin.resource_nodes?.[id]) return 'resource';
+        return 'unknown';
+    }
+
+    // Helper to get component inputs
+    function getComponentInputs(id) {
+        const crafters = factory.machines?.crafters || {};
+        const storage = factory.machines?.storage || {};
+        const dispatchers = factory.dispatchers || {};
+
+        if (crafters[id]?.inputs) {
+            return crafters[id].inputs.flatMap(i => i.from_ids || []);
+        }
+        if (storage[id]?.inputs) {
+            return storage[id].inputs.flatMap(i => i.from_ids || []);
+        }
+        if (dispatchers[id]?.from_ids) {
+            return dispatchers[id].from_ids || [];
+        }
+        return [];
+    }
+
+    // Collect all components
+    const allComponents = new Set();
+    const crafters = factory.machines?.crafters || {};
+    const storage = factory.machines?.storage || {};
+    const dispatchers = factory.dispatchers || {};
+    const receivers = factory.receivers || {};
+
+    Object.keys(crafters).forEach(id => allComponents.add(id));
+    Object.keys(storage).forEach(id => allComponents.add(id));
+    Object.keys(dispatchers).forEach(id => allComponents.add(id));
+    Object.keys(receivers).forEach(id => allComponents.add(id));
+
+    // Add resource nodes that are inputs
+    const resourceNodeIds = new Set();
+    allComponents.forEach(id => {
+        const inputs = getComponentInputs(id);
+        inputs.forEach(inputId => {
+            if (pin.resource_nodes?.[inputId]) {
+                resourceNodeIds.add(inputId);
+                allComponents.add(inputId);
+            }
+        });
+    });
+
+    // Layer components by dependency depth (proper algorithm)
+    const componentDepth = {};
+    const componentLayers = [];
+
+    // Helper function to calculate depth
+    function calculateDepth(id, memo = {}) {
+        if (memo[id] !== undefined) return memo[id];
+
+        const inputs = getComponentInputs(id);
+        if (inputs.length === 0) {
+            memo[id] = 0;
+            return 0;
+        }
+
+        const maxInputDepth = Math.max(...inputs.map(inputId => {
+            if (!allComponents.has(inputId)) return -1;
+            return calculateDepth(inputId, memo);
+        }), -1);
+
+        memo[id] = maxInputDepth + 1;
+        return memo[id];
+    }
+
+    // Calculate depth for all components
+    const depthMemo = {};
+    allComponents.forEach(id => {
+        componentDepth[id] = calculateDepth(id, depthMemo);
+    });
+
+    // Group by depth
+    const maxDepth = Math.max(...Object.values(componentDepth), 0);
+    for (let depth = 0; depth <= maxDepth; depth++) {
+        const layerIds = Object.entries(componentDepth)
+            .filter(([id, d]) => d === depth)
+            .map(([id]) => id)
+            .sort();
+        if (layerIds.length > 0) {
+            componentLayers.push(layerIds);
+        }
+    }
+
+    // Build layer map and populate vizData
+    componentLayers.forEach((layer, layerIndex) => {
+        vizData.layers.push(layer);
+        layer.forEach(id => {
+            vizData.layerMap[id] = layerIndex;
+        });
+    });
+
+    // Store component details
+    allComponents.forEach(id => {
+        const type = getComponentType(id);
+        let details = { type, id };
+
+        if (type === 'resource') {
+            const node = pin.resource_nodes[id];
+            details.item = node.resource_item;
+            details.rate = node.rate_ipm;
+        } else if (type === 'crafter') {
+            const crafter = crafters[id];
+            details.item = crafter.crafted_item;
+            details.inputs = crafter.inputs ? crafter.inputs.map(i => i.input_item) : [];
+        } else if (type === 'storage') {
+            const stor = storage[id];
+            details.item = stor.stored_item;
+        } else if (type === 'dispatcher') {
+            const disp = dispatchers[id];
+            details.item = disp.dipatched_item || disp.dispatched_item;
+            details.rate = disp.output_rate_limit_ipm;
+        } else if (type === 'receiver') {
+            const receiver = receivers[id];
+            details.site = receiver.site_id;
+            details.factory = receiver.factory_id;
+            details.dispatcher = receiver.dispatcher_id;
+        }
+
+        vizData.componentDetails[id] = details;
+    });
+
+    // Build connections
+    allComponents.forEach(id => {
+        const inputs = getComponentInputs(id);
+        inputs.forEach(inputId => {
+            if (allComponents.has(inputId)) {
+                vizData.connections.push({ from: inputId, to: id });
+            }
+        });
+    });
+
+    return vizData;
+}
+
+function generateVisualizationHTML(factoryId, purpose, vizData) {
+    const styles = `
+        body {
+            font-family: monospace;
+            background: #1e1e1e;
+            color: #e0e0e0;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+        .factory-header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #4fc3f7;
+        }
+        .factory-purpose {
+            font-size: 14px;
+            color: #90caf9;
+            margin-bottom: 30px;
+            font-style: italic;
+        }
+        .visualization-wrapper {
+            overflow: auto;
+            border: 1px solid #3a3a4a;
+            border-radius: 4px;
+            background: #2a2a2a;
+        }
+        svg {
+            display: block;
+        }
+        .block-rect {
+            stroke-width: 2;
+        }
+        .block-text {
+            font-family: monospace;
+            font-size: 11px;
+            fill: #e0e0e0;
+        }
+        .block-text-title {
+            font-family: monospace;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .connection-line {
+            stroke: #5568d3;
+            stroke-width: 2;
+            fill: none;
+        }
+        .connection-arrow {
+            fill: #5568d3;
+        }
+    `;
+
+    const blockHeight = 90;
+    const blockWidth = 180;
+    const blockGapY = 15;
+    const columnGapX = 80;
+    const paddingTop = 80;
+    const paddingLeft = 20;
+    const paddingRight = 20;
+
+    // Custom sort function for components within each layer
+    const sortedLayers = vizData.layers.map((layer, layerIndex) => {
+        const sorted = [...layer];
+
+        // Custom ordering rules
+        sorted.sort((a, b) => {
+            // Level 0: r-glass-1 first, then ores
+            if (layerIndex === 0) {
+                if (a.startsWith('r-glass')) return -1;
+                if (b.startsWith('r-glass')) return 1;
+            }
+
+            // For tubes: order should be tube-3, tube-4, tube-1, tube-2
+            if (a.startsWith('tube-') && b.startsWith('tube-')) {
+                const aNum = parseInt(a.split('-')[1]);
+                const bNum = parseInt(b.split('-')[1]);
+                // Map: 3->0, 4->1, 1->2, 2->3
+                const order = {3: 0, 4: 1, 1: 2, 2: 3};
+                const aOrder = order[aNum] !== undefined ? order[aNum] : aNum;
+                const bOrder = order[bNum] !== undefined ? order[bNum] : bNum;
+                return aOrder - bOrder;
+            }
+
+            // Default: sort by inputs to group related components
+            const aInputs = vizData.connections.filter(c => c.to === a).map(c => c.from).sort().join(',');
+            const bInputs = vizData.connections.filter(c => c.to === b).map(c => c.from).sort().join(',');
+            return aInputs.localeCompare(bInputs) || a.localeCompare(b);
+        });
+
+        return sorted;
+    });
+
+    // Calculate positions for each block AFTER sorting
+    const blockPositions = {};
+    let totalWidth = paddingLeft;
+
+    sortedLayers.forEach((layer, layerIndex) => {
+        let columnHeight = paddingTop;
+        const columnStartX = totalWidth;
+
+        layer.forEach(id => {
+            blockPositions[id] = {
+                x: columnStartX,
+                y: columnHeight,
+                width: blockWidth,
+                height: blockHeight
+            };
+            columnHeight += blockHeight + blockGapY;
+        });
+
+        totalWidth += blockWidth + columnGapX;
+    });
+
+    const svgWidth = totalWidth + paddingRight;
+    const svgHeight = Math.max(
+        ...sortedLayers.map((layer) =>
+            paddingTop + layer.length * (blockHeight + blockGapY) + 50
+        ),
+        400
+    );
+
+    // Color mapping for block types
+    const colorMap = {
+        'resource': { bg: '#1b5e20', border: '#4caf50', text: '#4caf50' },
+        'receiver': { bg: '#1a237e', border: '#3f51b5', text: '#3f51b5' },
+        'crafter': { bg: '#bf360c', border: '#ff6e40', text: '#ff6e40' },
+        'storage': { bg: '#455a64', border: '#78909c', text: '#78909c' },
+        'dispatcher': { bg: '#663399', border: '#ba68c8', text: '#ba68c8' }
+    };
+
+    // Start building SVG
+    let svgContent = '';
+
+    // Draw column labels
+    sortedLayers.forEach((layer, layerIndex) => {
+        if (layer.length > 0) {
+            const firstBlock = blockPositions[layer[0]];
+            const labelX = firstBlock.x + blockWidth / 2;
+            const labelY = paddingTop - 40;
+
+            // Label background
+            svgContent += `<rect x="${firstBlock.x}" y="${labelY - 15}" width="${blockWidth}" height="30" fill="#3a3a4a" rx="4"/>`;
+            svgContent += `<text x="${labelX}" y="${labelY + 5}" text-anchor="middle" class="block-text-title" fill="#fff">Level ${layerIndex}</text>`;
+        }
+    });
+
+    // Draw connection lines FIRST (so they appear behind blocks)
+    vizData.connections.forEach(conn => {
+        const fromPos = blockPositions[conn.from];
+        const toPos = blockPositions[conn.to];
+
+        if (!fromPos || !toPos) {
+            return;
+        }
+
+        // Start from RIGHT MIDDLE of source block
+        const x1 = fromPos.x + fromPos.width;
+        const y1 = fromPos.y + fromPos.height / 2;
+
+        // End at LEFT MIDDLE of destination block
+        const x2 = toPos.x;
+        const y2 = toPos.y + toPos.height / 2;
+
+        // Calculate midpoint for the elbow
+        const midX = (x1 + x2) / 2;
+
+        // Draw the connection line with square corners
+        if (Math.abs(y1 - y2) < 5) {
+            // Straight horizontal line for same level
+            svgContent += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="connection-line"/>`;
+        } else {
+            // Angled line: horizontal -> vertical -> horizontal
+            svgContent += `<path d="M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}" class="connection-line"/>`;
+        }
+
+        // Arrow head at destination (pointing right into the block)
+        const arrowSize = 6;
+        svgContent += `<polygon points="${x2},${y2} ${x2-arrowSize},${y2-arrowSize/2} ${x2-arrowSize},${y2+arrowSize/2}" class="connection-arrow"/>`;
+    });
+
+    // Draw blocks on top of lines
+    sortedLayers.forEach((layer) => {
+        layer.forEach(id => {
+            const pos = blockPositions[id];
+            const details = vizData.componentDetails[id];
+            if (!details) return;
+
+            const colors = colorMap[details.type] || { bg: '#424242', border: '#757575', text: '#757575' };
+
+            // Draw block rectangle
+            svgContent += `<rect x="${pos.x}" y="${pos.y}" width="${pos.width}" height="${pos.height}" fill="${colors.bg}" stroke="${colors.border}" class="block-rect" rx="4"/>`;
+
+            // Draw block text content
+            let textY = pos.y + 20;
+            const textX = pos.x + 10;
+            const lineHeight = 14;
+
+            // Block ID (title)
+            svgContent += `<text x="${textX}" y="${textY}" class="block-text-title" fill="${colors.text}">${id}</text>`;
+            textY += lineHeight;
+
+            // Type
+            svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#90caf9">${details.type}</text>`;
+            textY += lineHeight;
+
+            // Type-specific details
+            if (details.type === 'resource') {
+                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Item: ${details.item || 'Unknown'}</text>`;
+                textY += lineHeight;
+                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Rate: ${details.rate || 0} ipm</text>`;
+            } else if (details.type === 'crafter') {
+                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Crafts: ${details.item || 'Unknown'}</text>`;
+                textY += lineHeight;
+                if (details.inputs?.length > 0) {
+                    svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Inputs:</text>`;
+                    textY += lineHeight;
+                    details.inputs.slice(0, 2).forEach(inp => {
+                        const truncated = inp.length > 20 ? inp.substring(0, 18) + '...' : inp;
+                        svgContent += `<text x="${textX + 10}" y="${textY}" class="block-text" fill="#b3e5fc">• ${truncated}</text>`;
+                        textY += lineHeight;
+                    });
+                }
+            } else if (details.type === 'storage') {
+                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Stores: ${details.item || 'Unknown'}</text>`;
+            } else if (details.type === 'dispatcher') {
+                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Dispatches: ${details.item || 'Unknown'}</text>`;
+                textY += lineHeight;
+                if (details.rate) {
+                    svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Rate: ${details.rate} ipm</text>`;
+                }
+            } else if (details.type === 'receiver') {
+                const site = details.site || '?';
+                const factory = details.factory || '?';
+                const dispatcher = details.dispatcher || '?';
+                const fromText = `From: ${site}/${factory}`;
+                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">${fromText}</text>`;
+                textY += lineHeight;
+                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">  /${dispatcher}</text>`;
+            }
+        });
+    });
+
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>${factoryId} Visualization</title>
+            <style>${styles}</style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="factory-header">${factoryId}</div>
+                <div class="factory-purpose">${purpose}</div>
+                <div class="visualization-wrapper">
+                    <svg width="${svgWidth}" height="${svgHeight}">
+                        ${svgContent}
+                    </svg>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+
+    return html;
+}
+
