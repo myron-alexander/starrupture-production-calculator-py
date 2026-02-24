@@ -148,6 +148,7 @@ def index():
     item_defs_list = [
         {
             'item_name': item.item_name,
+            'items_per_minute': item.items_per_minute,
             'factory': item.factory
         }
         for item in game_data.item_definitions

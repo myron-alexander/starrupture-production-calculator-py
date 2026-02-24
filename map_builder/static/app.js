@@ -2190,6 +2190,7 @@ function buildCrafterSourcesList(inputItem) {
                 sources.push({
                     fromId: resId,
                     item: resNode.resource_item,
+                    rateIpm: resNode.rate_ipm,
                     building: resNode.building || '',
                     type: 'resource'
                 });
@@ -2202,19 +2203,22 @@ function buildCrafterSourcesList(inputItem) {
     if (factory && factory.machines && factory.machines.crafters) {
         for (const [crafterId, crafter] of Object.entries(factory.machines.crafters)) {
             if (crafter.crafted_item.toLowerCase() === inputItemLower) {
-                // Look up building from item_definitions
+                // Look up building and items_per_minute from item_definitions
                 let building = '';
+                let rateIpm = '';
                 if (window.itemDefinitions) {
                     const itemDef = window.itemDefinitions.find(item => 
                         item.item_name.toLowerCase() === crafter.crafted_item.toLowerCase()
                     );
                     if (itemDef) {
                         building = itemDef.factory || '';
+                        rateIpm = itemDef.items_per_minute || '';
                     }
                 }
                 sources.push({
                     fromId: crafterId,
                     item: crafter.crafted_item,
+                    rateIpm: rateIpm,
                     building: building,
                     type: 'crafter'
                 });
@@ -2229,6 +2233,7 @@ function buildCrafterSourcesList(inputItem) {
                 sources.push({
                     fromId: storageId,
                     item: storage.stored_item,
+                    rateIpm: '',
                     building: storage.building_id || '',
                     type: 'storage'
                 });
@@ -2250,6 +2255,7 @@ function buildCrafterSourcesList(inputItem) {
                             sources.push({
                                 fromId: receiverId,
                                 item: dispatchedItem,
+                                rateIpm: '',
                                 building: receiver.building_id || '',
                                 type: 'receiver'
                             });
@@ -2303,6 +2309,12 @@ function populateCrafterSourcesTable(inputItem) {
         itemCell.style.padding = '10px';
         itemCell.textContent = source.item;
         
+        const rateCell = document.createElement('td');
+        rateCell.style.border = '1px solid #555';
+        rateCell.style.padding = '10px';
+        rateCell.style.textAlign = 'right';
+        rateCell.textContent = source.rateIpm ? source.rateIpm : '';
+        
         const buildingCell = document.createElement('td');
         buildingCell.style.border = '1px solid #555';
         buildingCell.style.padding = '10px';
@@ -2311,6 +2323,7 @@ function populateCrafterSourcesTable(inputItem) {
         row.appendChild(checkboxCell);
         row.appendChild(fromIdCell);
         row.appendChild(itemCell);
+        row.appendChild(rateCell);
         row.appendChild(buildingCell);
         tbody.appendChild(row);
     });
