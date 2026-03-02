@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from datetime import datetime
+from visualizer import visualize_factory_on_a_grid
 
 sys.path.append("..")
 
@@ -337,6 +338,17 @@ def delete_pin(pin_id):
         return jsonify({'message': 'Pin deleted'}), 200
 
     return jsonify({'error': 'Pin not found'}), 404
+
+
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/pins/<pin_id>/<factory_id>/visualization', methods=['GET'])
+def visualize_factory(pin_id, factory_id):
+    """Generate a SVG visualization of factory nodes."""
+    pins = load_pins()
+    svg_data = visualize_factory_on_a_grid(pins, pin_id, factory_id)
+    return jsonify({'svgStyles': svg_data[3], 'svgContent': svg_data[2]}), 200
 
 
 #---------------------------------------------------------------------------------------------------

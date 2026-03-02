@@ -4018,205 +4018,84 @@ async function handleDeleteNonProdBuilding() {
 // Factory Visualization Functions
 function openFactoryVisualization(pinId, factoryId) {
     const pin = pins[pinId];
-    const factory = pin.factories[factoryId];
+    const factory = pin?.factories?.[factoryId];
 
     if (!factory) {
         alert('Factory not found');
         return;
     }
 
-    // Generate visualization data
-    const vizData = generateFactoryVisualization(pinId, factoryId);
-
-    // Generate HTML
-    const html = generateVisualizationHTML(factoryId, factory.purpose || 'No purpose set', vizData);
-
-    // Open in new window
+    // Open window synchronously from the user click to avoid popup blocking.
     const newWindow = window.open('', '_blank');
-    newWindow.document.write(html);
+    if (!newWindow) {
+        alert('Unable to open visualization window. Please allow pop-ups for this site.');
+        return;
+    }
+
+    newWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Loading visualization...</title>
+            <style>
+                body {
+                    font-family: monospace;
+                    background: #1e1e1e;
+                    color: #e0e0e0;
+                    padding: 20px;
+                    margin: 0;
+                }
+            </style>
+        </head>
+        <body>Generating visualization...</body>
+        </html>
+    `);
     newWindow.document.close();
+
+    // Generate visualization data
+    generateFactoryVisualization(pinId, factoryId)
+        .then((vizData) => {
+            const html = generateVisualizationHTML(
+                factoryId, factory.purpose || 'No purpose set', vizData);
+            newWindow.document.open();
+            newWindow.document.write(html);
+            newWindow.document.close();
+        })
+        .catch((error) => {
+            console.error('Error opening factory visualization:', error);
+            if (!newWindow.closed) {
+                newWindow.document.open();
+                newWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>Visualization Error</title>
+                    </head>
+                    <body style="font-family: monospace; background: #1e1e1e; color: #e0e0e0; padding: 20px; margin: 0;">
+                        Error generating factory visualization.
+                    </body>
+                    </html>
+                `);
+                newWindow.document.close();
+            }
+            alert('Error generating factory visualization');
+        })
 }
 
-/*
-AI attempted to generate a visualization of factory building connections and after 5 hours of
-prompting, including providing images of the visual issues and hand-drawn corrections, the program
-generates a visualization that is very close to working but the grouping of related and unrelated
-blocks is not correct, and the vertical alignment necessary to keep connection lines from
-overlapping, hiding the individual flow endpoints, is missing making the graph unintelligible.
-
-I'll have to build this functionality manually using the generated code as the base. It was a
-good effort but this highlights the difference between excellent pattern matching and actual
-comprehension.
-
-This wasn't a waste of time as I haven't done any serious javascript development in 10 years; I've
-also never rendered SVG other than some brief experiments, thus the base provided here has saved
-me many, many hours of trying to get back up to speed and figuring out the technical elements.
-
-The fact that I was able to use the AI as if they were my junior developer, getting it to do most of
-the work with only some minor manual fixes for some things it could not comprehend, has been
-a very satisfying experiment. At least I'm not getting the usual attitude and hateful looks from
-them when I guide them to the correct solution.
-*/
-
-function generateFactoryVisualization(pinId, factoryId) {
-    const pin = pins[pinId];
-    const factory = pin.factories[factoryId];
-
-    const vizData = {
-        layers: [],          // Components organized by dependency level
-        layerMap: {},        // Maps component ID to layer index
-        connections: [],     // Array of {from, to} connections
-        componentDetails: {} // Stores details for each component
-    };
-
-    // Helper to get component type
-    function getComponentType(id) {
-        const crafters = factory.machines?.crafters || {};
-        const storage = factory.machines?.storage || {};
-        const dispatchers = factory.dispatchers || {};
-
-        if (crafters[id]) return 'crafter';
-        if (storage[id]) return 'storage';
-        if (dispatchers[id]) return 'dispatcher';
-        if (pin.resource_nodes?.[id]) return 'resource';
-        return 'unknown';
+async function generateFactoryVisualization(pinId, factoryId) {
+    const response = await fetch(`/api/pins/${pinId}/${factoryId}/visualization`);
+    if (!response.ok) {
+        throw new Error(`Visualization request failed with status ${response.status}`);
     }
-
-    // Helper to get component inputs
-    function getComponentInputs(id) {
-        const crafters = factory.machines?.crafters || {};
-        const storage = factory.machines?.storage || {};
-        const dispatchers = factory.dispatchers || {};
-
-        if (crafters[id]?.inputs) {
-            return crafters[id].inputs.flatMap(i => i.from_ids || []);
-        }
-        if (storage[id]?.inputs) {
-            return storage[id].inputs.flatMap(i => i.from_ids || []);
-        }
-        if (dispatchers[id]?.from_ids) {
-            return dispatchers[id].from_ids || [];
-        }
-        return [];
-    }
-
-    // Collect all components
-    const allComponents = new Set();
-    const crafters = factory.machines?.crafters || {};
-    const storage = factory.machines?.storage || {};
-    const dispatchers = factory.dispatchers || {};
-    const receivers = factory.receivers || {};
-
-    Object.keys(crafters).forEach(id => allComponents.add(id));
-    Object.keys(storage).forEach(id => allComponents.add(id));
-    Object.keys(dispatchers).forEach(id => allComponents.add(id));
-    Object.keys(receivers).forEach(id => allComponents.add(id));
-
-    // Add resource nodes that are inputs
-    const resourceNodeIds = new Set();
-    allComponents.forEach(id => {
-        const inputs = getComponentInputs(id);
-        inputs.forEach(inputId => {
-            if (pin.resource_nodes?.[inputId]) {
-                resourceNodeIds.add(inputId);
-                allComponents.add(inputId);
-            }
-        });
-    });
-
-    // Layer components by dependency depth (proper algorithm)
-    const componentDepth = {};
-    const componentLayers = [];
-
-    // Helper function to calculate depth
-    function calculateDepth(id, memo = {}) {
-        if (memo[id] !== undefined) return memo[id];
-
-        const inputs = getComponentInputs(id);
-        if (inputs.length === 0) {
-            memo[id] = 0;
-            return 0;
-        }
-
-        const maxInputDepth = Math.max(...inputs.map(inputId => {
-            if (!allComponents.has(inputId)) return -1;
-            return calculateDepth(inputId, memo);
-        }), -1);
-
-        memo[id] = maxInputDepth + 1;
-        return memo[id];
-    }
-
-    // Calculate depth for all components
-    const depthMemo = {};
-    allComponents.forEach(id => {
-        componentDepth[id] = calculateDepth(id, depthMemo);
-    });
-
-    // Group by depth
-    const maxDepth = Math.max(...Object.values(componentDepth), 0);
-    for (let depth = 0; depth <= maxDepth; depth++) {
-        const layerIds = Object.entries(componentDepth)
-            .filter(([id, d]) => d === depth)
-            .map(([id]) => id)
-            .sort();
-        if (layerIds.length > 0) {
-            componentLayers.push(layerIds);
-        }
-    }
-
-    // Build layer map and populate vizData
-    componentLayers.forEach((layer, layerIndex) => {
-        vizData.layers.push(layer);
-        layer.forEach(id => {
-            vizData.layerMap[id] = layerIndex;
-        });
-    });
-
-    // Store component details
-    allComponents.forEach(id => {
-        const type = getComponentType(id);
-        let details = { type, id };
-
-        if (type === 'resource') {
-            const node = pin.resource_nodes[id];
-            details.item = node.resource_item;
-            details.rate = node.rate_ipm;
-        } else if (type === 'crafter') {
-            const crafter = crafters[id];
-            details.item = crafter.crafted_item;
-            details.inputs = crafter.inputs ? crafter.inputs.map(i => i.input_item) : [];
-        } else if (type === 'storage') {
-            const stor = storage[id];
-            details.item = stor.stored_item;
-        } else if (type === 'dispatcher') {
-            const disp = dispatchers[id];
-            details.item = disp.dipatched_item || disp.dispatched_item;
-            details.rate = disp.output_rate_limit_ipm;
-        } else if (type === 'receiver') {
-            const receiver = receivers[id];
-            details.site = receiver.site_id;
-            details.factory = receiver.factory_id;
-            details.dispatcher = receiver.dispatcher_id;
-        }
-
-        vizData.componentDetails[id] = details;
-    });
-
-    // Build connections
-    allComponents.forEach(id => {
-        const inputs = getComponentInputs(id);
-        inputs.forEach(inputId => {
-            if (allComponents.has(inputId)) {
-                vizData.connections.push({ from: inputId, to: id });
-            }
-        });
-    });
-
+    const vizData = await response.json();
     return vizData;
 }
 
+
 function generateVisualizationHTML(factoryId, purpose, vizData) {
+
     const styles = `
         body {
             font-family: monospace;
@@ -4242,226 +4121,13 @@ function generateVisualizationHTML(factoryId, purpose, vizData) {
             font-style: italic;
         }
         .visualization-wrapper {
-            overflow: auto;
+            /*overflow: auto;*/    /* OR limit the viewable SVG width and scroll the SVG within the wrapper. */
+            display: inline-block; /* OR fit the wrapper to the svg. */
             border: 1px solid #3a3a4a;
             border-radius: 4px;
             background: #2a2a2a;
         }
-        svg {
-            display: block;
-        }
-        .block-rect {
-            stroke-width: 2;
-        }
-        .block-text {
-            font-family: monospace;
-            font-size: 11px;
-            fill: #e0e0e0;
-        }
-        .block-text-title {
-            font-family: monospace;
-            font-size: 12px;
-            font-weight: bold;
-        }
-        .connection-line {
-            stroke: #5568d3;
-            stroke-width: 2;
-            fill: none;
-        }
-        .connection-arrow {
-            fill: #5568d3;
-        }
     `;
-
-    const blockHeight = 90;
-    const blockWidth = 180;
-    const blockGapY = 15;
-    const columnGapX = 80;
-    const paddingTop = 80;
-    const paddingLeft = 20;
-    const paddingRight = 20;
-
-    // Custom sort function for components within each layer
-    const sortedLayers = vizData.layers.map((layer, layerIndex) => {
-        const sorted = [...layer];
-
-        // Custom ordering rules
-        sorted.sort((a, b) => {
-            // Level 0: r-glass-1 first, then ores
-            if (layerIndex === 0) {
-                if (a.startsWith('r-glass')) return -1;
-                if (b.startsWith('r-glass')) return 1;
-            }
-
-            // For tubes: order should be tube-3, tube-4, tube-1, tube-2
-            if (a.startsWith('tube-') && b.startsWith('tube-')) {
-                const aNum = parseInt(a.split('-')[1]);
-                const bNum = parseInt(b.split('-')[1]);
-                // Map: 3->0, 4->1, 1->2, 2->3
-                const order = {3: 0, 4: 1, 1: 2, 2: 3};
-                const aOrder = order[aNum] !== undefined ? order[aNum] : aNum;
-                const bOrder = order[bNum] !== undefined ? order[bNum] : bNum;
-                return aOrder - bOrder;
-            }
-
-            // Default: sort by inputs to group related components
-            const aInputs = vizData.connections.filter(c => c.to === a).map(c => c.from).sort().join(',');
-            const bInputs = vizData.connections.filter(c => c.to === b).map(c => c.from).sort().join(',');
-            return aInputs.localeCompare(bInputs) || a.localeCompare(b);
-        });
-
-        return sorted;
-    });
-
-    // Calculate positions for each block AFTER sorting
-    const blockPositions = {};
-    let totalWidth = paddingLeft;
-
-    sortedLayers.forEach((layer, layerIndex) => {
-        let columnHeight = paddingTop;
-        const columnStartX = totalWidth;
-
-        layer.forEach(id => {
-            blockPositions[id] = {
-                x: columnStartX,
-                y: columnHeight,
-                width: blockWidth,
-                height: blockHeight
-            };
-            columnHeight += blockHeight + blockGapY;
-        });
-
-        totalWidth += blockWidth + columnGapX;
-    });
-
-    const svgWidth = totalWidth + paddingRight;
-    const svgHeight = Math.max(
-        ...sortedLayers.map((layer) =>
-            paddingTop + layer.length * (blockHeight + blockGapY) + 50
-        ),
-        400
-    );
-
-    // Color mapping for block types
-    const colorMap = {
-        'resource': { bg: '#1b5e20', border: '#4caf50', text: '#4caf50' },
-        'receiver': { bg: '#1a237e', border: '#3f51b5', text: '#3f51b5' },
-        'crafter': { bg: '#bf360c', border: '#ff6e40', text: '#ff6e40' },
-        'storage': { bg: '#455a64', border: '#78909c', text: '#78909c' },
-        'dispatcher': { bg: '#663399', border: '#ba68c8', text: '#ba68c8' }
-    };
-
-    // Start building SVG
-    let svgContent = '';
-
-    // Draw column labels
-    sortedLayers.forEach((layer, layerIndex) => {
-        if (layer.length > 0) {
-            const firstBlock = blockPositions[layer[0]];
-            const labelX = firstBlock.x + blockWidth / 2;
-            const labelY = paddingTop - 40;
-
-            // Label background
-            svgContent += `<rect x="${firstBlock.x}" y="${labelY - 15}" width="${blockWidth}" height="30" fill="#3a3a4a" rx="4"/>`;
-            svgContent += `<text x="${labelX}" y="${labelY + 5}" text-anchor="middle" class="block-text-title" fill="#fff">Level ${layerIndex}</text>`;
-        }
-    });
-
-    // Draw connection lines FIRST (so they appear behind blocks)
-    vizData.connections.forEach(conn => {
-        const fromPos = blockPositions[conn.from];
-        const toPos = blockPositions[conn.to];
-
-        if (!fromPos || !toPos) {
-            return;
-        }
-
-        // Start from RIGHT MIDDLE of source block
-        const x1 = fromPos.x + fromPos.width;
-        const y1 = fromPos.y + fromPos.height / 2;
-
-        // End at LEFT MIDDLE of destination block
-        const x2 = toPos.x;
-        const y2 = toPos.y + toPos.height / 2;
-
-        // Calculate midpoint for the elbow
-        const midX = (x1 + x2) / 2;
-
-        // Draw the connection line with square corners
-        if (Math.abs(y1 - y2) < 5) {
-            // Straight horizontal line for same level
-            svgContent += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="connection-line"/>`;
-        } else {
-            // Angled line: horizontal -> vertical -> horizontal
-            svgContent += `<path d="M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}" class="connection-line"/>`;
-        }
-
-        // Arrow head at destination (pointing right into the block)
-        const arrowSize = 6;
-        svgContent += `<polygon points="${x2},${y2} ${x2-arrowSize},${y2-arrowSize/2} ${x2-arrowSize},${y2+arrowSize/2}" class="connection-arrow"/>`;
-    });
-
-    // Draw blocks on top of lines
-    sortedLayers.forEach((layer) => {
-        layer.forEach(id => {
-            const pos = blockPositions[id];
-            const details = vizData.componentDetails[id];
-            if (!details) return;
-
-            const colors = colorMap[details.type] || { bg: '#424242', border: '#757575', text: '#757575' };
-
-            // Draw block rectangle
-            svgContent += `<rect x="${pos.x}" y="${pos.y}" width="${pos.width}" height="${pos.height}" fill="${colors.bg}" stroke="${colors.border}" class="block-rect" rx="4"/>`;
-
-            // Draw block text content
-            let textY = pos.y + 20;
-            const textX = pos.x + 10;
-            const lineHeight = 14;
-
-            // Block ID (title)
-            svgContent += `<text x="${textX}" y="${textY}" class="block-text-title" fill="${colors.text}">${id}</text>`;
-            textY += lineHeight;
-
-            // Type
-            svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#90caf9">${details.type}</text>`;
-            textY += lineHeight;
-
-            // Type-specific details
-            if (details.type === 'resource') {
-                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Item: ${details.item || 'Unknown'}</text>`;
-                textY += lineHeight;
-                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Rate: ${details.rate || 0} ipm</text>`;
-            } else if (details.type === 'crafter') {
-                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Crafts: ${details.item || 'Unknown'}</text>`;
-                textY += lineHeight;
-                if (details.inputs?.length > 0) {
-                    svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Inputs:</text>`;
-                    textY += lineHeight;
-                    details.inputs.slice(0, 2).forEach(inp => {
-                        const truncated = inp.length > 20 ? inp.substring(0, 18) + '...' : inp;
-                        svgContent += `<text x="${textX + 10}" y="${textY}" class="block-text" fill="#b3e5fc">• ${truncated}</text>`;
-                        textY += lineHeight;
-                    });
-                }
-            } else if (details.type === 'storage') {
-                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Stores: ${details.item || 'Unknown'}</text>`;
-            } else if (details.type === 'dispatcher') {
-                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Dispatches: ${details.item || 'Unknown'}</text>`;
-                textY += lineHeight;
-                if (details.rate) {
-                    svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">Rate: ${details.rate} ipm</text>`;
-                }
-            } else if (details.type === 'receiver') {
-                const site = details.site || '?';
-                const factory = details.factory || '?';
-                const dispatcher = details.dispatcher || '?';
-                const fromText = `From: ${site}/${factory}`;
-                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">${fromText}</text>`;
-                textY += lineHeight;
-                svgContent += `<text x="${textX}" y="${textY}" class="block-text" fill="#b3e5fc">  /${dispatcher}</text>`;
-            }
-        });
-    });
 
     const html = `
         <!DOCTYPE html>
@@ -4469,16 +4135,17 @@ function generateVisualizationHTML(factoryId, purpose, vizData) {
         <head>
             <meta charset="UTF-8">
             <title>${factoryId} Visualization</title>
-            <style>${styles}</style>
+            <style>
+            ${styles}
+            ${vizData.svgStyles}
+            </style>
         </head>
         <body>
             <div class="container">
                 <div class="factory-header">${factoryId}</div>
                 <div class="factory-purpose">${purpose}</div>
                 <div class="visualization-wrapper">
-                    <svg width="${svgWidth}" height="${svgHeight}">
-                        ${svgContent}
-                    </svg>
+                    ${vizData.svgContent}
                 </div>
             </div>
         </body>
