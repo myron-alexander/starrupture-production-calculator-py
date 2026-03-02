@@ -628,7 +628,7 @@ function renderPinsList() {
         detailsHTML += renderTreeSection('Cores', 'Core', pin.cores || {});
 
         // Add Factories section
-        detailsHTML += renderTreeSection('Factories', 'Factory', pin.factories || {});
+        detailsHTML += renderTreeSection('Factories', 'Factory', pin.factories || {}, id);
 
         details.innerHTML = detailsHTML;
 
@@ -658,11 +658,19 @@ function renderPinsList() {
 
         // Add event listeners for tree blocks
         details.addEventListener('click', (e) => {
+            const factoryToggle = e.target.closest('.factory-item-toggle');
             const addBtn = e.target.closest('.add-button');
             const visualizeBtn = e.target.closest('.visualize-factory-btn');
             const treeBlock = e.target.closest('.tree-block:not(.add-button)');
 
-            if (visualizeBtn) {
+            if (factoryToggle) {
+                e.stopPropagation();
+                const togglePinId = factoryToggle.dataset.pinId || id;
+                const factoryId = factoryToggle.dataset.factoryId;
+                if (factoryId) {
+                    toggleFactoryDetails(togglePinId, factoryId, factoryToggle);
+                }
+            } else if (visualizeBtn) {
                 const factoryId = visualizeBtn.dataset.factoryId;
                 //openFactoryVisualization(id, factoryId);
                 openFactoryVisualizationDirectRender(id, factoryId);
@@ -728,7 +736,7 @@ sets the add button for factories to "Add Factorie" which is not valid english a
 "Add Factory". The simple fix is to split the purpose of title into section header and component
 name.
 */
-function renderTreeSection(sectionHeader, componentName, items) {
+function renderTreeSection(sectionHeader, componentName, items, parentPinId = null) {
     const itemIds = Object.keys(items).sort(); // Sort alphabetically
     let html = `
         <div class="tree-section">
@@ -744,10 +752,14 @@ function renderTreeSection(sectionHeader, componentName, items) {
     } else {
         itemIds.forEach(itemId => {
             const item = items[itemId];
+            const isFactory = sectionHeader === 'Factories';
+            const factoryAttrs = isFactory
+                ? ` data-pin-id="${parentPinId || ''}" data-item-type="factory"`
+                : '';
             html += `
-                <div class="tree-block" data-item-id="${itemId}">
+                <div class="tree-block" data-item-id="${itemId}"${factoryAttrs}>
                     <div class="tree-block-label">${itemId}</div>
-                    ${renderItemDetails(sectionHeader, item, itemId)}
+                    ${renderItemDetails(sectionHeader, item, itemId, parentPinId)}
                 </div>
             `;
         });
@@ -931,7 +943,7 @@ function renderNonProdBuildingsTree(buildings, coreId) {
     return html;
 }
 
-function renderItemDetails(sectionType, item, itemId = null) {
+function renderItemDetails(sectionType, item, itemId = null, parentPinId = null) {
     if (sectionType === 'Resource Nodes') {
         return `
             <div class="tree-block-value">${item.resource_item || 'Unknown'} - ${item.rate_ipm || 0} ipm</div>
@@ -951,9 +963,14 @@ function renderItemDetails(sectionType, item, itemId = null) {
         }
         return html;
     } else if (sectionType === 'Factories') {
+        const isCollapsed = parentPinId ? loadFactoryCollapsedState(parentPinId, itemId) : false;
         let html = `
             <div class="tree-block-value">${item.purpose || 'No purpose set'}</div>
-            <button class="visualize-factory-btn" data-factory-id="${itemId}" style="margin-top: 8px; padding: 4px 8px; font-size: 12px; cursor: pointer;">Visualize</button>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
+                <button class="visualize-factory-btn" data-factory-id="${itemId}" style="padding: 4px 8px; font-size: 12px; cursor: pointer;">Visualize</button>
+                <span class="pin-item-toggle factory-item-toggle" data-pin-id="${parentPinId || ''}" data-factory-id="${itemId}" title="${isCollapsed ? 'Expand factory' : 'Collapse factory'}">${isCollapsed ? '▼' : '▲'}</span>
+            </div>
+            <div class="factory-children" style="${isCollapsed ? 'display: none;' : ''}">
         `;
         // Add crafters, storage, receivers, and dispatchers as children of factory
         if (item.machines && item.machines.crafters && Object.keys(item.machines.crafters).length > 0) {
@@ -976,6 +993,7 @@ function renderItemDetails(sectionType, item, itemId = null) {
         } else {
             html += renderDispatchersTree({}, itemId);
         }
+        html += '</div>';
         return html;
     } else if (sectionType === 'Receivers') {
         // Look up the dispatcher to get the item being received
@@ -1054,6 +1072,49 @@ function loadPinExpandedState(pinId) {
     } catch (e) {
         console.error('Error loading pin expanded state:', e);
         return false;
+    }
+}
+
+function saveFactoryCollapsedState(pinId, factoryId, isCollapsed) {
+    try {
+        const collapsedFactories = JSON.parse(localStorage.getItem('collapsedFactories') || '{}');
+        if (!collapsedFactories[pinId]) {
+            collapsedFactories[pinId] = {};
+        }
+        collapsedFactories[pinId][factoryId] = isCollapsed;
+        localStorage.setItem('collapsedFactories', JSON.stringify(collapsedFactories));
+    } catch (e) {
+        console.error('Error saving factory collapsed state:', e);
+    }
+}
+
+function loadFactoryCollapsedState(pinId, factoryId) {
+    try {
+        const collapsedFactories = JSON.parse(localStorage.getItem('collapsedFactories') || '{}');
+        return collapsedFactories[pinId] && collapsedFactories[pinId][factoryId] === true;
+    } catch (e) {
+        console.error('Error loading factory collapsed state:', e);
+        return false;
+    }
+}
+
+function toggleFactoryDetails(pinId, factoryId, toggleElement) {
+    const treeBlock = toggleElement.closest('.tree-block');
+    const children = treeBlock ? treeBlock.querySelector('.factory-children') : null;
+    if (!children) return;
+
+    const isCollapsed = children.style.display === 'none';
+
+    if (isCollapsed) {
+        children.style.display = '';
+        toggleElement.textContent = '▲';
+        toggleElement.title = 'Collapse factory';
+        saveFactoryCollapsedState(pinId, factoryId, false);
+    } else {
+        children.style.display = 'none';
+        toggleElement.textContent = '▼';
+        toggleElement.title = 'Expand factory';
+        saveFactoryCollapsedState(pinId, factoryId, true);
     }
 }
 
