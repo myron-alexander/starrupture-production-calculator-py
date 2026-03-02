@@ -157,11 +157,11 @@ class SiteData:
     def __init__(self, data:dict[str,Any], site_id:str, factory_id:str) -> None:
         self.site = data[site_id]
         self.factory = self.site["factories"][factory_id]
-        self.dispatchers = self.factory["dispatchers"]
-        self.crafters = self.factory["machines"]["crafters"]
-        self.storage = self.factory["machines"]["storage"]
-        self.resources = self.site["resource_nodes"]
-        self.receivers = self.factory["receivers"]
+        self.dispatchers = self.factory.get("dispatchers", {})
+        self.crafters = self.factory.get("machines", {}).get("crafters", {})
+        self.storage = self.factory.get("machines", {}).get("storage", {})
+        self.resources = self.site.get("resource_nodes",{})
+        self.receivers = self.factory.get("receivers", {})
 
     def walk_inputs(
             self,
