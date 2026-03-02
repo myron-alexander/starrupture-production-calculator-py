@@ -470,6 +470,7 @@ class RoutingOccupancyGrid:
         self.node_boxes:dict[str, NodeBox] = {}
         self.node_anchors:dict[str, NodeAnchors] = {}
         self.node_output_items:dict[str, str] = {}
+        self.node_input_items:dict[str,list[str]] = {}
         self.edges:list[tuple[str, str]] = []
         """
         List of connections from source to destination nodes.
@@ -580,6 +581,7 @@ class RoutingOccupancyGrid:
         self.node_boxes:dict[str, NodeBox] = {}
         self.node_anchors:dict[str, NodeAnchors] = {}
         self.node_output_items:dict[str, str] = {}
+        self.node_input_items:dict[str,list[str]] = {}
 
         # The last column and rows don't having padding cells to the right, below them.
         last_column = len(display_grid.grid) - 1
@@ -674,6 +676,12 @@ class RoutingOccupancyGrid:
                 )
 
                 self.node_output_items[node.id] = self.__get_node_output_item(node)
+
+                # Set the list of input items for each node so that the router can ensure a
+                # connector on a consumer node is only receiving one item type.
+                self.node_input_items[node.id] = [
+                    self.__get_node_output_item(fn) for fn in node.inputs
+                ]
 
                 #
                 # Create the connection points for the node.
@@ -826,6 +834,9 @@ class RoutingOccupancyGrid:
         channel_group_usage:dict[tuple[int, int], dict[str, int]] = {}
         channel_consumer_item_usage:dict[tuple[int, int], dict[str, int]] = {}
         group_trunk_starts:dict[str, list[tuple[int, int]]] = {}
+        # consumer_item_goal_anchor[(consumer_id, item)] = goal anchor (x,y)
+        # Is used to lock an item to a specific anchor on the node.
+        # Also used to ensure that an input endpoint will only take one item type.
         consumer_item_goal_anchor:dict[tuple[str, str], tuple[int, int]] = {}
         routed_connections:list[RoutedConnection] = []
         route_groups:dict[str, list[ConnectorRoute]] = {}
@@ -1007,6 +1018,23 @@ class RoutingOccupancyGrid:
             consumer_item_key_str = f"{route.consumer_id}::{route.supplied_item}"
             locked_goal_anchor = consumer_item_goal_anchor.get(consumer_item_key)
             selected_goals = [locked_goal_anchor] if locked_goal_anchor is not None else route.goal_candidates
+
+            # MA: Check if any goal anchors are receiving an item and remove that goal if the item
+            #     is not the same as the one supplied by the route.
+            if locked_goal_anchor is None:
+                # When locked_goal_anchor is None, it *must* mean that an anchor on the consumer
+                # has not been assighed to the supplied item.
+                for ii in self.node_input_items[route.consumer_id]:
+                    item_anchor = \
+                        consumer_item_goal_anchor.get((route.consumer_id, ii)) 
+                    if item_anchor is not None:
+                        if ii == route.supplied_item:
+                            raise ValueError(
+                                "locked_goal_anchor is None but consumer_item_goal_anchor"
+                                " returned an anchor for the supplied item."
+                                f" Consumer ({route.consumer_id}) supplied item ({ii}).")
+                        # Remove anchor taking a different item from the selected goals.
+                        selected_goals = [sg for sg in selected_goals if sg != item_anchor]
 
             # Path selection strategy:
             # - First route in a group uses source anchors.
