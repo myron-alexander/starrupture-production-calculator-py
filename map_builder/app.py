@@ -63,7 +63,6 @@ class GameData:
         production_buildings = set()
         production_buildings |= set([b for b in self.crafting_buildings])
         production_buildings |= set([b for b in self.excavator_buildings])
-        production_buildings |= set([b for b in self.generator_buildings])
         production_buildings |= set([b for b in self.dispatcher_buildings])
         production_buildings |= set([b for b in self.receiving_buildings])
 
