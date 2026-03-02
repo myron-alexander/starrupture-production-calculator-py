@@ -127,6 +127,7 @@ const storageCoreId = document.getElementById('storageCoreId');
 const storageInputsContainer = document.getElementById('storageInputsContainer');
 const addStorageInputBtn = document.getElementById('addStorageInputBtn');
 const saveStorageBtn = document.getElementById('saveStorageBtn');
+const duplicateStorageBtn = document.getElementById('duplicateStorageBtn');
 const deleteStorageBtn = document.getElementById('deleteStorageBtn');
 
 // Non-Production Building Modal Elements
@@ -319,6 +320,7 @@ function attachEventListeners() {
         addStorageInputRow();
     });
     saveStorageBtn.addEventListener('click', handleSaveStorage);
+    duplicateStorageBtn.addEventListener('click', handleDuplicateStorage);
     deleteStorageBtn.addEventListener('click', handleDeleteStorage);
 
     const selectAllStorageSourcesCheckbox = document.getElementById('selectAllStorageSourcesCheckbox');
@@ -2989,6 +2991,7 @@ function openAddStorageModal(pinId, factoryId) {
     resetStorageInputs();
     addStorageInputRow();
     populateStorageCoreOptions(pinId);
+    duplicateStorageBtn.style.display = 'none';
     deleteStorageBtn.style.display = 'none';
     storageModal.classList.add('show');
     storageId.focus()
@@ -3017,14 +3020,29 @@ function openEditStorageModal(pinId, factoryId, machineId) {
     }
 
     populateStorageCoreOptions(pinId, storage.core_id || '');
+    duplicateStorageBtn.style.display = 'inline-block';
     deleteStorageBtn.style.display = 'block';
     storageModal.classList.add('show');
+}
+
+function handleDuplicateStorage() {
+    if (!selectedPinId || !selectedFactoryId) return;
+
+    // Switch to add mode while keeping all existing details
+    editingStorageId = null;
+    storageModalTitle.textContent = 'Add Storage';
+    storageId.disabled = false;
+    duplicateStorageBtn.style.display = 'none';
+    deleteStorageBtn.style.display = 'none';
+    storageId.focus();
+    storageId.select();
 }
 
 function closeStorageModal() {
     storageModal.classList.remove('show');
     editingStorageId = null;
     selectedFactoryId = null;
+    duplicateStorageBtn.style.display = 'none';
 }
 
 function parseStorageInputs() {
