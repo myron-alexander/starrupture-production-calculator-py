@@ -343,13 +343,89 @@ def delete_pin(pin_id):
 
 #---------------------------------------------------------------------------------------------------
 
-@app.route('/api/pins/<pin_id>/<factory_id>/visualization', methods=['GET'])
+@app.route('/api/pins/<pin_id>/<factory_id>/visdata', methods=['GET'])
 def visualize_factory(pin_id, factory_id):
     """Generate a SVG visualization of factory nodes."""
     pins = load_pins()
     svg_data = visualize_factory_on_a_grid(pins, pin_id, factory_id)
     return jsonify({'svgStyles': svg_data[3], 'svgContent': svg_data[2]}), 200
 
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/pins/<pin_id>/<factory_id>/visualization', methods=['GET'])
+def render_visualize_factory(pin_id, factory_id):
+    """Generate a SVG visualization of factory nodes."""
+    pins = load_pins()
+
+    site = pins.get(pin_id)
+    if site is None:
+        return jsonify({'error': 'Pin not found'}), 404
+    factory = site["factories"].get(factory_id)
+    if factory is None:
+        return jsonify({'error': f"Factory of '{pin_id}' not found"}), 404
+
+    purpose = factory.get("purpose", "No purpose set")
+
+    svg_data = visualize_factory_on_a_grid(pins, pin_id, factory_id)
+
+    html_styles = """
+body {
+    font-family: monospace;
+    background: #1e1e1e;
+    color: #e0e0e0;
+    padding: 20px;
+    margin: 0;
+}
+.container {
+    max-width: 100%;
+    margin: 0 auto;
+}
+.factory-header {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #4fc3f7;
+}
+.factory-purpose {
+    font-size: 14px;
+    color: #90caf9;
+    margin-bottom: 30px;
+    font-style: italic;
+}
+.visualization-wrapper {
+    /*overflow: auto;*/    /* OR limit the viewable SVG width and scroll the SVG within the wrapper. */
+    display: inline-block; /* OR fit the wrapper to the svg. */
+    border: 1px solid #3a3a4a;
+    border-radius: 4px;
+    background: #2a2a2a;
+}
+"""
+
+    html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>"{pin_id}"/"{factory_id}" visualization</title>
+    <style>
+    {html_styles}
+    {svg_data[3]}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="factory-header">'{pin_id}'/'{factory_id}'</div>
+        <div class="factory-purpose">{purpose}</div>
+        <div class="visualization-wrapper">
+            {svg_data[2]}
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+    return html, 200
 
 #---------------------------------------------------------------------------------------------------
 

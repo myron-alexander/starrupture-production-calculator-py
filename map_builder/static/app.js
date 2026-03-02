@@ -664,7 +664,8 @@ function renderPinsList() {
 
             if (visualizeBtn) {
                 const factoryId = visualizeBtn.dataset.factoryId;
-                openFactoryVisualization(id, factoryId);
+                //openFactoryVisualization(id, factoryId);
+                openFactoryVisualizationDirectRender(id, factoryId);
             } else if (addBtn) {
                 const section = addBtn.closest('.tree-section');
                 const sectionHeader = section.querySelector('.tree-section-header').textContent;
@@ -4015,6 +4016,17 @@ async function handleDeleteNonProdBuilding() {
     }
 }
 
+/*
+Instead of getting the visualization data and then creating the page in JavaScript, rather
+use the visualization route to have the server render the visualization. This allows for
+bookmarking and page refreshes,
+*/
+function openFactoryVisualizationDirectRender(pinId, factoryId) {
+    window.open(
+        `/api/pins/${pinId}/${factoryId}/visualization`, 
+        `Starrupture Factory Visualization: ${pinId}/${factoryId}` )
+}
+
 // Factory Visualization Functions
 function renderPopupDocument(targetWindow, title, styles, bodyHtml) {
     if (!targetWindow || targetWindow.closed) return;
@@ -4075,7 +4087,7 @@ function openFactoryVisualization(pinId, factoryId) {
     generateFactoryVisualization(pinId, factoryId)
         .then((vizData) => {
             const view = generateVisualizationHTML(
-                factoryId, factory.purpose || 'No purpose set', vizData);
+                pinId, factoryId, factory.purpose || 'No purpose set', vizData);
 
             renderPopupDocument(
                 newWindow,
@@ -4107,7 +4119,7 @@ function openFactoryVisualization(pinId, factoryId) {
 }
 
 async function generateFactoryVisualization(pinId, factoryId) {
-    const response = await fetch(`/api/pins/${pinId}/${factoryId}/visualization`);
+    const response = await fetch(`/api/pins/${pinId}/${factoryId}/visdata`);
     if (!response.ok) {
         throw new Error(`Visualization request failed with status ${response.status}`);
     }
@@ -4116,7 +4128,7 @@ async function generateFactoryVisualization(pinId, factoryId) {
 }
 
 
-function generateVisualizationHTML(factoryId, purpose, vizData) {
+function generateVisualizationHTML(pinId, factoryId, purpose, vizData) {
 
     const styles = `
         body {
@@ -4152,11 +4164,11 @@ function generateVisualizationHTML(factoryId, purpose, vizData) {
     `;
 
     return {
-        title: `${factoryId} Visualization`,
+        title: `"${pinId}"/"${factoryId}" visualization`,
         styles: `${styles}\n${vizData.svgStyles}`,
         bodyHtml: `
             <div class="container">
-                <div class="factory-header">${factoryId}</div>
+                <div class="factory-header">'${pinId}'/'${factoryId}'</div>
                 <div class="factory-purpose">${purpose}</div>
                 <div class="visualization-wrapper">
                     ${vizData.svgContent}
