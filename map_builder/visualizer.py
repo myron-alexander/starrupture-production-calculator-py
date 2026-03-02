@@ -163,6 +163,23 @@ class SiteData:
         self.resources = self.site.get("resource_nodes",{})
         self.receivers = self.factory.get("receivers", {})
 
+
+    @property
+    def is_empty(self) -> bool:
+        """
+        Does the factory have no nodes on the grid?
+
+        Returns
+        -------
+        bool:
+            True when no nodes on the grid.
+
+        """
+        return 0 == (
+            len(self.dispatchers) + len(self.crafters) + len(self.storage) + len(self.receivers)
+        )
+
+
     def walk_inputs(
             self,
             terminal_idx:int,
@@ -1756,7 +1773,7 @@ def extract_all_dispatched_items(data:dict[str, Any]):
 #---------------------------------------------------------------------------------------------------
 
 def visualize_factory_on_a_grid(
-        data:dict[str, Any], site_id:str, factory_id:str) -> tuple[int, int, str, str]:
+        data:dict[str, Any], site_id:str, factory_id:str) -> tuple[int, int, str, str]|None:
     """
     Generate a SVG diagram of the requested site and factory as a grid of connected factory nodes.
 
@@ -1773,16 +1790,21 @@ def visualize_factory_on_a_grid(
     
     Returns
     -------
-    tuple[int, int, str, str]
+    tuple[int, int, str, str] | None
         Generated visualization and related values as a tuple of:
             - SVG width in pixels
             - SVG height in pixels
             - SVG block
             - CSS styles needed by the SVG
+        
+        or None when the factory has no nodes on the grid.
     """
     dispatcher_item_map = extract_all_dispatched_items(data)
 
     sd = SiteData(data, site_id, factory_id)
+
+    if sd.is_empty:
+        return None
 
     #
     # Build terminal trees

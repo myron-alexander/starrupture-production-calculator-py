@@ -167,7 +167,7 @@ def index():
         raw_item_definitions = raw_items_list,
         item_definitions = item_defs_list
     )
-    
+
     # Disable caching for the main page to ensure template variables are always fresh
     from flask import make_response
     resp = make_response(response)
@@ -347,7 +347,10 @@ def visualize_factory(pin_id, factory_id):
     """Generate a SVG visualization of factory nodes."""
     pins = load_pins()
     svg_data = visualize_factory_on_a_grid(pins, pin_id, factory_id)
-    return jsonify({'svgStyles': svg_data[3], 'svgContent': svg_data[2]}), 200
+    if svg_data is None:
+        return jsonify(error="Factory is empty"), 404
+    else:
+        return jsonify({'svgStyles': svg_data[3], 'svgContent': svg_data[2]}), 200
 
 
 #---------------------------------------------------------------------------------------------------
@@ -401,6 +404,14 @@ body {
 }
 """
 
+
+    if svg_data is None:
+        svg_styles = ""
+        svg_content = "<p>Factory is empty.</p>"
+    else:
+        svg_styles = svg_data[3]
+        svg_content = svg_data[2]
+
     html = f"""
 <!DOCTYPE html>
 <html>
@@ -409,7 +420,7 @@ body {
     <title>"{pin_id}"/"{factory_id}" visualization</title>
     <style>
     {html_styles}
-    {svg_data[3]}
+    {svg_styles}
     </style>
 </head>
 <body>
@@ -417,7 +428,7 @@ body {
         <div class="factory-header">'{pin_id}'/'{factory_id}'</div>
         <div class="factory-purpose">{purpose}</div>
         <div class="visualization-wrapper">
-            {svg_data[2]}
+            {svg_content}
         </div>
     </div>
 </body>

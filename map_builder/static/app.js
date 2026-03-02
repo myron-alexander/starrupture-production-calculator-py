@@ -4200,6 +4200,11 @@ function openFactoryVisualization(pinId, factoryId) {
 async function generateFactoryVisualization(pinId, factoryId) {
     const response = await fetch(`/api/pins/${pinId}/${factoryId}/visdata`);
     if (!response.ok) {
+        if (404 == response.status) {
+            const error = await response.json()
+            return {svgStyles: "", svgContent:`<p>${error.error}</p>`}
+        }
+        
         throw new Error(`Visualization request failed with status ${response.status}`);
     }
     const vizData = await response.json();
