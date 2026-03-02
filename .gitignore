@@ -8,6 +8,7 @@ map_builder/starrupture_map_filled.png
 
 # Python temp files
 **/__pycache__/
+.venv/
 
 # Visual Studio Code files
 .vscode/
