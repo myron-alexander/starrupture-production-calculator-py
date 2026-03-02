@@ -606,36 +606,58 @@ class RoutingOccupancyGrid:
                 # Mark the blocks occupied by the node and padding in the occupancy grid.
                 #
 
-                if 0 == col_idx:
-                    # Occupy padding on the right side when first column.
-                    start_x = 0
-                    pad_x = self.channel_padding_cells
-                elif 0 < col_idx < last_column:
-                    # Occupy padding on the left and right side.
-                    start_x = self.channel_padding_cells
-                    pad_x = self.channel_padding_cells*2
-                else:
-                    # Occupy padding on the left side when last column.
-                    start_x = self.channel_padding_cells
-                    pad_x = self.channel_padding_cells
+                start_x = None
+                start_y = None
 
-                if 0 == row_idx:
-                    # Occupy padding on the bottom side when first row.
+                if 1 == len(self.occupancy_grid):
+                    # Only 1 row so no padding needed.
                     start_y = 0
-                    pad_y = self.channel_padding_cells
-                elif 0 < row_idx < last_row:
-                    # Occupy padding on the top and bottom side.
-                    start_y = self.channel_padding_cells
-                    pad_y = self.channel_padding_cells*2
-                else:
-                    # Occupy padding on the top side when last row.
-                    start_y = self.channel_padding_cells
-                    pad_y = self.channel_padding_cells
+                    pad_y = 0
 
-                # Mark the node and padding cells as occupied.
-                for y in range(y0 - start_y, y0 + self.node_size_cells + pad_y - start_y ):
-                    for x in range(x0 - start_x, x0 + self.node_size_cells + pad_x - start_x):
-                        self.occupancy_grid[y][x] = 1
+                if 1 == len(self.occupancy_grid[0]):
+                    # Only 1 column so no padding needed.
+                    start_x = 0
+                    pad_x = 0
+
+                if start_x is None:
+                    if 0 == col_idx:
+                        # Occupy padding on the right side when first column.
+                        start_x = 0
+                        pad_x = self.channel_padding_cells
+                    elif 0 < col_idx < last_column:
+                        # Occupy padding on the left and right side.
+                        start_x = self.channel_padding_cells
+                        pad_x = self.channel_padding_cells*2
+                    else:
+                        # Occupy padding on the left side when last column.
+                        start_x = self.channel_padding_cells
+                        pad_x = self.channel_padding_cells
+
+                if start_y is None:
+                    if 0 == row_idx:
+                        # Occupy padding on the bottom side when first row.
+                        start_y = 0
+                        pad_y = self.channel_padding_cells
+                    elif 0 < row_idx < last_row:
+                        # Occupy padding on the top and bottom side.
+                        start_y = self.channel_padding_cells
+                        pad_y = self.channel_padding_cells*2
+                    else:
+                        # Occupy padding on the top side when last row.
+                        start_y = self.channel_padding_cells
+                        pad_y = self.channel_padding_cells
+
+                last_x = -1
+                last_y = -1
+                try:
+                    # Mark the node and padding cells as occupied.
+                    for y in range(y0 - start_y, y0 + self.node_size_cells + pad_y - start_y ):
+                        last_y = y
+                        for x in range(x0 - start_x, x0 + self.node_size_cells + pad_x - start_x):
+                            last_x = x
+                            self.occupancy_grid[y][x] = 1
+                except:
+                    print(f"{last_x},{last_y} {row_idx},{col_idx} {node.id} {len(self.occupancy_grid[0]) if 0 < len(self.occupancy_grid) else "x"} {len(self.occupancy_grid)}")
 
                 #
                 # Save the occupancy grid coordinates, and output item, for the node.
@@ -1970,7 +1992,7 @@ def main():
     with open(f"{os.path.dirname(__file__)}/pins_data.json") as f:
         data = json.load(f)
 
-    viz = visualize_factory_on_a_grid(data, "site-1", "tube and applicator")
+    viz = visualize_factory_on_a_grid(data, "site-1", "inductor")
 
     __write_html(viz[2], viz[3])
 
