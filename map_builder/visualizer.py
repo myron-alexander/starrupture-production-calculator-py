@@ -330,6 +330,10 @@ class DisplayGrid:
         if 0 < len(cells_to_move):
             for ctm in cells_to_move:
                 node = self.grid[ctm[0]][ctm[1]]
+                # Check if the grid position is already occupied before moving.
+                if self.grid[self.ingress_col_idx][ctm[1]] is not None:
+                    # Grid position occupied so move the existing ingress node down one.
+                    self.grid[self.ingress_col_idx].insert(ctm[1], None)
                 self.grid[self.ingress_col_idx][ctm[1]] = node
                 self.grid[ctm[0]][ctm[1]] = None
                 # Shift every row of columns between this one and ingress down.
@@ -1043,7 +1047,7 @@ class RoutingOccupancyGrid:
                 # has not been assighed to the supplied item.
                 for ii in self.node_input_items[route.consumer_id]:
                     item_anchor = \
-                        consumer_item_goal_anchor.get((route.consumer_id, ii)) 
+                        consumer_item_goal_anchor.get((route.consumer_id, ii))
                     if item_anchor is not None:
                         if ii == route.supplied_item:
                             raise ValueError(
@@ -1787,7 +1791,7 @@ def visualize_factory_on_a_grid(
 
     factory_id : str
         The factory to visualize.
-    
+
     Returns
     -------
     tuple[int, int, str, str] | None
@@ -1796,7 +1800,7 @@ def visualize_factory_on_a_grid(
             - SVG height in pixels
             - SVG block
             - CSS styles needed by the SVG
-        
+
         or None when the factory has no nodes on the grid.
     """
     dispatcher_item_map = extract_all_dispatched_items(data)
