@@ -4016,6 +4016,30 @@ async function handleDeleteNonProdBuilding() {
 }
 
 // Factory Visualization Functions
+function renderPopupDocument(targetWindow, title, styles, bodyHtml) {
+    if (!targetWindow || targetWindow.closed) return;
+
+    const doc = targetWindow.document;
+    const head = doc.head || doc.getElementsByTagName('head')[0];
+    const body = doc.body || doc.getElementsByTagName('body')[0];
+
+    if (!head || !body) return;
+
+    doc.title = title;
+    head.innerHTML = '';
+    body.innerHTML = '';
+
+    const meta = doc.createElement('meta');
+    meta.setAttribute('charset', 'UTF-8');
+    head.appendChild(meta);
+
+    const styleEl = doc.createElement('style');
+    styleEl.textContent = styles;
+    head.appendChild(styleEl);
+
+    body.innerHTML = bodyHtml;
+}
+
 function openFactoryVisualization(pinId, factoryId) {
     const pin = pins[pinId];
     const factory = pin?.factories?.[factoryId];
@@ -4032,53 +4056,51 @@ function openFactoryVisualization(pinId, factoryId) {
         return;
     }
 
-    newWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Loading visualization...</title>
-            <style>
-                body {
-                    font-family: monospace;
-                    background: #1e1e1e;
-                    color: #e0e0e0;
-                    padding: 20px;
-                    margin: 0;
-                }
-            </style>
-        </head>
-        <body>Generating visualization...</body>
-        </html>
-    `);
-    newWindow.document.close();
+    renderPopupDocument(
+        newWindow,
+        'Loading visualization...',
+        `
+            body {
+                font-family: monospace;
+                background: #1e1e1e;
+                color: #e0e0e0;
+                padding: 20px;
+                margin: 0;
+            }
+        `,
+        'Generating visualization...'
+    );
 
     // Generate visualization data
     generateFactoryVisualization(pinId, factoryId)
         .then((vizData) => {
-            const html = generateVisualizationHTML(
+            const view = generateVisualizationHTML(
                 factoryId, factory.purpose || 'No purpose set', vizData);
-            newWindow.document.open();
-            newWindow.document.write(html);
-            newWindow.document.close();
+
+            renderPopupDocument(
+                newWindow,
+                view.title,
+                view.styles,
+                view.bodyHtml
+            );
         })
         .catch((error) => {
             console.error('Error opening factory visualization:', error);
             if (!newWindow.closed) {
-                newWindow.document.open();
-                newWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <meta charset="UTF-8">
-                        <title>Visualization Error</title>
-                    </head>
-                    <body style="font-family: monospace; background: #1e1e1e; color: #e0e0e0; padding: 20px; margin: 0;">
-                        Error generating factory visualization.
-                    </body>
-                    </html>
-                `);
-                newWindow.document.close();
+                renderPopupDocument(
+                    newWindow,
+                    'Visualization Error',
+                    `
+                        body {
+                            font-family: monospace;
+                            background: #1e1e1e;
+                            color: #e0e0e0;
+                            padding: 20px;
+                            margin: 0;
+                        }
+                    `,
+                    'Error generating factory visualization.'
+                );
             }
             alert('Error generating factory visualization');
         })
@@ -4129,18 +4151,10 @@ function generateVisualizationHTML(factoryId, purpose, vizData) {
         }
     `;
 
-    const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>${factoryId} Visualization</title>
-            <style>
-            ${styles}
-            ${vizData.svgStyles}
-            </style>
-        </head>
-        <body>
+    return {
+        title: `${factoryId} Visualization`,
+        styles: `${styles}\n${vizData.svgStyles}`,
+        bodyHtml: `
             <div class="container">
                 <div class="factory-header">${factoryId}</div>
                 <div class="factory-purpose">${purpose}</div>
@@ -4148,10 +4162,7 @@ function generateVisualizationHTML(factoryId, purpose, vizData) {
                     ${vizData.svgContent}
                 </div>
             </div>
-        </body>
-        </html>
-    `;
-
-    return html;
+        `
+    };
 }
 
