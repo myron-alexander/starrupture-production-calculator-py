@@ -5,6 +5,10 @@ from flask import Flask, render_template, request, jsonify, send_file
 import json
 import os
 import sys
+import tempfile
+import fcntl
+from contextlib import contextmanager
+from threading import RLock
 from datetime import datetime
 from visualizer import visualize_factory_on_a_grid
 
@@ -109,6 +113,8 @@ app = Flask(__name__)
 PINS_FILE = 'pins_data.json'
 MAP_IMAGE = 'starrupture_map_outline.png'
 FILLED_MAP_IMAGE = 'starrupture_map_filled.png'
+PINS_WRITE_LOCK = RLock()
+PINS_LOCK_FILE = f'{PINS_FILE}.lock'
 
 def get_map_image_filename() -> str:
     return FILLED_MAP_IMAGE if os.path.exists(FILLED_MAP_IMAGE) else MAP_IMAGE
@@ -121,10 +127,38 @@ def load_pins():
             return json.load(f)
     return {}
 
+@contextmanager
+def pins_transaction_lock():
+    with PINS_WRITE_LOCK:
+        with open(PINS_LOCK_FILE, 'a', encoding='utf-8') as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
 def save_pins(pins):
-    """Save pins to JSON file."""
-    with open(PINS_FILE, 'w') as f:
-        json.dump(pins, f, indent=2)
+    """Save pins to JSON file with synchronous, durable writes."""
+    pins_dir = os.path.dirname(os.path.abspath(PINS_FILE)) or '.'
+
+    with PINS_WRITE_LOCK:
+        fd, temp_path = tempfile.mkstemp(prefix='pins_', suffix='.tmp', dir=pins_dir, text=True)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(pins, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+
+            os.replace(temp_path, PINS_FILE)
+
+            dir_fd = os.open(pins_dir, os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
 
 # Routes
 @app.route('/')
@@ -191,31 +225,32 @@ def get_pins():
 def add_pin():
     """Add a new pin (site)."""
     data = request.json
-    pins = load_pins()
+    with pins_transaction_lock():
+        pins = load_pins()
 
-    site_id = (data.get('name') or '').strip()
-    if not site_id:
-        return jsonify({'error': 'Site name is required'}), 400
+        site_id = (data.get('name') or '').strip()
+        if not site_id:
+            return jsonify({'error': 'Site name is required'}), 400
 
-    # Enforce globally unique site id (also guard against legacy name fields)
-    for existing_id, existing_pin in pins.items():
-        if existing_id == site_id or existing_pin.get('name') == site_id:
-            return jsonify({'error': 'Site name must be globally unique'}), 400
+        # Enforce globally unique site id (also guard against legacy name fields)
+        for existing_id, existing_pin in pins.items():
+            if existing_id == site_id or existing_pin.get('name') == site_id:
+                return jsonify({'error': 'Site name must be globally unique'}), 400
 
-    pin_data = {
-        'id': site_id,
-        'x': data.get('x', 0),
-        'y': data.get('y', 0),
-        'teleporter': data.get('teleporter', ''),
-        'description': data.get('description', ''),
-        'resource_nodes': data.get('resource_nodes', {}),
-        'cores': data.get('cores', {}),
-        'factories': data.get('factories', {}),
-        'created': datetime.now().isoformat()
-    }
+        pin_data = {
+            'id': site_id,
+            'x': data.get('x', 0),
+            'y': data.get('y', 0),
+            'teleporter': data.get('teleporter', ''),
+            'description': data.get('description', ''),
+            'resource_nodes': data.get('resource_nodes', {}),
+            'cores': data.get('cores', {}),
+            'factories': data.get('factories', {}),
+            'created': datetime.now().isoformat()
+        }
 
-    pins[site_id] = pin_data
-    save_pins(pins)
+        pins[site_id] = pin_data
+        save_pins(pins)
 
     return jsonify(pin_data), 201
 
@@ -223,116 +258,123 @@ def add_pin():
 def update_pin(pin_id):
     """Update a pin (site)."""
     data = request.json
-    pins = load_pins()
+    with pins_transaction_lock():
+        pins = load_pins()
 
 
     #print("data:")
     #print(data)
 
 
-    if pin_id in pins:
-        old_id = pin_id
-        # Handle site id rename (site name is the id)
-        new_id = pin_id
-        if 'name' in data:
-            requested_id = (data.get('name') or '').strip()
-            if not requested_id:
-                return jsonify({'error': 'Site name is required'}), 400
-            if requested_id != pin_id:
-                for existing_id, existing_pin in pins.items():
-                    if existing_id == requested_id:
-                        return jsonify({'error': 'Site name must be globally unique'}), 400
-                    if existing_id != pin_id and existing_pin.get('name') == requested_id:
-                        return jsonify({'error': 'Site name must be globally unique'}), 400
-                pin_data = pins.pop(pin_id)
-                pin_data['id'] = requested_id
-                pins[requested_id] = pin_data
-                pin_id = requested_id
-                new_id = requested_id
+        if pin_id in pins:
+            old_id = pin_id
+            # Handle site id rename (site name is the id)
+            new_id = pin_id
+            if 'name' in data:
+                requested_id = (data.get('name') or '').strip()
+                if not requested_id:
+                    return jsonify({'error': 'Site name is required'}), 400
+                if requested_id != pin_id:
+                    for existing_id, existing_pin in pins.items():
+                        if existing_id == requested_id:
+                            return jsonify({'error': 'Site name must be globally unique'}), 400
+                        if existing_id != pin_id and existing_pin.get('name') == requested_id:
+                            return jsonify({'error': 'Site name must be globally unique'}), 400
+                    pin_data = pins.pop(pin_id)
+                    pin_data['id'] = requested_id
+                    pins[requested_id] = pin_data
+                    pin_id = requested_id
+                    new_id = requested_id
 
-        if old_id != new_id:
-            # Update receiver references across all sites
-            for pin in pins.values():
-                factories = pin.get('factories', {})
-                for factory in factories.values():
-                    receivers = factory.get('receivers', {})
-                    for receiver in receivers.values():
-                        if receiver.get('site_id') == old_id:
-                            receiver['site_id'] = new_id
-
-        # Update only the fields that are provided
-        if 'x' in data:
-            pins[pin_id]['x'] = data['x']
-        if 'y' in data:
-            pins[pin_id]['y'] = data['y']
-        if 'teleporter' in data:
-            pins[pin_id]['teleporter'] = data['teleporter']
-        if 'description' in data:
-            pins[pin_id]['description'] = data['description']
-        if 'resource_nodes' in data:
-            pins[pin_id]['resource_nodes'] = data['resource_nodes']
-        if 'cores' in data:
-            pins[pin_id]['cores'] = data['cores']
-
-        deleted_receivers_count = 0
-        if 'factories' in data:
-            # Before updating factories, detect deleted dispatchers and cascade delete receivers
-            old_factories = pins[pin_id].get('factories', {})
-            new_factories = data['factories']
-
-            # MA: Renaming a dispatcher will be picked up as a deletion so all the receivers
-            #     will be deleted. I think a new route needs to be added to the API to allow
-            #     for updating the dispatcher independant of other factors. This will allow
-            #     a rename to update references instead of deleting them.
-
-            # Find all dispatchers that were deleted in this site
-            deleted_dispatchers = []  # List of (site_id, factory_id, dispatcher_id)
-            for factory_id in old_factories:
-                if factory_id in new_factories:
-                    old_dispatchers = old_factories[factory_id].get('dispatchers', {})
-                    new_dispatchers = new_factories[factory_id].get('dispatchers', {})
-
-                    for dispatcher_id in old_dispatchers:
-                        if dispatcher_id not in new_dispatchers:
-                            deleted_dispatchers.append((pin_id, factory_id, dispatcher_id))
-
-            # Before the receiver deletion operation, copy the new factories. The deletions are
-            # done on the pins instance so if data is copied to pins, it will undo the deletions
-            # within all factories of pins[pin_id].
-            pins[pin_id]['factories'] = data['factories']
-
-            # Delete receivers in ALL factories of ALL sites that reference deleted dispatchers
-            if deleted_dispatchers:
+            if old_id != new_id:
+                # Update receiver references across all sites
                 for pin in pins.values():
                     factories = pin.get('factories', {})
                     for factory in factories.values():
                         receivers = factory.get('receivers', {})
-                        receivers_to_delete = [
-                            rid for rid, receiver in receivers.items()
-                            if any(
-                                receiver.get('site_id') == disp[0] and
-                                receiver.get('factory_id') == disp[1] and
-                                receiver.get('dispatcher_id') == disp[2]
-                                for disp in deleted_dispatchers
-                            )
-                        ]
-                        deleted_receivers_count += len(receivers_to_delete)
-                        for rid in receivers_to_delete:
-                            del receivers[rid]
+                        for receiver in receivers.values():
+                            if receiver.get('site_id') == old_id:
+                                receiver['site_id'] = new_id
 
-        # Remove legacy name field if present
-        if 'name' in pins[pin_id]:
-            del pins[pin_id]['name']
+            # Update only the fields that are provided
+            if 'x' in data:
+                pins[pin_id]['x'] = data['x']
+            if 'y' in data:
+                pins[pin_id]['y'] = data['y']
+            if 'teleporter' in data:
+                pins[pin_id]['teleporter'] = data['teleporter']
+            if 'description' in data:
+                pins[pin_id]['description'] = data['description']
+            if 'resource_nodes' in data:
+                pins[pin_id]['resource_nodes'] = data['resource_nodes']
+            if 'cores' in data:
+                pins[pin_id]['cores'] = data['cores']
 
-        pins[pin_id]['id'] = new_id
+            deleted_receivers_count = 0
+            if 'factories' in data:
+                # Before updating factories, detect deleted dispatchers and cascade delete receivers
+                old_factories = pins[pin_id].get('factories', {})
+                new_factories = data['factories']
 
-        save_pins(pins)
+                # MA: Renaming a dispatcher will be picked up as a deletion so all the receivers
+                #     will be deleted. I think a new route needs to be added to the API to allow
+                #     for updating the dispatcher independant of other factors. This will allow
+                #     a rename to update references instead of deleting them.
+                #
+                # Update: I was wrong, the javascript updates all the references then saves
+                #         every factory in all sites, including those that haven't changed.
+                #         Forgot that the change was being made in the javascript.
+                #         When the AI wrote this, it sometimes made the changes in the javascript and
+                #         sometimes on the server.
 
-        # Return response with deleted receivers count if applicable
-        response_data = pins[pin_id].copy()
-        if deleted_receivers_count > 0:
-            response_data['deleted_receivers'] = deleted_receivers_count
-        return jsonify(response_data)
+                # Find all dispatchers that were deleted in this site
+                deleted_dispatchers = []  # List of (site_id, factory_id, dispatcher_id)
+                for factory_id in old_factories:
+                    if factory_id in new_factories:
+                        old_dispatchers = old_factories[factory_id].get('dispatchers', {})
+                        new_dispatchers = new_factories[factory_id].get('dispatchers', {})
+
+                        for dispatcher_id in old_dispatchers:
+                            if dispatcher_id not in new_dispatchers:
+                                deleted_dispatchers.append((pin_id, factory_id, dispatcher_id))
+
+                # Before the receiver deletion operation, copy the new factories. The deletions are
+                # done on the pins instance so if data is copied to pins, it will undo the deletions
+                # within all factories of pins[pin_id].
+                pins[pin_id]['factories'] = data['factories']
+
+                # Delete receivers in ALL factories of ALL sites that reference deleted dispatchers
+                if deleted_dispatchers:
+                    for pin in pins.values():
+                        factories = pin.get('factories', {})
+                        for factory in factories.values():
+                            receivers = factory.get('receivers', {})
+                            receivers_to_delete = [
+                                rid for rid, receiver in receivers.items()
+                                if any(
+                                    receiver.get('site_id') == disp[0] and
+                                    receiver.get('factory_id') == disp[1] and
+                                    receiver.get('dispatcher_id') == disp[2]
+                                    for disp in deleted_dispatchers
+                                )
+                            ]
+                            deleted_receivers_count += len(receivers_to_delete)
+                            for rid in receivers_to_delete:
+                                del receivers[rid]
+
+            # Remove legacy name field if present
+            if 'name' in pins[pin_id]:
+                del pins[pin_id]['name']
+
+            pins[pin_id]['id'] = new_id
+
+            save_pins(pins)
+
+            # Return response with deleted receivers count if applicable
+            response_data = pins[pin_id].copy()
+            if deleted_receivers_count > 0:
+                response_data['deleted_receivers'] = deleted_receivers_count
+            return jsonify(response_data)
 
     return jsonify({'error': 'Pin not found'}), 404
 
@@ -341,12 +383,13 @@ def update_pin(pin_id):
 @app.route('/api/pins/<pin_id>', methods=['DELETE'])
 def delete_pin(pin_id):
     """Delete a pin."""
-    pins = load_pins()
+    with pins_transaction_lock():
+        pins = load_pins()
 
-    if pin_id in pins:
-        del pins[pin_id]
-        save_pins(pins)
-        return jsonify({'message': 'Pin deleted'}), 200
+        if pin_id in pins:
+            del pins[pin_id]
+            save_pins(pins)
+            return jsonify({'message': 'Pin deleted'}), 200
 
     return jsonify({'error': 'Pin not found'}), 404
 
@@ -358,15 +401,62 @@ def update_dispatcher(pin_id, factory_id, dispatcher_id):
     Update dispatcher separate from other elements so that renaming a dispatcher will allow
     for updating receivers that reference the dispatcher instead of deleting them as what
     would happen in update_pin.
+
+    Expecting request data:
+    {
+        new_id: str
+                Optional. When present, the ID of the dispatcher must be changed. Must be omitted
+                when an ID change is not intended.
+
+        dipatched_item: str
+                Name of the dispatched item. Must match an item name in the game data.
+
+        output_rate_limit_ipm: int
+                Maximum rate, in items per minute, that items can be dispatched.
+
+        input_rate_limit_ipm: int
+                Maximum rate, in items per minute, that items can be received for dispatching from
+                the item sources.
+
+        from_ids: list[str]
+                Ids of the suppliers that provide dispatched item.
+
+        building_id: str
+                When the dispatcher is a building instead of a rail, the ID of the building in the
+                game data. When the dispatcher is not a building, this is empty.
+    }
     """
     data = request.json
     pins = load_pins()
 
+    # The reason for having the rename changes done in the javascript, as well as most of the
+    # functionality there, is that it scales very well.
+    #
+    # The reason for having the rename changes done on the server is that the server has more
+    # flexibility with data modifications. For example, if this was a database backed application,
+    # the rename could be done with a few update statements in the database while pushing all the
+    # changes from the javascript either requires more REST interfaces, or, as what the AI created,
+    # forcing a data save for everything, even those that haven't changed.
+    #
+    # The middle point is having the javascript perform the changes to the data, but instead of
+    # saving all the data, only push the changes. This makes the application more complex.
+    #
+    # Ultimately, the methodology must be determined by the requirments of the environment and
+    # behaviours. For this application, scaling is not an issue so having more of the functionlity
+    # on the server side makes more sense.
+
+
     # TODO: Add implementation.
 
-    # TODO: Change this to correct return.
-    #       Only here to stop the editor marking the function as in error.
-    return jsonify({'message': 'Done'}), 200
+    # 1. Changing the dispatcher_id is identified by reading the key "new_id" that will only
+    #    be present if an id change is requested.
+    # 2. If an id change is requested, locate all references in pins and update them.
+    # 3. Update the dispatcher details similar to update_pins.
+    # 4. Save pins.
+    # 5. Return the entire pins.
+
+    response_data = pins.copy()
+    return jsonify(response_data), 200
 
 #---------------------------------------------------------------------------------------------------
 
