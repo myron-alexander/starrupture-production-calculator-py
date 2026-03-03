@@ -1,3 +1,6 @@
+# General lock files.
+*.lock
+
 # LibreOffice lock files
 .~lock*
 
