@@ -225,6 +225,11 @@ def update_pin(pin_id):
     data = request.json
     pins = load_pins()
 
+
+    #print("data:")
+    #print(data)
+
+
     if pin_id in pins:
         old_id = pin_id
         # Handle site id rename (site name is the id)

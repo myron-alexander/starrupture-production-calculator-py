@@ -1936,7 +1936,9 @@ async function handleSaveFactory() {
     const factoryData = {
         purpose: factoryPurpose.value.trim(),
         default_core: selectedCoreId,
-        machines: existingFactory && existingFactory.machines ? existingFactory.machines : {}
+        machines: existingFactory && existingFactory.machines ? existingFactory.machines : {},
+        dispatchers: existingFactory && existingFactory.dispatchers ? existingFactory.dispatchers : {},
+        receivers: existingFactory && existingFactory.receivers ? existingFactory.receivers : {}
     };
 
     if (!pins[selectedPinId].factories) {
