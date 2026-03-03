@@ -583,14 +583,20 @@ class RoutingOccupancyGrid:
         middle-out looks like:
             [ 4, 3, 5, 2, 6, 1, 7, 0 ]
         """
-        mid_point = int(math.ceil(self.channel_size_cells / 2.0))
-        connector_pattern = [mid_point]
-        for i in range(mid_point-1, -1, -1):
-            connector_pattern.append(i)
-            opposite = (mid_point - i) + mid_point
-            if opposite < self.channel_size_cells:
-                connector_pattern.append(opposite)
-        return connector_pattern
+
+        use_midout = False
+
+        if use_midout:
+            mid_point = int(math.ceil(self.channel_size_cells / 2.0))
+            connector_pattern = [mid_point]
+            for i in range(mid_point-1, -1, -1):
+                connector_pattern.append(i)
+                opposite = (mid_point - i) + mid_point
+                if opposite < self.channel_size_cells:
+                    connector_pattern.append(opposite)
+            return connector_pattern
+        else:
+            return [p for p in range(0, self.channel_size_cells)]
 
     #---------------------------------------------------------------------------
 
@@ -823,6 +829,173 @@ class RoutingOccupancyGrid:
                 dispatched_item = self._dispatcher_item_map[key]
                 return dispatched_item
         return "*"
+
+    #---------------------------------------------------------------------------
+
+    """
+    Connection Routing Requirements
+    ===============================
+
+    The current routing algorithm is not too bad but it doesn't fully solve the problem. There
+    are layouts where the visualizer will create multiple lines from a single source to multiple
+    destinations that are drawn next to each other when they should be a single trunk with
+    branches.
+
+    It is very important that using a trunk and branching display is only for when all the
+    routes that should be converging into a single line are representing the supply of the same
+    item type. Routes conveying different item types must not converge to a single line.
+
+    Also, if a line of one item type crosses a line of another item type, the lines must use
+    a different style. Having the intersecting lines with different colors makes it easier to
+    follow the flow.
+    
+    The connection possibilites for one item type, with ideal examples, are:
+
+    1. Single source node, single consumer node.
+        No grouping necessary, only one line.
+        ┌────────┐           ┌───────┐
+        │Consumer│           │Source │
+        │Node    │◄──────────┤Node   │
+        └────────┘           └───────┘
+
+    2. Single source node, multiple consumer nodes.
+        Should be one line from source, branching out to consumers where the branching should
+        occur as close to the consumer as possible.
+        ┌────────┐           ┌───────┐
+        │Consumer│           │Source │
+        │Node    │◄────┬─────┤Node   │
+        └────────┘     │     └───────┘
+        ┌────────┐     │
+        │Consumer│     │
+        │Node    │◄────┤
+        └────────┘     │
+        ┌────────┐     │
+        │Consumer│     │
+        │Node    │◄────┘
+        └────────┘
+
+    3. Multiple source nodes, single consumer node.
+        One line from each source converging to a trunk as close to the source as possible.
+        ┌────────┐           ┌───────┐
+        │Consumer│           │Source │
+        │Node    │◄────┬─────┤Node   │
+        └────────┘     │     └───────┘
+                       │     ┌───────┐
+                       │     │Source │
+                       ├─────┤Node   │
+                       │     └───────┘
+                       │     ┌───────┐
+                       │     │Source │
+                       └─────┼Node   │
+                             └───────┘
+
+    4. Multiple source nodes, multiple consumer node.
+        One line from each source converging to a trunk as close to the source as possible,
+        then branching to the consumers where the branching is as close to the consumer as
+        possible.
+        ┌────────┐           ┌───────┐
+        │Consumer│           │Source │
+        │Node    │◄─┐     ┌──┼Node   │
+        └────────┘  │     │  └───────┘
+        ┌────────┐  │     │  ┌───────┐
+        │Consumer│  │     │  │Source │
+        │Node    │◄─┼─────┼──┤Node   │
+        └────────┘  │     │  └───────┘
+        ┌────────┐  │     │  ┌───────┐
+        │Consumer│  │     │  │Source │
+        │Node    │◄─┘     └──┼Node   │
+        └────────┘           └───────┘
+
+
+    All the above examples use simplistic presentation, in reality the source and consumer nodes
+    may not be lined up, may be in different columns and may have nodes in-between.
+
+                       ┌────────┐
+                       │Consumer│
+                       │Node    │◄─────┐
+                       └────────┘      │
+        ┌────────┐     ┌────────┐      │                   ┌───────┐
+        │Consumer│     │Blocking│      │                   │Source │
+        │Node    │◄──┐ │Node    │      ├───────────────────┤Node   │
+        └────────┘   │ └────────┘      │                   └───────┘
+                     │                 │
+                     ├─────────────────┘
+        ┌────────┐   │ ┌────────┐
+        │Consumer│   │ │Blocking│
+        │Node    │◄──┤ │Node    │
+        └────────┘   │ └────────┘
+        ┌────────┐   │
+        │Consumer│   │
+        │Node    │◄──┘
+        └────────┘
+
+
+    Current implementation
+    ======================
+
+    Possibility 1 is solved.
+
+    Possibility 2 should be soved by the grouping and trunk parts of the algorithm but there
+    are cases where the trunk point is too close to the source so ends up in multiple parallel
+    lines that should have been a single trunk.
+        ┌────────┐
+        │Consumer│
+        │Node    │◄─────┐
+        └────────┘      │
+        ┌────────┐      │
+        │Consumer│      │
+        │Node    │◄───┐ │
+        └────────┘    │ │
+        ┌────────┐    │ │
+        │Consumer│    │ │
+        │Node    │◄───┤ │
+        └────────┘    │ │
+        ┌────────┐    │ │
+        │Consumer│    │ │
+        │Node    │◄─┐ │ │
+        └────────┘  │ │ │    ┌───────┐
+                    │ │ │    │Source │
+                    └─┴─┴───┬┤Node   │
+                            │└───────┘
+        ┌────────┐          │
+        │Consumer│          │
+        │Node    │◄────┬────┘
+        └────────┘     │
+        ┌────────┐     │
+        │Consumer│     │
+        │Node    │◄────┤
+        └────────┘     │
+        ┌────────┐     │
+        │Consumer│     │
+        │Node    │◄────┘
+        └────────┘
+
+        also:
+                       ┌────────┐
+                       │Consumer│
+                       │Node    │◄┐
+                       └────────┘ │
+        ┌────────┐     ┌────────┐ │      ┌───────┐
+        │Consumer│     │Blocking│ │      │Source │
+        │Node    │◄──┐ │Node    │ └────┬─┤Node   │
+        └────────┘   │ └────────┘      │ └───────┘
+                     └─────────────────┤
+                     ┌─────────────────┤
+        ┌────────┐   │ ┌────────┐      │
+        │Consumer│   │ │Blocking│      │
+        │Node    │◄──┘ │Node    │      │
+        └────────┘     └────────┘      │
+        ┌────────┐                     │
+        │Consumer│                     │
+        │Node    │◄────────────────────┘
+        └────────┘
+
+
+    Possibility 3 seems to be solved by locking in the destination point and then
+    reducing the cost of overlap for all lines converging on that point.
+
+    Possibility 4 is unsolved.
+    """
 
     #---------------------------------------------------------------------------
 
@@ -1155,30 +1328,6 @@ class RoutingOccupancyGrid:
     def debug_print_occgrid(self, routes:list[RoutedConnection]|None = None):
 
         copy = [row[:] for row in self.occupancy_grid]
-        #for anchors in self.node_anchors.values():
-        #    keep_x = 0
-        #    keep_y = 0
-        #    try:
-        #        for x,y in anchors.north:
-        #            keep_x = x
-        #            keep_y = y
-        #            copy[y][x] = 2
-        #        for x,y in anchors.south:
-        #            keep_x = x
-        #            keep_y = y
-        #            copy[y][x] = 2
-        #        for x,y in anchors.east:
-        #            keep_x = x
-        #            keep_y = y
-        #            copy[y][x] = 2
-        #        for x,y in anchors.west:
-        #            keep_x = x
-        #            keep_y = y
-        #            copy[y][x] = 2
-        #    except:
-        #        print(f"{keep_x}, {keep_y}  {len(copy[1])}, {len(copy)} ")
-        #        raise
-
         if routes is not None:
             for rnum, conn in enumerate(routes):
                 print(f"{conn.source_id} ==> {conn.consumer_id}")
