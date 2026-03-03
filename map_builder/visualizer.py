@@ -949,7 +949,12 @@ class RoutingOccupancyGrid:
                     continue
 
                 # Expand 4-neighbor cells (left, right, up, down).
-                for nx, ny in ((cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1)):
+                # Update: Don't expand right as the intention of the diagram is that everything
+                #         flows from right to left.
+
+                #path_walk_directions = ((cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1))
+                path_walk_directions = ((cx - 1, cy), (cx, cy - 1), (cx, cy + 1))
+                for nx, ny in path_walk_directions:
                     neighbor = (nx, ny)
                     if neighbor not in goal_set and not is_walkable(neighbor):
                         continue
