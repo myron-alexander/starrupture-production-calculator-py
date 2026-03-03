@@ -206,8 +206,17 @@ function attachEventListeners() {
     document.querySelectorAll('[data-modal="editModal"]').forEach(el => {
         el.addEventListener('click', closeEditModal);
     });
+    
+    // The edit modal is currently not a form so doesn't really need to prevent
+    // the default event, Added it anyway for when I change it to a form.
+
+    // When changing to form, this would be replaced with a submit event.
     savePinBtn.addEventListener('click', handleSavePin);
-    deletePinBtn.addEventListener('click', handleDeletePin);
+    
+    deletePinBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        handleDeletePin();
+    });
 
     // Resource Node Modal controls
     document.querySelectorAll('[data-modal="resourceNodeModal"]').forEach(el => {
@@ -231,7 +240,10 @@ function attachEventListeners() {
         e.preventDefault();
         handleSaveCore();
     });
-    deleteCoreBtn.addEventListener('click', handleDeleteCore);
+    deleteCoreBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        handleDeleteCore();
+    });
 
     // Factory Modal controls
     document.querySelectorAll('[data-modal="factoryModal"]').forEach(el => {
@@ -256,7 +268,10 @@ function attachEventListeners() {
         e.preventDefault();
         handleSaveReceiver();
     });
-    deleteReceiverBtn.addEventListener('click', handleDeleteReceiver);
+    deleteReceiverBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        handleDeleteReceiver();
+    });
 
     // Receiver Dispatcher Selector Modal controls
     document.querySelectorAll('[data-modal="selectReceiverDispatcherModal"]').forEach(el => {
