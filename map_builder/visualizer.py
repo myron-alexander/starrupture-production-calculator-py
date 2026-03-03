@@ -64,6 +64,7 @@ class ConnectorRoute:
     consumer_id: str
     supplied_item: str
     group_key: str
+    network_key: str
     source_side: str
     consumer_side: str
     start_candidates: list[tuple[int, int]]
@@ -77,6 +78,7 @@ class RoutedConnection:
     consumer_id: str
     supplied_item: str
     group_key: str
+    network_key: str
     style_idx: int
     path: list[tuple[int, int]]|None
     """
@@ -413,6 +415,7 @@ class RoutedConnections:
     group_style_map: dict[str, int]
     overlap_penalty: int
     same_group_discount: float
+    same_network_discount: float
     trunk_fraction: float
     num_failed: int
     num_succeeded: int
@@ -497,6 +500,52 @@ class RoutingOccupancyGrid:
         List of connections from source to destination nodes.
         """
         self.routes:list[ConnectorRoute] = []
+
+    #---------------------------------------------------------------------------
+
+    def __build_item_network_components(self) -> dict[tuple[str, str], str]:
+        """
+        Build a connected-component key for every route edge, per supplied item.
+
+        Connections that move the same item and are graph-connected via shared
+        source/consumer nodes are placed into one network key.
+        """
+        item_edges:dict[str, list[tuple[str, str]]] = {}
+        for source_id, consumer_id in self.edges:
+            supplied_item = self.node_output_items[source_id]
+            item_edges.setdefault(supplied_item, []).append((source_id, consumer_id))
+
+        edge_network_key:dict[tuple[str, str], str] = {}
+
+        for item, edges in item_edges.items():
+            adjacency:dict[str, set[str]] = {}
+            for source_id, consumer_id in edges:
+                adjacency.setdefault(source_id, set()).add(consumer_id)
+                adjacency.setdefault(consumer_id, set()).add(source_id)
+
+            component_idx = 0
+            node_component:dict[str, int] = {}
+            visited:set[str] = set()
+            for node_id in adjacency.keys():
+                if node_id in visited:
+                    continue
+                stack = [node_id]
+                while len(stack) > 0:
+                    current = stack.pop()
+                    if current in visited:
+                        continue
+                    visited.add(current)
+                    node_component[current] = component_idx
+                    for neighbor in adjacency[current]:
+                        if neighbor not in visited:
+                            stack.append(neighbor)
+                component_idx += 1
+
+            for source_id, consumer_id in edges:
+                comp_idx = node_component[source_id]
+                edge_network_key[(source_id, consumer_id)] = f"{item}::cc{comp_idx}"
+
+        return edge_network_key
 
     #---------------------------------------------------------------------------
 
@@ -790,10 +839,12 @@ class RoutingOccupancyGrid:
             return ("south", "north")
 
         routes:list[ConnectorRoute] = []
+        edge_network_key = self.__build_item_network_components()
         for source_id, consumer_id in self.edges:
             source_side, consumer_side = choose_sides(source_id, consumer_id)
             supplied_item = self.node_output_items[source_id]
             group_key = f"{source_id}::{supplied_item}"
+            network_key = edge_network_key[(source_id, consumer_id)]
             #group_key = f"{consumer_id}::{supplied_item}"
             #group_key = f"{supplied_item}"
             #group_key = f"{self.node_boxes[source_id].col}::{supplied_item}"
@@ -802,6 +853,7 @@ class RoutingOccupancyGrid:
                 consumer_id=consumer_id,
                 supplied_item=supplied_item,
                 group_key=group_key,
+                network_key=network_key,
                 source_side=source_side,
                 consumer_side=consumer_side,
                 start_candidates=self.node_anchors[source_id].get_side(source_side),
@@ -939,7 +991,9 @@ class RoutingOccupancyGrid:
 
     Possibility 2 should be soved by the grouping and trunk parts of the algorithm but there
     are cases where the trunk point is too close to the source so ends up in multiple parallel
-    lines that should have been a single trunk.
+    lines that should have been a single trunk. I got the AI to modify the code to add a network
+    consideration so the issues in following examples are greatly improved but not completely
+    eliminated. The improvements have reduced the number of parallel lines.
         ┌────────┐
         │Consumer│
         │Node    │◄─────┐
@@ -996,7 +1050,29 @@ class RoutingOccupancyGrid:
     Possibility 3 seems to be solved by locking in the destination point and then
     reducing the cost of overlap for all lines converging on that point.
 
-    Possibility 4 is unsolved.
+    Possibility 4 has a solution now. The network consideration added by the AI provides a decent
+    solution.
+    
+    The implementation did introduce a new issue by including routes into a single network that
+    should be in separate networks. In the following example, all routes are conveying the same
+    item type however routes 1 and 2 are shown in the visualization with the same color and thus it
+    looks like the source node is supplying both consumer nodes (b) and (c) when it is only
+    supplying (b) and (d). Node (c) is being supplied only from (b) so should be in a different
+    network and represented by a different color.
+
+        ┌────────┐   ┌────────┐                          
+        │Consumer│   │Consumer│                          
+        │Node (d)│◄┐ │Node (c)│◄┐                        
+        └────────┘ │ └────────┘ 2               ┌───────┐
+                   1            2               │Source │
+                   └────────111─2─111─────────┬─┤Node   │
+                                2             1 └───────┘
+                                2             │          
+                                2             │          
+                                2 ┌────────┐  │          
+                                │ │Consumer│  │          
+                                └─┤Node (b)│◄─┘          
+                                  └────────┘             
     """
 
     #---------------------------------------------------------------------------
@@ -1005,6 +1081,7 @@ class RoutingOccupancyGrid:
             self,
             overlap_penalty:int = 6,
             same_group_discount:float = 0.98,
+            same_network_discount:float = 0.90,
             trunk_fraction:float = 0.70,
             turn_penalty:float = 2.0,
             converge_overlap_discount:float = 1.0) -> RoutedConnections:
@@ -1028,8 +1105,10 @@ class RoutingOccupancyGrid:
         routes = self.routes
         channel_usage:dict[tuple[int, int], int] = {}
         channel_group_usage:dict[tuple[int, int], dict[str, int]] = {}
+        channel_network_usage:dict[tuple[int, int], dict[str, int]] = {}
         channel_consumer_item_usage:dict[tuple[int, int], dict[str, int]] = {}
         group_trunk_starts:dict[str, list[tuple[int, int]]] = {}
+        network_trunk_waypoints:dict[str, list[tuple[int, int]]] = {}
         # consumer_item_goal_anchor[(consumer_id, item)] = goal anchor (x,y)
         # Is used to lock an item to a specific anchor on the node.
         # Also used to ensure that an input endpoint will only take one item type.
@@ -1042,9 +1121,11 @@ class RoutingOccupancyGrid:
                 goal_candidates:list[tuple[int, int]],
                 usage_counts:dict[tuple[int, int], int]|None = None,
                 group_usage:dict[tuple[int, int], dict[str, int]]|None = None,
-            route_group_key:str|None = None,
-            consumer_item_usage:dict[tuple[int, int], dict[str, int]]|None = None,
-            route_consumer_item_key:str|None = None) -> list[tuple[int, int]]|None:
+                route_group_key:str|None = None,
+                network_usage:dict[tuple[int, int], dict[str, int]]|None = None,
+                route_network_key:str|None = None,
+                consumer_item_usage:dict[tuple[int, int], dict[str, int]]|None = None,
+                route_consumer_item_key:str|None = None) -> list[tuple[int, int]]|None:
                 # Multi-start / multi-goal A*:
                 # - Any walkable start candidate can seed the search.
                 # - Any walkable goal candidate can terminate it.
@@ -1054,6 +1135,7 @@ class RoutingOccupancyGrid:
 
             usage = usage_counts or {}
             per_group_usage = group_usage or {}
+            per_network_usage = network_usage or {}
             per_consumer_item_usage = consumer_item_usage or {}
             height = len(occgrid)
             width = len(occgrid[0])
@@ -1141,17 +1223,33 @@ class RoutingOccupancyGrid:
                     same_group_usage = 0
                     if route_group_key is not None:
                         same_group_usage = per_group_usage.get(neighbor, {}).get(route_group_key, 0)
+                    same_network_usage = 0
+                    if route_network_key is not None:
+                        same_network_usage = per_network_usage.get(neighbor, {}).get(route_network_key, 0)
                     same_consumer_item_usage = 0
                     if route_consumer_item_key is not None:
                         same_consumer_item_usage = per_consumer_item_usage.get(neighbor, {}).get(route_consumer_item_key, 0)
                     same_consumer_item_usage = max(0, same_consumer_item_usage - same_group_usage)
-                    other_group_usage = max(0, total_neighbor_usage - same_group_usage - same_consumer_item_usage)
+                    same_network_usage = max(0, same_network_usage - same_group_usage - same_consumer_item_usage)
+                    other_group_usage = max(
+                        0,
+                        total_neighbor_usage
+                        - same_group_usage
+                        - same_consumer_item_usage
+                        - same_network_usage,
+                    )
 
                     # Overlap from different groups is expensive.
                     # Overlap in the same group can be discounted to encourage trunk sharing.
                     same_group_cost = same_group_usage * overlap_penalty * (1.0 - same_group_discount)
+                    same_network_cost = same_network_usage * overlap_penalty * (1.0 - same_network_discount)
                     same_consumer_item_cost = same_consumer_item_usage * overlap_penalty * (1.0 - converge_overlap_discount)
-                    overlap_cost = (other_group_usage * overlap_penalty) + same_group_cost + same_consumer_item_cost
+                    overlap_cost = (
+                        (other_group_usage * overlap_penalty)
+                        + same_group_cost
+                        + same_network_cost
+                        + same_consumer_item_cost
+                    )
 
                     ndx = nx - cx
                     ndy = ny - cy
@@ -1187,34 +1285,34 @@ class RoutingOccupancyGrid:
 
             return None
 
+        def route_priority(route:ConnectorRoute) -> int:
+            # Approximate route length using midpoint-to-midpoint Manhattan distance.
+            # Longer paths routed first usually reduce dead-ends for later routes.
+            start = route.start_candidates[len(route.start_candidates) // 2]
+            goal = route.goal_candidates[len(route.goal_candidates) // 2]
+            return abs(start[0] - goal[0]) + abs(start[1] - goal[1])
+
+        network_routes:dict[str, list[ConnectorRoute]] = {}
         for route in routes:
             group_key = route.group_key
             route_groups.setdefault(group_key, []).append(route)
-
-        # Deterministic style assignment per group.
-        sorted_group_keys = sorted(route_groups.keys())
-        group_style_map = {
-            group_key: (idx % 8)
-            for idx, group_key in enumerate(sorted_group_keys)
-        }
+            network_routes.setdefault(route.network_key, []).append(route)
 
         ordered_routes:list[ConnectorRoute] = []
-        for group_key in sorted_group_keys:
-            grouped = route_groups[group_key]
-
-            def route_priority(route:ConnectorRoute) -> int:
-                # Approximate route length using midpoint-to-midpoint Manhattan distance.
-                # Longer paths routed first usually reduce dead-ends for later routes.
-                start = route.start_candidates[len(route.start_candidates) // 2]
-                goal = route.goal_candidates[len(route.goal_candidates) // 2]
-                return abs(start[0] - goal[0]) + abs(start[1] - goal[1])
-
+        network_order = sorted(
+            network_routes.keys(),
+            key=lambda network_key: max(route_priority(r) for r in network_routes[network_key]),
+            reverse=True,
+        )
+        for network_key in network_order:
+            grouped = network_routes[network_key]
             grouped.sort(key=route_priority, reverse=True)
             ordered_routes.extend(grouped)
 
         for route in ordered_routes:
             group_key = route.group_key
             has_group_trunk = group_key in group_trunk_starts
+            network_key = route.network_key
             consumer_item_key = (route.consumer_id, route.supplied_item)
             consumer_item_key_str = f"{route.consumer_id}::{route.supplied_item}"
             locked_goal_anchor = consumer_item_goal_anchor.get(consumer_item_key)
@@ -1242,16 +1340,53 @@ class RoutingOccupancyGrid:
             # - Later routes in the same group first try to start from the existing
             #   trunk cells (prefix of an earlier successful path) to promote bundling.
             selected_starts = group_trunk_starts[group_key] if has_group_trunk else route.start_candidates
+            has_network_trunk = network_key in network_trunk_waypoints
 
-            path = a_star_find_path(
-                selected_starts,
-                selected_goals,
-                channel_usage,
-                channel_group_usage,
-                group_key,
-                channel_consumer_item_usage,
-                consumer_item_key_str,
-            )
+            path = None
+
+            # Primary strategy for many-to-many on the same item network:
+            # force the path to traverse an existing network trunk waypoint so that
+            # disparate source groups converge/branch through a shared backbone.
+            if has_network_trunk:
+                trunk_waypoints = network_trunk_waypoints[network_key]
+                leg1 = a_star_find_path(
+                    selected_starts,
+                    trunk_waypoints,
+                    channel_usage,
+                    channel_group_usage,
+                    group_key,
+                    channel_network_usage,
+                    network_key,
+                    channel_consumer_item_usage,
+                    consumer_item_key_str,
+                )
+                if leg1 is not None:
+                    leg2 = a_star_find_path(
+                        [leg1[-1]],
+                        selected_goals,
+                        channel_usage,
+                        channel_group_usage,
+                        group_key,
+                        channel_network_usage,
+                        network_key,
+                        channel_consumer_item_usage,
+                        consumer_item_key_str,
+                    )
+                    if leg2 is not None:
+                        path = leg1 + leg2[1:]
+
+            if path is None:
+                path = a_star_find_path(
+                    selected_starts,
+                    selected_goals,
+                    channel_usage,
+                    channel_group_usage,
+                    group_key,
+                    channel_network_usage,
+                    network_key,
+                    channel_consumer_item_usage,
+                    consumer_item_key_str,
+                )
 
             # Fallback: if trunk-based search fails, retry from raw source anchors.
             if path is None and has_group_trunk:
@@ -1261,6 +1396,8 @@ class RoutingOccupancyGrid:
                     channel_usage,
                     channel_group_usage,
                     group_key,
+                    channel_network_usage,
+                    network_key,
                     channel_consumer_item_usage,
                     consumer_item_key_str,
                 )
@@ -1272,6 +1409,15 @@ class RoutingOccupancyGrid:
                     trunk_len = max(2, math.floor(len(path) * trunk_fraction))
                     group_trunk_starts[group_key] = list(dict.fromkeys(path[:trunk_len]))
 
+                # The network trunk uses middle sections of routed paths in this network,
+                # avoiding consumer/source endpoint cells.
+                path_mid_start = max(1, math.floor(len(path) * 0.20))
+                path_mid_end = min(len(path) - 1, math.ceil(len(path) * 0.80))
+                if path_mid_start < path_mid_end:
+                    existing_waypoints = network_trunk_waypoints.get(network_key, [])
+                    merged_waypoints = list(dict.fromkeys(existing_waypoints + path[path_mid_start:path_mid_end]))
+                    network_trunk_waypoints[network_key] = merged_waypoints
+
                 if locked_goal_anchor is None:
                     consumer_item_goal_anchor[consumer_item_key] = path[-1]
 
@@ -1282,6 +1428,8 @@ class RoutingOccupancyGrid:
                         channel_usage[cell] = channel_usage.get(cell, 0) + 1
                         group_counts = channel_group_usage.setdefault(cell, {})
                         group_counts[group_key] = group_counts.get(group_key, 0) + 1
+                        network_counts = channel_network_usage.setdefault(cell, {})
+                        network_counts[network_key] = network_counts.get(network_key, 0) + 1
                         consumer_item_counts = channel_consumer_item_usage.setdefault(cell, {})
                         consumer_item_counts[consumer_item_key_str] = consumer_item_counts.get(consumer_item_key_str, 0) + 1
 
@@ -1290,19 +1438,74 @@ class RoutingOccupancyGrid:
                 consumer_id=route.consumer_id,
                 supplied_item=route.supplied_item,
                 group_key=group_key,
-                style_idx=group_style_map[group_key],
+                network_key=network_key,
+                style_idx=0,
                 path=path,
                 path_found=path is not None,
                 path_length=0 if path is None else len(path)
             ))
 
+        network_item_map:dict[str, str] = {}
+        for route in routes:
+            network_item_map[route.network_key] = route.supplied_item
+
+        initial_network_style_map = {
+            network_key: (idx % 8)
+            for idx, network_key in enumerate(sorted(network_item_map.keys()))
+        }
+
+        crossing_graph:dict[str, set[str]] = {}
+        per_cell_networks:dict[tuple[int, int], set[str]] = {}
+        for conn in routed_connections:
+            if conn.path is None or len(conn.path) < 3:
+                continue
+            for cell in conn.path[1:-1]:
+                per_cell_networks.setdefault(cell, set()).add(conn.network_key)
+
+        for network_keys in per_cell_networks.values():
+            if len(network_keys) < 2:
+                continue
+            keys = sorted(network_keys)
+            for i in range(len(keys)):
+                for j in range(i + 1, len(keys)):
+                    left = keys[i]
+                    right = keys[j]
+                    if network_item_map[left] == network_item_map[right]:
+                        continue
+                    crossing_graph.setdefault(left, set()).add(right)
+                    crossing_graph.setdefault(right, set()).add(left)
+
+        network_style_map:dict[str, int] = {}
+        all_network_keys = sorted(network_item_map.keys())
+        color_order = sorted(
+            all_network_keys,
+            key=lambda network_key: len(crossing_graph.get(network_key, set())),
+            reverse=True,
+        )
+
+        for network_key in color_order:
+            used = {
+                network_style_map[neighbor]
+                for neighbor in crossing_graph.get(network_key, set())
+                if neighbor in network_style_map
+            }
+            available = [idx for idx in range(8) if idx not in used]
+            if len(available) > 0:
+                network_style_map[network_key] = available[0]
+            else:
+                network_style_map[network_key] = initial_network_style_map[network_key]
+
+        for conn in routed_connections:
+            conn.style_idx = network_style_map[conn.network_key]
+
         return RoutedConnections(
             connections=routed_connections,
             channel_usage=channel_usage,
             channel_group_usage=channel_group_usage,
-            group_style_map=group_style_map,
+            group_style_map=network_style_map,
             overlap_penalty=overlap_penalty,
             same_group_discount=same_group_discount,
+            same_network_discount=same_network_discount,
             trunk_fraction=trunk_fraction,
             num_failed=len([c for c in routed_connections if c.path is None]),
             num_succeeded=len([c for c in routed_connections if c.path is not None]),
@@ -2084,10 +2287,11 @@ def visualize_factory_on_a_grid(
     # If you want clearer separation, lower same_group_discount first (for example 0.9)
     # before raising overlap_penalty a lot.
 
-    overlap_penalty = 3
+    overlap_penalty = 8
     same_group_discount = 1
-    trunk_fraction = 0.8
-    turn_penalty = 3.0
+    same_network_discount = 1.0
+    trunk_fraction = 0.85
+    turn_penalty = 4.0
     converge_overlap_discount = 1.0
 
     rog = RoutingOccupancyGrid(12, 10, 2, dispatcher_item_map)
@@ -2096,6 +2300,7 @@ def visualize_factory_on_a_grid(
     result = rog.route_connections_a_star(
         overlap_penalty,
         same_group_discount,
+        same_network_discount,
         trunk_fraction,
         turn_penalty,
         converge_overlap_discount,
@@ -2107,6 +2312,7 @@ def visualize_factory_on_a_grid(
         "Routing params: "
         f"overlap_penalty={overlap_penalty}, "
         f"same_group_discount={same_group_discount}, "
+        f"same_network_discount={same_network_discount}, "
         f"trunk_fraction={trunk_fraction}, "
         f"turn_penalty={turn_penalty}, "
         f"converge_overlap_discount={converge_overlap_discount}"
