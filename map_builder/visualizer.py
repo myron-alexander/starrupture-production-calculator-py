@@ -848,6 +848,8 @@ class RoutingOccupancyGrid:
     Also, if a line of one item type crosses a line of another item type, the lines must use
     a different style. Having the intersecting lines with different colors makes it easier to
     follow the flow.
+
+    Flow always follows from right to left, no routing should allow a line to be drawn going right.
     
     The connection possibilites for one item type, with ideal examples, are:
 
