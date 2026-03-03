@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import fcntl
+import copy
 from contextlib import contextmanager
 from threading import RLock
 from datetime import datetime
@@ -115,17 +116,27 @@ MAP_IMAGE = 'starrupture_map_outline.png'
 FILLED_MAP_IMAGE = 'starrupture_map_filled.png'
 PINS_WRITE_LOCK = RLock()
 PINS_LOCK_FILE = f'{PINS_FILE}.lock'
+PINS_CACHE = None
 
 def get_map_image_filename() -> str:
     return FILLED_MAP_IMAGE if os.path.exists(FILLED_MAP_IMAGE) else MAP_IMAGE
 
 # Initialize pins storage
-def load_pins():
+def _load_pins_from_file():
     """Load pins from JSON file."""
     if os.path.exists(PINS_FILE):
-        with open(PINS_FILE, 'r') as f:
+        with open(PINS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {}
+
+def load_pins():
+    """Load pins from synchronized in-memory cache."""
+    global PINS_CACHE
+
+    with PINS_WRITE_LOCK:
+        if PINS_CACHE is None:
+            PINS_CACHE = _load_pins_from_file()
+        return copy.deepcopy(PINS_CACHE)
 
 @contextmanager
 def pins_transaction_lock():
@@ -138,14 +149,17 @@ def pins_transaction_lock():
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 def save_pins(pins):
-    """Save pins to JSON file with synchronous, durable writes."""
+    """Write-through save: update cache, then persist synchronously and durably."""
+    global PINS_CACHE
     pins_dir = os.path.dirname(os.path.abspath(PINS_FILE)) or '.'
 
     with PINS_WRITE_LOCK:
+        PINS_CACHE = copy.deepcopy(pins)
+
         fd, temp_path = tempfile.mkstemp(prefix='pins_', suffix='.tmp', dir=pins_dir, text=True)
         try:
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
-                json.dump(pins, f, indent=2)
+                json.dump(PINS_CACHE, f, indent=2)
                 f.flush()
                 os.fsync(f.fileno())
 
@@ -254,6 +268,8 @@ def add_pin():
 
     return jsonify(pin_data), 201
 
+#---------------------------------------------------------------------------------------------------
+
 @app.route('/api/pins/<pin_id>', methods=['PUT'])
 def update_pin(pin_id):
     """Update a pin (site)."""
@@ -261,10 +277,8 @@ def update_pin(pin_id):
     with pins_transaction_lock():
         pins = load_pins()
 
-
-    #print("data:")
-    #print(data)
-
+        #print("data:")
+        #print(data)
 
         if pin_id in pins:
             old_id = pin_id
@@ -367,6 +381,8 @@ def update_pin(pin_id):
                 del pins[pin_id]['name']
 
             pins[pin_id]['id'] = new_id
+
+            #print(pins)
 
             save_pins(pins)
 

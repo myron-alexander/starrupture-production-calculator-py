@@ -241,7 +241,10 @@ function attachEventListeners() {
         e.preventDefault();
         handleSaveFactory();
     });
-    deleteFactoryBtn.addEventListener('click', handleDeleteFactory);
+    deleteFactoryBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        handleDeleteFactory();
+    });
 
     // Receiver Modal controls
     document.querySelectorAll('[data-modal="receiverModal"]').forEach(el => {
