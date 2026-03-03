@@ -280,6 +280,11 @@ def update_pin(pin_id):
             old_factories = pins[pin_id].get('factories', {})
             new_factories = data['factories']
 
+            # MA: Renaming a dispatcher will be picked up as a deletion so all the receivers
+            #     will be deleted. I think a new route needs to be added to the API to allow
+            #     for updating the dispatcher independant of other factors. This will allow
+            #     a rename to update references instead of deleting them.
+
             # Find all dispatchers that were deleted in this site
             deleted_dispatchers = []  # List of (site_id, factory_id, dispatcher_id)
             for factory_id in old_factories:
@@ -331,6 +336,8 @@ def update_pin(pin_id):
 
     return jsonify({'error': 'Pin not found'}), 404
 
+#---------------------------------------------------------------------------------------------------
+
 @app.route('/api/pins/<pin_id>', methods=['DELETE'])
 def delete_pin(pin_id):
     """Delete a pin."""
@@ -343,7 +350,23 @@ def delete_pin(pin_id):
 
     return jsonify({'error': 'Pin not found'}), 404
 
+#---------------------------------------------------------------------------------------------------
 
+@app.route('/api/pins/<pin_id>/<factory_id>/dispatchers/<dispatcher_id>', methods=['POST'])
+def update_dispatcher(pin_id, factory_id, dispatcher_id):
+    """
+    Update dispatcher separate from other elements so that renaming a dispatcher will allow
+    for updating receivers that reference the dispatcher instead of deleting them as what
+    would happen in update_pin.
+    """
+    data = request.json
+    pins = load_pins()
+
+    # TODO: Add implementation.
+
+    # TODO: Change this to correct return.
+    #       Only here to stop the editor marking the function as in error.
+    return jsonify({'message': 'Done'}), 200
 
 #---------------------------------------------------------------------------------------------------
 
