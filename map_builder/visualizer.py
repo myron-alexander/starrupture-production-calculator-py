@@ -599,7 +599,7 @@ class RoutingOccupancyGrid:
 
     #---------------------------------------------------------------------------
 
-    def __populate_anchor_occupancy(self):
+    def __populate_anchor_occupancy(self) -> None:
         """
         Anchor positions in the occupancy grid must be marked for the routing algorithm. The
         marked anchor positions will be allowed as walkable for connectors start/end points
@@ -683,6 +683,11 @@ class RoutingOccupancyGrid:
                 #
                 # Mark the blocks occupied by the node and padding in the occupancy grid.
                 #
+                # The routing algorithm cost model often prefers to choose a direction from the
+                # top and bottom anchor that is vertical rather than starting off horizontal.
+                # To prevent this, mark the cells above and below the anchor points along the
+                # side of the node, as occupied.
+                #
 
                 start_x = None
                 start_y = None
@@ -697,19 +702,23 @@ class RoutingOccupancyGrid:
                     start_x = 0
                     pad_x = 0
 
+                # Also occupy the anchor column. The method __populate_anchor_occupancy will later
+                # free up the anchor points. Only occupying the west and east sides of the node
+                # as the current routing mechanism chooses those sides for anchor points.
+                anchor_point_offset = 1
                 if start_x is None:
                     if 0 == col_idx:
-                        # Occupy padding on the right side when first column.
+                        # Occupy padding and anchors on the right side when first column. 
                         start_x = 0
-                        pad_x = self.channel_padding_cells
+                        pad_x = self.channel_padding_cells + anchor_point_offset
                     elif 0 < col_idx < last_column:
-                        # Occupy padding on the left and right side.
-                        start_x = self.channel_padding_cells
-                        pad_x = self.channel_padding_cells*2
+                        # Occupy padding and anchors on the left and right side.
+                        start_x = self.channel_padding_cells + anchor_point_offset
+                        pad_x = (self.channel_padding_cells + anchor_point_offset)*2
                     else:
-                        # Occupy padding on the left side when last column.
-                        start_x = self.channel_padding_cells
-                        pad_x = self.channel_padding_cells
+                        # Occupy padding and anchors on the left side when last column.
+                        start_x = self.channel_padding_cells + anchor_point_offset
+                        pad_x = self.channel_padding_cells + anchor_point_offset
 
                 if start_y is None:
                     if 0 == row_idx:
@@ -728,7 +737,7 @@ class RoutingOccupancyGrid:
                 last_x = -1
                 last_y = -1
                 try:
-                    # Mark the node and padding cells as occupied.
+                    # Mark the node, padding and anchor cells as occupied.
                     for y in range(y0 - start_y, y0 + self.node_size_cells + pad_y - start_y ):
                         last_y = y
                         for x in range(x0 - start_x, x0 + self.node_size_cells + pad_x - start_x):
@@ -2327,6 +2336,13 @@ def visualize_factory_on_a_grid(
         print("\n".join(f"  {f}" for f in failed))
 
     #
+    # DEBUG: Print out occupancy grid for debugging
+    #
+
+    #rog.debug_print_occgrid(result.connections)
+    
+
+    #
     # Generate visualization of the factory node display grid and connector lines as a SVG image.
     #
 
@@ -2408,7 +2424,7 @@ def main():
     with open(f"{os.path.dirname(__file__)}/pins_data.json") as f:
         data = json.load(f)
 
-    viz = visualize_factory_on_a_grid(data, "site-1", "inductor")
+    viz = visualize_factory_on_a_grid(data, "starter", "inductor")
 
     __write_html(viz[2], viz[3])
 
