@@ -1082,6 +1082,10 @@ class RoutingOccupancyGrid:
                                 │ │Consumer│  │          
                                 └─┤Node (b)│◄─┘          
                                   └────────┘             
+    
+    TODO: Solve the addition of unrelated routes to the network.
+    Most of the visual issues look solved "good enough", only the unrelated routes drawn as one
+    network remain.
     """
 
     #---------------------------------------------------------------------------
