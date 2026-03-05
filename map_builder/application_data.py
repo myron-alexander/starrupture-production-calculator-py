@@ -77,8 +77,8 @@ class GameData:
                 if b.building_name not in production_buildings
         ]
 
-        self.item_recipes:dict[str,list[tuple[str, int]]] = {
-            ri.item_name: [(r.input_name, r.num_required)
+        self.item_recipes:dict[str,list[tuple[str, int, int]]] = {
+            ri.item_name: [(r.input_name, r.num_required, r.required_per_minute)
                                 for r in self.item_input_definitions
                                     if r.item_name == ri.item_name
                           ]
@@ -87,7 +87,7 @@ class GameData:
         """
         Crafting recipe for every craftable item. The key is the craftable item name and the
         value is a list of input items needed to craft the items, as well as the number required to
-        craft. The value tuple is (input item name, amount required).
+        craft. The value tuple is (input item name, amount required, amount required per minute).
         """
 
     #---------------------------------------------------------------------------
