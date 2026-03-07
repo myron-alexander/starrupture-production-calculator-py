@@ -248,6 +248,13 @@ class MapNode(ABC):
 
     #---------------------------------------------------------------------------
 
+    @property
+    @abstractmethod
+    def supply_rate_ipm(self) -> int:
+        pass
+
+    #---------------------------------------------------------------------------
+
     @abstractmethod
     def request_supplies(self, requestor:"MapNode", request_ipm:int) -> int:
         """
@@ -343,7 +350,7 @@ class MapProducerNode(MapNode):
         """
         Suppliers of items into this node.
         """
-        self._supply_rate_ipm = 0
+        self._supply_rate_ipm:int = 0
         """
         Same as sum([r.request_ipm for r in self._approved_pull_requests])
         """
@@ -359,6 +366,12 @@ class MapProducerNode(MapNode):
     @baseline_production_rate_ipm.setter
     def baseline_production_rate_ipm(self, value:int) -> None:
         self._baseline_production_rate_ipm = value
+
+    #---------------------------------------------------------------------------
+
+    @property
+    def supply_rate_ipm(self) -> int:
+        return self._supply_rate_ipm
 
     #---------------------------------------------------------------------------
 
@@ -410,6 +423,8 @@ class MapProducerNode(MapNode):
         # full approval.
         #
 
+        assert True if 0 < request_ipm else other_requests_ipm == required_ipm
+
         available_inputs = []
         for recipe_item, suppliers in self._suppliers.items():
             supply_request_ipm, supply_approved_ipm \
@@ -424,6 +439,8 @@ class MapProducerNode(MapNode):
         if 0 == request_ipm:
             if existing_request is not None:
                 del self._approved_pull_requests[idx]
+            self._supply_rate_ipm = other_requests_ipm
+            assert other_requests_ipm == required_ipm
             return 0
 
         #
@@ -443,7 +460,7 @@ class MapProducerNode(MapNode):
 
         #
         # When there is insufficient supply for one or more of the inputs, then reduce the request
-        # to the lowest supply available by using the ratio of wanted to available.
+        # to the lowest supply available by using the ratio of wanted:available.
         #
 
         all_supplies_available = all(r[1] <= r[2] for r in available_inputs)
@@ -464,7 +481,7 @@ class MapProducerNode(MapNode):
             existing_request.request_ipm = approved_request_ipm
         else:
             self._approved_pull_requests.append(NodePullRequest(requestor, approved_request_ipm))
-        
+
         return approved_request_ipm
 
 #---------------------------------------------------------------------------------------------------
@@ -501,10 +518,9 @@ class MapResourceNode(MapNode):
         The list of requestors that are consuming the item produced, and the amounts they are
         approved to consume.
         """
-        self._remaining_production_capacity_ipm:int = 0
+        self._supply_rate_ipm:int = 0
         """
-        The remaining capacity once the total request ipm is subtracted from the
-        baseline_production_rate_ipm.
+        Same as sum([r.request_ipm for r in self._approved_pull_requests])
         """
 
     #---------------------------------------------------------------------------
@@ -524,6 +540,12 @@ class MapResourceNode(MapNode):
     @property
     def is_boundary(self) -> bool:
         return False
+
+    #---------------------------------------------------------------------------
+
+    @property
+    def supply_rate_ipm(self) -> int:
+        return self._supply_rate_ipm
 
     #---------------------------------------------------------------------------
 
@@ -550,7 +572,7 @@ class MapResourceNode(MapNode):
             if existing_request is not None:
                 del self._approved_pull_requests[idx]
         else:
-            capacity = self._remaining_production_capacity_ipm - request_ipm
+            capacity = self._baseline_production_rate_ipm - self._supply_rate_ipm - request_ipm
             if existing_request is not None:
                 capacity += existing_request.request_ipm
 
@@ -577,10 +599,7 @@ class MapResourceNode(MapNode):
                     "Error in request approval amount calculation. Approved request is negative"
                     f" thus invalid. Result ({approved_request_ipm}).")
 
-
-        total_requests_ipm = sum([r.request_ipm for r in self._approved_pull_requests])
-        self._remaining_production_capacity_ipm \
-            = self._baseline_production_rate_ipm - total_requests_ipm
+        self._supply_rate_ipm = sum([r.request_ipm for r in self._approved_pull_requests])
 
         return approved_request_ipm
 
@@ -636,7 +655,7 @@ class MapStorageNode(MapNode):
         The list of requestors that are consuming the item, and the amounts they are
         approved to consume.
         """
-        self._supply_rate_ipm = 0
+        self._supply_rate_ipm:int = 0
         """
         Same as sum([r.request_ipm for r in self._approved_pull_requests])
         """
@@ -646,6 +665,12 @@ class MapStorageNode(MapNode):
     @property
     def is_boundary(self) -> bool:
         return False
+
+    #---------------------------------------------------------------------------
+
+    @property
+    def supply_rate_ipm(self) -> int:
+        return self._supply_rate_ipm
 
     #---------------------------------------------------------------------------
 
@@ -676,6 +701,8 @@ class MapStorageNode(MapNode):
             other_requests_ipm -= existing_request.request_ipm
 
         required_ipm = other_requests_ipm + request_ipm
+
+        assert True if 0 < request_ipm else other_requests_ipm == required_ipm
 
         self._supply_rate_ipm = self._suppliers.request_supplies(required_ipm)
 
@@ -733,6 +760,11 @@ class MapDispatcherNode(MapNode):
         Suppliers of items into this node.
         """
 
+        self._supply_rate_ipm:int = 0
+        """
+        Same as sum([r.request_ipm for r in self._approved_pull_requests])
+        """
+
     #---------------------------------------------------------------------------
 
     @property
@@ -767,7 +799,12 @@ class MapDispatcherNode(MapNode):
 
     #---------------------------------------------------------------------------
 
-    @abstractmethod
+    @property
+    def supply_rate_ipm(self) -> int:
+        return self._supply_rate_ipm
+
+    #---------------------------------------------------------------------------
+
     def add_supplier(self, supplier:MapNode) -> None:
         """
         Add the provider of item to this node as an item supplier.
@@ -820,6 +857,17 @@ class MapReceiverNode(MapNode):
 
         self._supplier:MapNode|None = None
 
+
+        self._approved_pull_requests:list[NodePullRequest] = []
+        """
+        The list of requestors that are consuming the item produced, and the amounts they are
+        approved to consume.
+        """
+        self._supply_rate_ipm:int = 0
+        """
+        Same as sum([r.request_ipm for r in self._approved_pull_requests])
+        """
+
     #---------------------------------------------------------------------------
 
     @property
@@ -840,7 +888,12 @@ class MapReceiverNode(MapNode):
 
     #---------------------------------------------------------------------------
 
-    @abstractmethod
+    @property
+    def supply_rate_ipm(self) -> int:
+        return self._supply_rate_ipm
+
+    #---------------------------------------------------------------------------
+
     def add_supplier(self, supplier:MapNode) -> None:
         """
         Add the provider of item to this node as an item supplier.
@@ -853,13 +906,29 @@ class MapReceiverNode(MapNode):
 
     #---------------------------------------------------------------------------
 
-    @abstractmethod
     def request_supplies(self, requestor:MapNode, request_ipm:int) -> int:
         """
         For now, until I implement the factory calculator, the receiver will just approve the
         request without checking with the supplier.
         """
         # TODO: Implement.
+
+        idx, existing_request = next(
+            (r for r in enumerate(self._approved_pull_requests) if r[1].request_node == requestor)
+            , (-1, None)
+        )
+
+        if 0 == request_ipm:
+            if existing_request is not None:
+                del self._approved_pull_requests[idx]
+        else:
+            if existing_request is not None:
+                existing_request.request_ipm = request_ipm
+            else:
+                self._approved_pull_requests.append(NodePullRequest(requestor, request_ipm))
+
+        self._supply_rate_ipm = sum([r.request_ipm for r in self._approved_pull_requests])
+
         return request_ipm
 
     #---------------------------------------------------------------------------
