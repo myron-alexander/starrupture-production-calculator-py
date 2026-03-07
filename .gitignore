@@ -15,3 +15,6 @@ map_builder/starrupture_map_filled.png
 
 # Visual Studio Code files
 .vscode/
+
+# Copied files
+*?([0-9])*
