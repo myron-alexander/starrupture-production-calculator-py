@@ -248,6 +248,18 @@ class MapNode(ABC):
 
     #---------------------------------------------------------------------------
 
+    @abstractmethod
+    def get_suppliers(self) -> tuple["MapNode", ...]:
+        """
+        Get this node's suppliers of items. This is intended to be used for traversing the
+        tree and is not intended to be used for request calculation as the suppliers may be
+        wrapped in a MapNodeSuppliers or MapNodeRecipeSuppliers which should be used for request
+        calculation instead.
+        """
+        pass
+
+    #---------------------------------------------------------------------------
+
     @property
     @abstractmethod
     def supply_rate_ipm(self) -> int:
@@ -316,7 +328,7 @@ class MapNode(ABC):
             f"   key     : {self.key}\n"\
             f"   supplies: {self.supplies}\n"\
             f"   terminal: {self._terminal}\n"\
-            f"   inputs  : {[n.key for n in self.inputs]}\n"\
+            f"   inputs  : {[n.key for n in self.get_suppliers()]}\n"\
              "]\n"
 
     #---------------------------------------------------------------------------
@@ -383,13 +395,29 @@ class MapProducerNode(MapNode):
 
     #---------------------------------------------------------------------------
 
-    def set_recipe(self, recipe:tuple[tuple[str, int], ...]) -> None:
+    def get_suppliers(self) -> tuple[MapNode, ...]:
+        suppliers = []
+        for s in self._suppliers.values():
+            suppliers.extend(s.input_nodes)
+        return tuple(suppliers)
+
+    #---------------------------------------------------------------------------
+
+    def set_recipe(self, recipe:tuple[tuple[str, int, int], ...]) -> None:
         """
         Set the recipe for this producer node. This will ensure that every input into the recipe
         has an entry in the _suppliers mapping and that the baseline_required_ipm is set for each
         of the recipe items.
+
+        Parameters
+        ----------
+        recipe : tuple[tuple[str, int, int], ...]
+            List of items in the recipe. Each item is specified as:
+              1. The input item name as per game definition
+              2. The amount required by the game definition
+              3. The cacluated required amount per minute
         """
-        for item_name, baseline_required_ipm in recipe:
+        for item_name, _, baseline_required_ipm in recipe:
             self._suppliers \
                 .setdefault(item_name, MapNodeRecipeSuppliers(self, item_name)) \
                     .baseline_required_ipm = baseline_required_ipm
@@ -555,6 +583,11 @@ class MapResourceNode(MapNode):
 
     #---------------------------------------------------------------------------
 
+    def get_suppliers(self) -> tuple[MapNode, ...]:
+        return tuple()
+
+    #---------------------------------------------------------------------------
+
     def request_supplies(self, requestor:MapNode, request_ipm:int) -> int:
 
         if request_ipm < 0:
@@ -669,6 +702,21 @@ class MapStorageNode(MapNode):
     #---------------------------------------------------------------------------
 
     @property
+    def baseline_production_rate_ipm(self) -> int:
+        """
+        Storage doesn't produce items, so it doesn't have a baseline production rate.
+        """
+        return 0
+
+    #---------------------------------------------------------------------------
+
+    @baseline_production_rate_ipm.setter
+    def baseline_production_rate_ipm(self, value:int) -> None:
+        return
+
+    #---------------------------------------------------------------------------
+
+    @property
     def supply_rate_ipm(self) -> int:
         return self._supply_rate_ipm
 
@@ -676,6 +724,11 @@ class MapStorageNode(MapNode):
 
     def add_supplier(self, supplier:MapNode) -> None:
         self._suppliers.add_supplier(supplier)
+
+    #---------------------------------------------------------------------------
+
+    def get_suppliers(self) -> tuple[MapNode, ...]:
+        return self._suppliers.input_nodes
 
     #---------------------------------------------------------------------------
 
@@ -813,6 +866,11 @@ class MapDispatcherNode(MapNode):
 
     #---------------------------------------------------------------------------
 
+    def get_suppliers(self) -> tuple[MapNode, ...]:
+        return self.suppliers.input_nodes
+
+    #---------------------------------------------------------------------------
+
     def request_supplies(self, requestor:MapNode, request_ipm:int) -> int:
         """
         TODO: I'm planning on allowing priority targets for a factory. This means that when a
@@ -906,6 +964,14 @@ class MapReceiverNode(MapNode):
 
     #---------------------------------------------------------------------------
 
+    def get_suppliers(self) -> tuple[MapNode, ...]:
+        if self._supplier is not None:
+            return (self._supplier,)
+        else:
+            return tuple()
+
+    #---------------------------------------------------------------------------
+
     def request_supplies(self, requestor:MapNode, request_ipm:int) -> int:
         """
         For now, until I implement the factory calculator, the receiver will just approve the
@@ -988,7 +1054,7 @@ class MapNetwork:
     def __walk_inputs_get_production_terminals(self, non_productive_node:MapStorageNode|MapDispatcherNode) -> set[MapNode]:
         # Using set as children in the tree may be referenced by multiple parents.
         non_storage = set()
-        for n in non_productive_node.inputs:
+        for n in non_productive_node.get_suppliers():
             if type(n) in (MapStorageNode, MapDispatcherNode):
                 non_storage |= self.__walk_inputs_get_production_terminals(n) # type: ignore
             else:
@@ -1036,238 +1102,31 @@ class MapNetwork:
 
 #---------------------------------------------------------------------------------------------------
 
-class NodeLedgerEntry:
-    """
-    Provides the production crafting rates as well as pull rates. Buffer nodes (storage) are not
-    catered for.
-    """
+def spike_calc_factory_resource_usage(
+        site_id:str,
+        factory_id:str,
+        map_network:MapNetwork) -> None:
 
-    #---------------------------------------------------------------------------
+    factory_nodes = map_network.get_all_factory_nodes(site_id, factory_id)
 
-    def __init__(self) -> None:
-        self.baseline_production_rate_ipm:int = 0
-        """
-        Production rate as per game definition.
-        """
-        self.baseline_pull_rate_ipm:dict[str, int] = {}
-        """
-        Pull rates as per game definition.
-        """
-        self.actual_production_rate_ipm:int = 0
-        """
-        Production rate modified for any limitations or according the the needs of the consumers
-        that this node is supplying. Will always be a number <= than baseline_pull_rate_ipm.
-        """
-        self.actual_pull_rate_ipm:dict[str, int] = {}
-        """
-        Pull rates modified for the actual needs of the production rate. Thus if the
-        actual_production_rate_ipm is less than baseline_production_rate_ipm, then these
-        values will be reduced to scale.
-        """
-        self.required_production_ipm:int = 0
-        """
-        The supply rate required to match consumer demands.
-        """
-        self.production_capacity_ipm:int = 0
-        """
-        The total amount able to be supplied. If consumers attempt to pull more then the
-        actual_production_rate_ipm, capacity_ipm will be negative for the amount over
-        actual_production_rate_ipm.
-        """
+    x = Counter([ii for x in factory_nodes for ii in x.get_suppliers() if type(ii) is MapResourceNode])
+    print(x)
 
-    #---------------------------------------------------------------------------
-
-    def initalize_for_resource(self, baseline_production_rate_ipm:int) -> None:
-        self.baseline_production_rate_ipm = baseline_production_rate_ipm
-        self.capacity_ipm = baseline_production_rate_ipm
-
-    #---------------------------------------------------------------------------
-
-    def initialize_for_crafter(
-            self,
-            baseline_production_rate_ipm:int,
-            baseline_pull_rates:list[tuple[str,int]]|tuple[tuple[str,int]]
-        ) -> None:
-        self.baseline_production_rate_ipm = baseline_production_rate_ipm
-        self.capacity_ipm = baseline_production_rate_ipm
-        self.baseline_pull_rate_ipm = dict(baseline_pull_rates)
-        self.actual_pull_rate_ipm = dict((k, 0) for k in self.baseline_pull_rate_ipm.keys())
-
-    #---------------------------------------------------------------------------
-
-    def initialize_for_dispatcher(
-            self, dispatched_item:str, dispatched_ipm:int, input_ipm:int) -> None:
-        self.baseline_production_rate_ipm = dispatched_ipm
-        self.capacity_ipm = dispatched_ipm
-        self.baseline_pull_rate_ipm[dispatched_item] = input_ipm
-        self.actual_pull_rate_ipm = dict((k, 0) for k in self.baseline_pull_rate_ipm.keys())
-
-    #---------------------------------------------------------------------------
-
-    def initialize_for_receiver(self, dispatched_item:str, dispatched_ipm:int) -> None:
-        self.baseline_production_rate_ipm = dispatched_ipm
-        self.capacity_ipm = dispatched_ipm
-        self.baseline_pull_rate_ipm[dispatched_item] = 0
-        self.actual_pull_rate_ipm = dict((k, 0) for k in self.baseline_pull_rate_ipm.keys())
-
-    #---------------------------------------------------------------------------
-
-    @property
-    def is_raw(self) -> bool:
-        """
-        When the entry is for an extracted resource, will return True.
-        """
-        return 0 == len(self.baseline_pull_rate_ipm)
-
-    #---------------------------------------------------------------------------
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-    #---------------------------------------------------------------------------
-
-    def __repr__(self) -> str:
-        return \
-            "NodeLedgerEntry: [\n"\
-           f"   baseline_production_rate_ipm: {self.baseline_production_rate_ipm}\n"\
-           f"   baseline_pull_rate_ipm      : {self.baseline_pull_rate_ipm.items()}\n"\
-           f"   capacity_ipm                : {self.capacity_ipm}\n"\
-           f"   actual_production_rate_ipm  : {self.actual_production_rate_ipm}\n"\
-           f"   actual_pull_rate_ipm        : {self.actual_pull_rate_ipm.items()}\n"\
-           f"   is_raw                      : {self.is_raw}\n"\
-            "]\n"
+    # Find all the resources being used.
 
 
 #---------------------------------------------------------------------------------------------------
 
-class NodeLedger:
-    """
-    Buffer nodes (storage) are not catered for.
-    """
-    #---------------------------------------------------------------------------
+def build_map_network(map_data:dict[str,Any], game_data:GameData) -> MapNetwork:
 
-    def __init__(self) -> None:
-        self.ledger:dict[str, NodeLedgerEntry] = {}
-        self.factory_production_target_ipm:dict[str, dict[str,int]] = {}
-        """
-        In order to calculate usage rates, it must be possible to set a target production rate
-        for an item of a factory. The key is "site_id;factory_id" and the value is a mapping from
-        item to target rate ipm. When a target production rate is set, the calculation will
-        ignore the remote factory receiver pull rates attached to factory dispatchers of the item.
-        """
+    map_network = MapNetwork()
 
-    #---------------------------------------------------------------------------
-
-    def set_factory_target_rate(
-            self, site_id:str, factory_id:str, item_id:str, target_rate_ipm:int) -> None:
-        """
-        Set the target rate for an item produced in a factory.
-
-        Parameters
-        ---------
-        site_id : str
-            Identifies the site.
-
-        factory_id : str
-            Identifies the factory.
-
-        item_id : str
-            Identifies the item which must be produced at the target rate.
-
-        target_rate_ipm : int
-            The rate, in items per minute, at which the factory must produce the item.
-        """
-        key = f"{site_id};{factory_id}"
-        target_ipms = self.factory_production_target_ipm.setdefault(key, {})
-        target_ipms[item_id] = target_rate_ipm
-
-    #---------------------------------------------------------------------------
-
-    def remove_factory_target_rate(
-            self, site_id:str, factory_id:str, item_id:str|None = None) -> None:
-        """
-        Remove the target rate for an item, or all items, of a factory.
-
-        Parameters
-        ---------
-        site_id : str
-            Identifies the site.
-
-        factory_id : str
-            Identifies the factory.
-
-        item_id : str|None
-            When provided, identifies the item whose target rate is to be removed. If not provided,
-            the entire factory is removed from the factory target rate collection.
-        """
-        key = f"{site_id};{factory_id}"
-        if key in self.factory_production_target_ipm:
-            if item_id is not None:
-                target_ipms = self.factory_production_target_ipm[key]
-                if item_id in target_ipms:
-                    del target_ipms[item_id]
-            else:
-                del self.factory_production_target_ipm[key]
-
-    #---------------------------------------------------------------------------
-
-    def get_factory_target_rates(self, site_id:str, factory_id:str) -> list[tuple[str,int]]:
-        key = f"{site_id};{factory_id}"
-        return list(self.factory_production_target_ipm.get(key, {}).items())
-
-    #---------------------------------------------------------------------------
-
-    @staticmethod
-    def __make_factory_ledger_key(site_id:str, factory_id:str, node_id:str):
-        return make_map_node_key(node_id, site_id, factory_id)
-
-    #---------------------------------------------------------------------------
-
-    @staticmethod
-    def __make_resource_ledger_key(site_id:str, node_id:str):
-        return make_map_node_key(node_id, site_id, None)
-
-    #---------------------------------------------------------------------------
-
-    def add_resource_entry(self, site_id:str, node_id:str, ledger_entry:NodeLedgerEntry) -> None:
-        """
-        Add a resource node ledger entry to the ledger.
-        """
-        key = NodeLedger.__make_resource_ledger_key(site_id, node_id)
-        if key in self.ledger:
-            raise ValueError(f"Ledger entry for node ({site_id}, {node_id}) exists.")
-        self.ledger[key] = ledger_entry
-
-    #---------------------------------------------------------------------------
-
-    def add_factory_entry(self, site_id:str, factory_id:str, node_id:str, ledger_entry:NodeLedgerEntry) -> None:
-        """
-        Add a factory node ledger entry to the ledger.
-        """
-        key = NodeLedger.__make_factory_ledger_key(site_id, factory_id, node_id)
-        if key in self.ledger:
-            raise ValueError(f"Ledger entry for node ({site_id}, {factory_id}, {node_id}) exists.")
-        self.ledger[key] = ledger_entry
-
-    #---------------------------------------------------------------------------
-
-    def get_factory_entry(self, site_id:str, factory_id:str, node_id:str) -> NodeLedgerEntry:
-        key = NodeLedger.__make_factory_ledger_key(site_id, factory_id, node_id)
-        return self.ledger[key]
-
-    #---------------------------------------------------------------------------
-
-
-#---------------------------------------------------------------------------------------------------
-
-def populate_defined_production_rates(
-        map_data:dict[str,Any], game_data:GameData, ledger:NodeLedger) -> None:
-    """
-    Set all the extraction/production rates as per the game definitions. This provides the baseline
-    for calculating input, usage and output rates.
-    """
+    #
+    # Create the nodes in the network.
+    #
 
     for site_id, site_values in map_data.items():
+
         for resource_id, resource_values in site_values.get("resource_nodes", {}).items():
             item_name = resource_values["resource_item"]
             variant = resource_values["variant"]
@@ -1280,13 +1139,13 @@ def populate_defined_production_rates(
                 raise ValueError(
                     f"Game definition for resource ({item_name}, {variant}) of node"
                     f" ({site_id}, {resource_id}) not found.")
-            # Resources don't pull items, they are a primary source of items.
-            entry = NodeLedgerEntry()
-            entry.initalize_for_resource(definition.items_per_minute)
-            ledger.add_resource_entry(site_id, resource_id, entry)
+            node = MapResourceNode(site_id, resource_id, item_name)
+            node.baseline_production_rate_ipm = definition.items_per_minute
+            map_network.add_node(node)
 
         for factory_id, factory_values in site_values.get("factories", {}).items():
             machines = factory_values.get("machines", {})
+
             for crafter_id, crafter_values in machines.get("crafters", {}).items():
                 item_name = crafter_values["crafted_item"]
                 definition = next(
@@ -1297,166 +1156,25 @@ def populate_defined_production_rates(
                     raise ValueError(
                         f"Game definition for item ({item_name}) of node"
                         f" ({site_id}, {factory_id}, {crafter_id}) not found.")
-                entry = NodeLedgerEntry()
                 recipe = game_data.item_recipes.get(item_name, None)
                 if recipe is None:
                     raise ValueError(
                         f"Game recipe definition for item ({item_name}) of node"
                         f" ({site_id}, {factory_id}, {crafter_id}) not found.")
-                entry.initialize_for_crafter(
-                    definition.items_per_minute, [(r[0], r[2]) for r in recipe])
-                ledger.add_factory_entry(site_id, factory_id, crafter_id, entry)
+                node = MapCrafterNode(site_id, factory_id, crafter_id, item_name)
+                node.baseline_production_rate_ipm = definition.items_per_minute
+                node.set_recipe(tuple(recipe))
+                map_network.add_node(node)
 
-            for displatcher_id, dispatcher_value in factory_values.get("dispatchers", {}).items():
-                item_name = dispatcher_value["dipatched_item"]
-                output_ipm = int(dispatcher_value["output_rate_limit_ipm"])
-                input_ipm = int(dispatcher_value["input_rate_limit_ipm"])
-                entry = NodeLedgerEntry()
-                entry.initialize_for_dispatcher(item_name, output_ipm, input_ipm)
-                ledger.add_factory_entry(site_id, factory_id, displatcher_id, entry)
-
-    # Must process the receivers after all the dispatcher have been added to the ledger.
-    for site_id, site_values in map_data.items():
-        for factory_id, factory_values in site_values.get("factories", {}).items():
-            for receiver_id, receiver_value in factory_values.get("receivers", {}).items():
-                dispatcher_site_id = receiver_value["site_id"]
-                dispatcher_factory_id = receiver_value["factory_id"]
-                dispatcher_id = receiver_value["dispatcher_id"]
-                dispatcher_entry = ledger.get_factory_entry(
-                    dispatcher_site_id, dispatcher_factory_id, dispatcher_id)
-                dispatched_item = next(k for k in dispatcher_entry.baseline_pull_rate_ipm.keys())
-                # The baseline production rate for a receiver is the same as that for the
-                # corresponding dispatcher. The baseline pull rate is 0 as the receiver is a
-                # bridge between the dispatcher and nodes within the factory so it doesn't
-                # pull unless requested to do so.
-                entry = NodeLedgerEntry()
-                entry.initialize_for_receiver(
-                    dispatched_item, dispatcher_entry.baseline_production_rate_ipm)
-                ledger.add_factory_entry(site_id, factory_id, receiver_id, entry)
-
-#---------------------------------------------------------------------------------------------------
-
-def calculate_factory_production_and_pull_rates(
-        site_id:str,
-        factory_id:str,
-        map_data:dict[str,Any],
-        ledger:NodeLedger,
-        map_network:MapNetwork) -> None:
-    """
-    Calculate the actual production and pull rates for nodes in the factory based on the
-    set target rates, or pull request from another factory depending on which is greater.
-
-    If the factory has neither a set target rate, nor a dispatcher for a terminal item producer,
-    then the actual production rate and pull rates for that terminal item producer will be zero.
-    A terminal item producer is one that produces an item and is not an input into either another
-    producer, or storage.
-    """
-
-    # 1. Find all the terminal producers.
-    # 2. For each terminal producer, set the required_ipm from either the factory target or
-    #    the dispatcher.
-    # 3. Iterate through the production tree setting the required ipm.
-    # 4. Once all the required ipm values have been set, calculate the
-
-    terminals = map_network.get_factory_terminal_producers(site_id, factory_id)
-
-    # NOTE: Have not implemented using dispatcher pull rates instead of factory target rates.
-    #       That will be implemented later.
-
-    # It is important that only the item producers are returned as terminals so that the distribution
-    # of target rates can be calculated with the correct number of production nodes.
-
-    if 0 < len(terminals):
-        target_rates = ledger.get_factory_target_rates(site_id, factory_id)
-        print(f"target_rates {target_rates}")
-        for item, rate in target_rates:
-            item_terminals = [t for t in terminals if item == t.supplies]
-            num_item_producers = len(item_terminals)
-            print(f"rate: {rate} num_item_producers: {num_item_producers}")
-            if 0 < num_item_producers:
-                # Rounding up to ensure that the combined producers will match or exceed the
-                # required rate.
-                distributed_rate = math.ceil(rate / num_item_producers)
-                print(f"distributed_rate {distributed_rate}")
-                for t in item_terminals:
-                    ledger\
-                        .get_factory_entry(t.site_id, t.factory_id, t.node_id)\
-                        .required_production_ipm = distributed_rate
-
-    print(terminals)
-
-    terminals.sort(key=lambda n:n.node_id)
-
-    for t in terminals:
-        fe = ledger.get_factory_entry(t.site_id, t.factory_id, t.node_id)
-        print(f"{t.node_id}   base: {fe.baseline_production_rate_ipm} req: {fe.required_production_ipm}  act: {fe.actual_production_rate_ipm} cap: {fe.production_capacity_ipm}")
-
-
-
-
-
-#---------------------------------------------------------------------------------------------------
-
-def spike_calc_factory_resource_usage(
-        site_id:str,
-        factory_id:str,
-        map_network:MapNetwork) -> None:
-
-    factory_nodes = map_network.get_all_factory_nodes(site_id, factory_id)
-
-    x = Counter([ii for x in factory_nodes for ii in x.inputs if type(ii) is MapResourceNode])
-    print(x)
-
-    # Find all the resources being used.
-
-
-#---------------------------------------------------------------------------------------------------
-
-def calculate_factory_input_rates(site_id:str, factory_id:str):
-    """
-    Determine the input rates for each source into the factory.
-    When the input is from an extractor, then the limitation is the lesser of:
-      1. extraction rate
-      2. transport rate
-      3. remaining extraction rate after deducting the total usage of extractor resource
-         across all other factories using the resource
-      4. usage rate within the factory
-
-    When the input rate is from an receiver, the limitation is the lesser of
-    calculated dispatch rate, which includes the calculated input rate into the dispatcher,
-    and transport rate from the receiver.
-
-    This calculation can only be performed when all the input elements are known. This means, for
-    inputs that are receivers, then the factory output rates of the other factory must have been
-    calculated.
-    """
-
-#---------------------------------------------------------------------------------------------------
-
-def build_map_network(map_data:dict[str,Any]) -> MapNetwork:
-
-    map_network = MapNetwork()
-
-    #
-    # Create the nodes in the network.
-    #
-
-    for site_id, site_values in map_data.items():
-        for resource_id, resource_values in site_values.get("resource_nodes", {}).items():
-            item_name = resource_values["resource_item"]
-            map_network.add_node(MapResourceNode(site_id, resource_id, item_name))
-        for factory_id, factory_values in site_values.get("factories", {}).items():
-            machines = factory_values.get("machines", {})
-            for crafter_id, crafter_values in machines.get("crafters", {}).items():
-                item_name = crafter_values["crafted_item"]
-                map_network.add_node(MapCrafterNode(site_id, factory_id, crafter_id, item_name))
             for storage_id, storage_values in machines.get("storage", {}).items():
                 item_name = storage_values["stored_item"]
                 map_network.add_node(MapStorageNode(site_id, factory_id, storage_id, item_name))
+
             for displatcher_id, dispatcher_values in factory_values.get("dispatchers", {}).items():
                 item_name = dispatcher_values["dipatched_item"]
                 map_network.add_node(
                     MapDispatcherNode(site_id, factory_id, displatcher_id, item_name))
+
             for receiver_id, receiver_values in factory_values.get("receivers", {}).items():
                 # A receiver will always reference an existing dispatcher.
                 other_site_id = receiver_values["site_id"]
@@ -1495,20 +1213,20 @@ def build_map_network(map_data:dict[str,Any]) -> MapNetwork:
                 crafter_node = map_network.get_factory_node(site_id, factory_id, crafter_id)
                 for ii in crafter_values["inputs"]:
                     for input_id in ii["from_ids"]:
-                        crafter_node.inputs.append(
+                        crafter_node.add_supplier(
                             get_input_node(site_id, factory_id, input_id, resource_ids))
 
             for storage_id, storage_values in machines.get("storage", {}).items():
                 storage_node = map_network.get_factory_node(site_id, factory_id, storage_id)
                 for ii in storage_values["inputs"]:
                     for input_id in ii["from_ids"]:
-                        storage_node.inputs.append(
+                        storage_node.add_supplier(
                             get_input_node(site_id, factory_id, input_id, resource_ids))
 
             for displatcher_id, dispatcher_values in factory_values.get("dispatchers", {}).items():
                 dispatcher_node = map_network.get_factory_node(site_id, factory_id, displatcher_id)
                 for input_id in dispatcher_values["from_ids"]:
-                    dispatcher_node.inputs.append(
+                    dispatcher_node.add_supplier(
                         get_input_node(site_id, factory_id, input_id, resource_ids))
 
             for receiver_id, receiver_values in factory_values.get("receivers", {}).items():
@@ -1516,7 +1234,7 @@ def build_map_network(map_data:dict[str,Any]) -> MapNetwork:
                 other_site_id = receiver_values["site_id"]
                 other_factory_id = receiver_values["factory_id"]
                 other_dispatcher_id = receiver_values["dispatcher_id"]
-                receiver_node.inputs.append(
+                receiver_node.add_supplier(
                     get_input_node(
                         other_site_id, other_factory_id, other_dispatcher_id, resource_ids))
 
@@ -1531,11 +1249,7 @@ def main():
     with open('pins_data.json', 'r', encoding='utf-8') as f:
         map_data = json.load(f)
 
-    ledger = NodeLedger()
-    populate_defined_production_rates(map_data, game_data, ledger)
-    print(ledger.ledger)
-
-    map_network = build_map_network(map_data)
+    map_network = build_map_network(map_data, game_data)
     #print(map_network)
 
     print()
@@ -1550,10 +1264,6 @@ def main():
     xxx = map_network.get_factory_terminal_producers("starter", "inductor")
     print(xxx)
 
-    ledger.set_factory_target_rate("starter", "inductor", "inductor", 100)
-
-    #calculate_factory_production_and_pull_rates(
-    #    "starter", "inductor", map_data, ledger, map_network)
 
     print()
     print()
