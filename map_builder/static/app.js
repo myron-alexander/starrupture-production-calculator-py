@@ -1020,7 +1020,7 @@ function renderItemDetails(sectionType, item, itemId = null, parentPinId = null)
         let receivedItem = 'Unknown item';
         const dispatcher = pins[item.site_id]?.factories[item.factory_id]?.dispatchers[item.dispatcher_id];
         if (dispatcher) {
-            receivedItem = dispatcher.dispatched_item || dispatcher.dipatched_item || 'Unknown item';
+            receivedItem = dispatcher.dispatched_item || dispatcher.dispatched_item || 'Unknown item';
         }
 
         return `
@@ -1032,7 +1032,7 @@ function renderItemDetails(sectionType, item, itemId = null, parentPinId = null)
     } else if (sectionType === 'Dispatchers') {
         const fromIds = Array.isArray(item.from_ids) ? item.from_ids.join(', ') : item.from_ids || 'None';
         return `
-            <div class="tree-block-value">${item.dipatched_item || item.dispatched_item || 'Unknown item'}</div>
+            <div class="tree-block-value">${item.dispatched_item || item.dispatched_item || 'Unknown item'}</div>
             <div class="tree-block-value">Out: ${item.output_rate_limit_ipm || 0} ipm, In: ${item.input_rate_limit_ipm || 0} ipm</div>
             <div class="tree-block-value">From: ${fromIds}</div>
             ${item.building_id ? `<div class="tree-block-value">Building: ${item.building_id}</div>` : ''}
@@ -2357,7 +2357,7 @@ function buildCrafterSourcesList(inputItem) {
                     const dispatcherFactory = dispatcherPin.factories[receiver.factory_id];
                     if (dispatcherFactory.dispatchers && dispatcherFactory.dispatchers[receiver.dispatcher_id]) {
                         const dispatcher = dispatcherFactory.dispatchers[receiver.dispatcher_id];
-                        const dispatchedItem = dispatcher.dipatched_item || dispatcher.dispatched_item || '';
+                        const dispatchedItem = dispatcher.dispatched_item || dispatcher.dispatched_item || '';
                         if (dispatchedItem.toLowerCase() === inputItemLower) {
                             sources.push({
                                 fromId: receiverId,
@@ -2567,7 +2567,7 @@ function buildStorageSourcesList(storedItem, excludeStorageId = null) {
                     const dispatcherFactory = dispatcherPin.factories[receiver.factory_id];
                     if (dispatcherFactory.dispatchers && dispatcherFactory.dispatchers[receiver.dispatcher_id]) {
                         const dispatcher = dispatcherFactory.dispatchers[receiver.dispatcher_id];
-                        const dispatchedItem = dispatcher.dipatched_item || dispatcher.dispatched_item || '';
+                        const dispatchedItem = dispatcher.dispatched_item || dispatcher.dispatched_item || '';
                         if (matchAny || dispatchedItem.toLowerCase() === storedItemLower) {
                             sources.push({
                                 fromId: receiverId,
@@ -3338,7 +3338,7 @@ function buildReceiverDispatcherList() {
             if (selectedPinId === siteId && selectedFactoryId === factoryId) continue;
             if (!factory.dispatchers) continue;
             for (const [dispatcherId, dispatcher] of Object.entries(factory.dispatchers)) {
-                const item = dispatcher.dipatched_item || dispatcher.dispatched_item || '';
+                const item = dispatcher.dispatched_item || dispatcher.dispatched_item || '';
                 list.push({
                     item,
                     site_id: siteId,
@@ -3835,7 +3835,7 @@ function openEditDispatcherModal(pinId, factoryId, dispId) {
     dispatcherModalTitle.textContent = 'Edit Dispatcher';
     dispatcherId.value = dispId;
     dispatcherId.disabled = false;
-    dispatchedItem.value = dispatcher.dipatched_item || dispatcher.dispatched_item || '';
+    dispatchedItem.value = dispatcher.dispatched_item || dispatcher.dispatched_item || '';
     dispatcherOutputRate.value = dispatcher.output_rate_limit_ipm || 100;
     dispatcherInputRate.value = dispatcher.input_rate_limit_ipm || 100;
     setDispatcherFromIdsBadges(dispatcher.from_ids || []);
@@ -3906,7 +3906,7 @@ async function handleSaveDispatcher() {
         .filter(id => id);
 
     const dispatcherData = {
-        dipatched_item: dispatchedItem.value.trim(),
+        dispatched_item: dispatchedItem.value.trim(),
         output_rate_limit_ipm: parseInt(dispatcherOutputRate.value),
         input_rate_limit_ipm: parseInt(dispatcherInputRate.value),
         from_ids: fromIds,

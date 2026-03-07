@@ -882,7 +882,7 @@ class RoutingOccupancyGrid:
             case NodeType.Storage:
                 return str(node.definition["stored_item"])
             case NodeType.Dispatcher:
-                return str(node.definition["dipatched_item"])
+                return str(node.definition["dispatched_item"])
             case NodeType.Receiver:
                 key = f"{node.definition["site_id"]}"\
                         f";{node.definition["factory_id"]}"\
@@ -1975,7 +1975,7 @@ body {
             case NodeType.Dispatcher:
                 svg_content += \
                     f'<text x="{text_x}" y="{text_y}" class="block-text" fill="#b3e5fc">'\
-                    f'Dispatches: {row.definition["dipatched_item"]}</text>'
+                    f'Dispatches: {row.definition["dispatched_item"]}</text>'
                 text_y += self.text_line_height
                 svg_content += \
                     f'<text x="{text_x}" y="{text_y}" class="block-text" fill="#b3e5fc">'\
@@ -2143,7 +2143,7 @@ def extract_all_dispatched_items(data:dict[str, Any]):
             dispatchers = factory_def.get("dispatchers", dict())
             for dispatcher_id, dispatcher_def in dispatchers.items():
                 key = f"{site_id};{factory_id};{dispatcher_id}"
-                dispatcher_item_map[key] = dispatcher_def["dipatched_item"]
+                dispatcher_item_map[key] = dispatcher_def["dispatched_item"]
     return dispatcher_item_map
 
 #---------------------------------------------------------------------------------------------------

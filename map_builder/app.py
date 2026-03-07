@@ -335,7 +335,7 @@ def update_dispatcher(pin_id, factory_id, dispatcher_id):
                 Optional. When present, the ID of the dispatcher must be changed. Must be omitted
                 when an ID change is not intended.
 
-        dipatched_item: str
+        dispatched_item: str
                 Name of the dispatched item. Must match an item name in the game data.
 
         output_rate_limit_ipm: int
