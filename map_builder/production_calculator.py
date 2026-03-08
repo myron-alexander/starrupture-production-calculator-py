@@ -26,6 +26,13 @@ def make_map_node_factory_partial_key(site_id:str, factory_id:str) -> str:
     """
     return f"{site_id};{factory_id};"
 
+def make_map_node_site_partial_key(site_id:str) -> str:
+    """
+    Make a partial key of just the site portion which can be used to get all the resource nodes
+    of a site from the network.
+    """
+    return f"{site_id};;"
+
 #---------------------------------------------------------------------------------------------------
 
 class MapNodeSuppliers:
@@ -41,6 +48,17 @@ class MapNodeSuppliers:
         """
         self.supplies = supplied_item_name
         self._input_nodes:list["MapNode"] = []
+
+    #---------------------------------------------------------------------------
+
+    def clear_requests(self) -> None:
+        """
+        Clear the requests from the input nodes. This is intended to be used when recalculating
+        the production rates for a factory, to clear the existing requests before recalculating and
+        approving new requests.
+        """
+        for n in self._input_nodes:
+            n.clear_requests()
 
     #---------------------------------------------------------------------------
 
@@ -288,6 +306,17 @@ class MapNode(ABC):
 
     #---------------------------------------------------------------------------
 
+    @abstractmethod
+    def clear_requests(self) -> None:
+        """
+        Clear all the requests from the requestors. This is intended to be used when recalculating
+        the production rates for a factory, to clear the existing requests before recalculating
+        and approving new requests.
+        """
+        pass
+
+    #---------------------------------------------------------------------------
+
     @property
     @abstractmethod
     def is_boundary(self) -> bool:
@@ -325,10 +354,13 @@ class MapNode(ABC):
     def __repr__(self) -> str:
         return \
             f"{type(self).__name__} [\n"\
-            f"   key     : {self.key}\n"\
-            f"   supplies: {self.supplies}\n"\
-            f"   terminal: {self._terminal}\n"\
-            f"   inputs  : {[n.key for n in self.get_suppliers()]}\n"\
+            f"   key                         : {self.key}\n"\
+            f"   supplies                    : {self.supplies}\n"\
+            f"   terminal                    : {self._terminal}\n"\
+            f"   boundary                    : {self.is_boundary}\n"\
+            f"   baseline production rate ipm: {self.baseline_production_rate_ipm}\n"\
+            f"   supply rate ipm             : {self.supply_rate_ipm}\n"\
+            f"   inputs                      : {[n.key for n in self.get_suppliers()]}\n"\
              "]\n"
 
     #---------------------------------------------------------------------------
@@ -424,7 +456,17 @@ class MapProducerNode(MapNode):
 
     #---------------------------------------------------------------------------
 
+    def clear_requests(self) -> None:
+        self._approved_pull_requests.clear()
+        self._supply_rate_ipm = 0
+        for suppliers in self._suppliers.values():
+            suppliers.clear_requests()
+
+    #---------------------------------------------------------------------------
+
     def request_supplies(self, requestor:MapNode, request_ipm:int) -> int:
+
+        assert requestor is not None, "Requestor cannot be None."
 
         if request_ipm < 0:
             raise ValueError("Request ipm cannot be negative.")
@@ -453,7 +495,7 @@ class MapProducerNode(MapNode):
 
         assert True if 0 < request_ipm else other_requests_ipm == required_ipm
 
-        available_inputs = []
+        available_inputs:list[tuple[str,int,int]] = []
         for recipe_item, suppliers in self._suppliers.items():
             supply_request_ipm, supply_approved_ipm \
                 = suppliers.request_supplies_for_deliverable(required_ipm)
@@ -491,19 +533,20 @@ class MapProducerNode(MapNode):
         # to the lowest supply available by using the ratio of wanted:available.
         #
 
+        adjusted_required_ipm = required_ipm
         all_supplies_available = all(r[1] <= r[2] for r in available_inputs)
         if not all_supplies_available:
             availability_ratios = [(ai[0], ai[2]/ai[1]) for ai in available_inputs]
             lowest_ratio = min([ar[1] for ar in availability_ratios])
-            request_ipm = math.floor(request_ipm * lowest_ratio)
+            adjusted_required_ipm = math.floor(required_ipm * lowest_ratio)
             for suppliers in self._suppliers.values():
-                suppliers.request_supplies_for_deliverable(request_ipm)
+                suppliers.request_supplies_for_deliverable(adjusted_required_ipm)
 
-        self._supply_rate_ipm = request_ipm
+        self._supply_rate_ipm = adjusted_required_ipm
 
-        approved_request_ipm = request_ipm - other_requests_ipm
+        approved_request_ipm = self._supply_rate_ipm - other_requests_ipm
 
-        assert 0 < approved_request_ipm < request_ipm
+        assert 0 < approved_request_ipm <= adjusted_required_ipm
 
         if existing_request is not None:
             existing_request.request_ipm = approved_request_ipm
@@ -588,7 +631,15 @@ class MapResourceNode(MapNode):
 
     #---------------------------------------------------------------------------
 
+    def clear_requests(self) -> None:
+        self._approved_pull_requests.clear()
+        self._supply_rate_ipm = 0
+
+    #---------------------------------------------------------------------------
+
     def request_supplies(self, requestor:MapNode, request_ipm:int) -> int:
+
+        assert requestor is not None, "Requestor cannot be None."
 
         if request_ipm < 0:
             raise ValueError("Request ipm cannot be negative.")
@@ -732,10 +783,20 @@ class MapStorageNode(MapNode):
 
     #---------------------------------------------------------------------------
 
+    def clear_requests(self) -> None:
+        self._approved_pull_requests.clear()
+        self._supply_rate_ipm = 0
+        self._suppliers.clear_requests()
+
+    #---------------------------------------------------------------------------
+
     def request_supplies(self, requestor:MapNode, request_ipm:int) -> int:
         """
         Since storage doesn't produce items, pass on the request to the inputs.
         """
+
+        assert requestor is not None, "Requestor cannot be None."
+
         if request_ipm < 0:
             raise ValueError("Request ipm cannot be negative.")
 
@@ -808,11 +869,14 @@ class MapDispatcherNode(MapNode):
         # Initialize class specific.
         #
 
-        self.suppliers:MapNodeSuppliers = MapNodeSuppliers(self, item_name)
+        self._suppliers:MapNodeSuppliers = MapNodeSuppliers(self, item_name)
         """
         Suppliers of items into this node.
         """
-
+        self._approved_pull_request:NodePullRequest|None = None
+        """
+        The receiver consuming the item and the amount it is approved to consume.
+        """
         self._supply_rate_ipm:int = 0
         """
         Same as sum([r.request_ipm for r in self._approved_pull_requests])
@@ -862,12 +926,19 @@ class MapDispatcherNode(MapNode):
         """
         Add the provider of item to this node as an item supplier.
         """
-        self.suppliers.add_supplier(supplier)
+        self._suppliers.add_supplier(supplier)
 
     #---------------------------------------------------------------------------
 
     def get_suppliers(self) -> tuple[MapNode, ...]:
-        return self.suppliers.input_nodes
+        return self._suppliers.input_nodes
+
+    #---------------------------------------------------------------------------
+
+    def clear_requests(self) -> None:
+        self._approved_pull_requests = None
+        self._supply_rate_ipm = 0
+        self._suppliers.clear_requests()
 
     #---------------------------------------------------------------------------
 
@@ -893,7 +964,31 @@ class MapDispatcherNode(MapNode):
         the factory.
         """
 
-        return 0
+        assert requestor is not None, "Requestor cannot be None."
+
+        existing_request = self._approved_pull_request
+
+        if existing_request is not None:
+            if requestor != existing_request.request_node:
+                raise ValueError(
+                    "Dispatcher nodes can only have one requestor, which is the corresponding"
+                    " receiver. Existing requestor: "
+                    f"{existing_request.request_node.key}, new requestor: {requestor.key}.")
+
+        required_ipm = request_ipm
+
+        self._supply_rate_ipm = self._suppliers.request_supplies(required_ipm)
+
+        if 0 == request_ipm:
+            self._approved_pull_request = None
+            return 0
+        else:
+            if existing_request is not None:
+                existing_request.request_ipm = self._supply_rate_ipm
+            else:
+                self._approved_pull_request = NodePullRequest(requestor, self._supply_rate_ipm)
+
+        return self._supply_rate_ipm
 
     #---------------------------------------------------------------------------
 
@@ -914,7 +1009,6 @@ class MapReceiverNode(MapNode):
         self.supplies = item_name
 
         self._supplier:MapNode|None = None
-
 
         self._approved_pull_requests:list[NodePullRequest] = []
         """
@@ -972,12 +1066,20 @@ class MapReceiverNode(MapNode):
 
     #---------------------------------------------------------------------------
 
+    def clear_requests(self) -> None:
+        self._approved_pull_requests.clear()
+        self._supply_rate_ipm = 0
+
+    #---------------------------------------------------------------------------
+
     def request_supplies(self, requestor:MapNode, request_ipm:int) -> int:
         """
         For now, until I implement the factory calculator, the receiver will just approve the
         request without checking with the supplier.
         """
         # TODO: Implement.
+
+        assert requestor is not None, "Requestor cannot be None."
 
         idx, existing_request = next(
             (r for r in enumerate(self._approved_pull_requests) if r[1].request_node == requestor)
@@ -998,6 +1100,129 @@ class MapReceiverNode(MapNode):
         return request_ipm
 
     #---------------------------------------------------------------------------
+
+#---------------------------------------------------------------------------------------------------
+
+class MapTargetNode(MapNode):
+    """
+    A target node represents a desired output from the factory. It is not an actual node in the
+    factory but is used to represent the demand for an item that is being produced by the factory.
+    """
+
+    #---------------------------------------------------------------------------
+
+    def __init__(self, site_id:str, factory_id:str, target_id:str, item_name:str) -> None:
+
+        #
+        # Initialize inherited.
+        #
+
+        super().__init__(target_id, site_id, factory_id)
+        self.supplies = item_name
+        self._terminal = True
+
+        #
+        # Initialize class specific.
+        #
+
+        self._target_ipm:int = 0
+
+        self._suppliers:MapNodeSuppliers = MapNodeSuppliers(self, item_name)
+        """
+        Suppliers of items into this node.
+        """
+        self._supply_rate_ipm:int = 0
+        """
+        The actual rate of supply from all the suppliers attempting to provide the target rate.
+        """
+
+    #---------------------------------------------------------------------------
+
+    @property
+    def is_boundary(self) -> bool:
+        return True
+
+    #---------------------------------------------------------------------------
+
+    def set_not_terminal(self) -> None:
+        # A target is always terminal within the factory.
+        return
+
+    #---------------------------------------------------------------------------
+
+    @property
+    def baseline_production_rate_ipm(self) -> int:
+        """
+        The target rate for this target node.
+        """
+        return self._target_ipm
+
+    #---------------------------------------------------------------------------
+
+    @baseline_production_rate_ipm.setter
+    def baseline_production_rate_ipm(self, value:int) -> None:
+        """
+        Set the target rate for this target node.
+        """
+        self._target_ipm = value
+        return
+
+    #---------------------------------------------------------------------------
+
+    @property
+    def supply_rate_ipm(self) -> int:
+        return self._supply_rate_ipm
+
+    #---------------------------------------------------------------------------
+
+    def add_supplier(self, supplier:MapNode) -> None:
+        """
+        Add the provider of item to this node as an item supplier.
+        """
+        self._suppliers.add_supplier(supplier)
+
+    #---------------------------------------------------------------------------
+
+    def get_suppliers(self) -> tuple[MapNode, ...]:
+        return self._suppliers.input_nodes
+
+    #---------------------------------------------------------------------------
+
+    def clear_requests(self) -> None:
+        self._supply_rate_ipm = 0
+        self._suppliers.clear_requests()
+
+    #---------------------------------------------------------------------------
+
+    def request_supplies(self, requestor:MapNode, request_ipm:int) -> int:
+        """
+        """
+
+        if self != requestor:
+            raise ValueError(
+                "Target nodes can only be requested by themselves.")
+
+        if request_ipm != self._target_ipm:
+            raise ValueError(
+                "Target nodes can only be requested at their target rate. Requested rate: "
+                f"{request_ipm}, target rate: {self._target_ipm}.")
+
+        self._supply_rate_ipm = self._suppliers.request_supplies(request_ipm)
+
+        return self._supply_rate_ipm
+
+    #---------------------------------------------------------------------------
+
+    def set_target(self, target_ipm:int) -> None:
+        """
+        Set the target rate and perform the supply chain production calculation.
+        This can only be called once the network has been fully built.
+        """
+        self._target_ipm = target_ipm
+        self.request_supplies(self, target_ipm)
+
+    #---------------------------------------------------------------------------
+
 
 #---------------------------------------------------------------------------------------------------
 
@@ -1035,6 +1260,15 @@ class MapNetwork:
             n for n in self.map_nodes.values() if n.key.startswith(pkey)
         ]
         return factory_nodes
+
+    #---------------------------------------------------------------------------
+
+    def get_all_resource_nodes(self, site_id:str) -> list[MapNode]:
+        pkey = make_map_node_site_partial_key(site_id)
+        resource_nodes = [
+            n for n in self.map_nodes.values() if n.key.startswith(pkey)
+        ]
+        return resource_nodes
 
     #---------------------------------------------------------------------------
 
@@ -1109,8 +1343,13 @@ def spike_calc_factory_resource_usage(
 
     factory_nodes = map_network.get_all_factory_nodes(site_id, factory_id)
 
-    x = Counter([ii for x in factory_nodes for ii in x.get_suppliers() if type(ii) is MapResourceNode])
-    print(x)
+    factory_nodes.extend(map_network.get_all_resource_nodes(site_id))
+
+    #x = Counter([ii for x in factory_nodes for ii in x.get_suppliers() if type(ii) is MapResourceNode])
+    #print(x)
+
+    for n in factory_nodes:
+        print(n)
 
     # Find all the resources being used.
 
@@ -1171,7 +1410,7 @@ def build_map_network(map_data:dict[str,Any], game_data:GameData) -> MapNetwork:
                 map_network.add_node(MapStorageNode(site_id, factory_id, storage_id, item_name))
 
             for displatcher_id, dispatcher_values in factory_values.get("dispatchers", {}).items():
-                item_name = dispatcher_values["dipatched_item"]
+                item_name = dispatcher_values["dispatched_item"]
                 map_network.add_node(
                     MapDispatcherNode(site_id, factory_id, displatcher_id, item_name))
 
@@ -1187,7 +1426,7 @@ def build_map_network(map_data:dict[str,Any], game_data:GameData) -> MapNetwork:
                                 [other_factory_id]\
                                     ["dispatchers"]\
                                         [other_dispatcher_id]\
-                                            ["dipatched_item"]
+                                            ["dispatched_item"]
                 map_network.add_node(MapReceiverNode(site_id, factory_id, receiver_id, item_name))
 
     #
@@ -1252,18 +1491,32 @@ def main():
     map_network = build_map_network(map_data, game_data)
     #print(map_network)
 
-    print()
-    print()
-    print()
-    xxx = map_network.get_factory_terminal_producers("wolfram 2", "stabilizer")
-    print(xxx)
+    #print()
+    #print()
+    #print()
+    #xxx = map_network.get_factory_terminal_producers("wolfram 2", "stabilizer")
+    #print(xxx)
 
-    print()
-    print()
-    print()
-    xxx = map_network.get_factory_terminal_producers("starter", "inductor")
-    print(xxx)
+    #print()
+    #print()
+    #print()
+    #xxx = map_network.get_factory_terminal_producers("starter", "inductor")
+    #print(xxx)
 
+    target1_node = MapTargetNode("starter", "tube and applicator", "target1", "tube")
+    supplier_node = map_network.get_factory_node("starter", "tube and applicator", "d-tube-1")
+    target1_node.add_supplier(supplier_node)
+    map_network.add_node(target1_node)
+
+    target2_node = MapTargetNode("starter", "tube and applicator", "target2", "applicator")
+    supplier_node = map_network.get_factory_node("starter", "tube and applicator", "s-applicator-1")
+    target2_node.add_supplier(supplier_node)
+    map_network.add_node(target2_node)
+
+
+
+    target1_node.set_target(1000)
+    target2_node.set_target(1000)
 
     print()
     print()

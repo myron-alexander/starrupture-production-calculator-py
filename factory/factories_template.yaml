@@ -338,3 +338,24 @@ sites:
             # mechanims is a building, then the entry must be present and the value must be the
             # name of a dispatcher type building.
             building_id: "building name"
+
+
+        # Optional. The calculation for production chain node production rates is based on a pull
+        # mechanism such that a request for items is made to a supplier and the supplier will
+        # approve a certain rate provision based on capacity. This mechanism requires a starting
+        # point, some goal to be met and the targets specified here provide that starting point.
+        targets:
+          # Identifies the target specifier. Within the factory, cannot be
+          # the same as any other crafter machine id, storage machine id, receiver id, or dispatcher
+          # id. Also cannot be the same as a resource id of the site since those are treated as
+          # machines shared across factories.
+          <target_id>:
+
+            # The required rate that the combination of all suppliers must attempt to satisfy.
+            target_rate_ipm: 1
+
+            # The list of suppliers that must meet the target. The id must be from either a
+            # dispatcher, machine or resource within the factory.
+            from_ids:
+              - "dispatcher, machine, resource id"
+
