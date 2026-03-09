@@ -92,8 +92,10 @@ class MapNodeSuppliers:
     #---------------------------------------------------------------------------
 
     def add_supplier(self, supplier:"MapNode") -> None:
-        if supplier not in self._input_nodes:
-            self._input_nodes.append(supplier)
+        if supplier.key in [n.key for n in self._input_nodes]:
+            raise ValueError(
+                f"Supplier {supplier.key} is already a supplier for {self._owner.key}.")
+        self._input_nodes.append(supplier)
 
     # There isn't a means to remove the supplier as the current design assumes that the whole
     # network is rebuilt after the network structure is changed.
@@ -131,6 +133,13 @@ class MapNodeRecipeSuppliers(MapNodeSuppliers):
         # Initialize class specific.
         #
 
+        self.crafted_baseline_delivery_ipm:int = 0
+        """
+        The amount of the crafted item that is delivered by the owner per minute as per game
+        definition. This value is used to calculate the required input request rate from the
+        crafted item production rate.
+        """
+
         self.baseline_required_ipm:int = 0
         """
         The required number of items per minute that is required to craft the craftable as per
@@ -166,7 +175,8 @@ class MapNodeRecipeSuppliers(MapNodeSuppliers):
         if delivery_ipm < 0:
             raise ValueError("Delivery ipm cannot be negative.")
 
-        required_ipm = math.ceil(delivery_ipm / 60 * self.baseline_required_ipm)
+        required_ipm = math.ceil(
+            (delivery_ipm / self.crafted_baseline_delivery_ipm) * self.baseline_required_ipm)
         return required_ipm
 
     #---------------------------------------------------------------------------
@@ -396,7 +406,8 @@ class MapProducerNode(MapNode):
         """
         self._supply_rate_ipm:int = 0
         """
-        Same as sum([r.request_ipm for r in self._approved_pull_requests])
+        Same as sum([r.request_ipm for r in self._approved_pull_requests]).
+        Will always be less than or equal to baseline_production_rate_ipm.
         """
 
     #---------------------------------------------------------------------------
@@ -450,9 +461,12 @@ class MapProducerNode(MapNode):
               3. The cacluated required amount per minute
         """
         for item_name, _, baseline_required_ipm in recipe:
-            self._suppliers \
-                .setdefault(item_name, MapNodeRecipeSuppliers(self, item_name)) \
-                    .baseline_required_ipm = baseline_required_ipm
+            #print(f"{self.key}   {item_name}   {baseline_required_ipm}")
+            supplier = self._suppliers.setdefault(
+                item_name, MapNodeRecipeSuppliers(self, item_name))
+            assert 0 < self._baseline_production_rate_ipm
+            supplier.crafted_baseline_delivery_ipm = self._baseline_production_rate_ipm
+            supplier.baseline_required_ipm = baseline_required_ipm
 
     #---------------------------------------------------------------------------
 
@@ -467,6 +481,8 @@ class MapProducerNode(MapNode):
     def request_supplies(self, requestor:MapNode, request_ipm:int) -> int:
 
         assert requestor is not None, "Requestor cannot be None."
+
+        #print(f"request_supplies: {self.key} --> {requestor.key}")
 
         if request_ipm < 0:
             raise ValueError("Request ipm cannot be negative.")
@@ -484,6 +500,13 @@ class MapProducerNode(MapNode):
         other_requests_ipm = self._supply_rate_ipm
         if existing_request is not None:
             other_requests_ipm -= existing_request.request_ipm
+
+        assert other_requests_ipm <= self._baseline_production_rate_ipm
+
+        if other_requests_ipm == self._baseline_production_rate_ipm:
+            # No capacity for any more requests, so the request will be rejected.
+            assert existing_request is None
+            return 0
 
         required_ipm = min(other_requests_ipm + request_ipm, self._baseline_production_rate_ipm)
 
@@ -554,6 +577,28 @@ class MapProducerNode(MapNode):
             self._approved_pull_requests.append(NodePullRequest(requestor, approved_request_ipm))
 
         return approved_request_ipm
+
+    #---------------------------------------------------------------------------
+
+    def __repr__(self) -> str:
+        requestors = ""
+        for pr in self._approved_pull_requests:
+            requestors \
+                += f"                                 {pr.request_node.key} : {pr.request_ipm}\n"
+
+        return \
+            f"{type(self).__name__} [\n"\
+            f"   key                         : {self.key}\n"\
+            f"   supplies                    : {self.supplies}\n"\
+            f"   terminal                    : {self._terminal}\n"\
+            f"   boundary                    : {self.is_boundary}\n"\
+            f"   baseline production rate ipm: {self.baseline_production_rate_ipm}\n"\
+            f"   supply rate ipm             : {self.supply_rate_ipm}\n"\
+            f"   pull requests               :\n{requestors}"\
+            f"   inputs                      : {[n.key for n in self.get_suppliers()]}\n"\
+             "]\n"
+
+    #---------------------------------------------------------------------------
 
 #---------------------------------------------------------------------------------------------------
 
@@ -1353,6 +1398,25 @@ def spike_calc_factory_resource_usage(
 
     # Find all the resources being used.
 
+def spike_calc_factory_resource_usage2(
+        site_id:str,
+        factory_id:str,
+        map_network:MapNetwork) -> None:
+
+    factory_nodes = map_network.get_all_factory_nodes(site_id, factory_id)
+
+    factory_nodes.extend(map_network.get_all_resource_nodes(site_id))
+
+    #x = Counter([ii for x in factory_nodes for ii in x.get_suppliers() if type(ii) is MapResourceNode])
+    #print(x)
+
+    factory_nodes.sort(key=lambda n:n.key)
+
+    for n in factory_nodes:
+        print(f"{n.node_id}  {n.baseline_production_rate_ipm}  {n.supply_rate_ipm}")
+
+    # Find all the resources being used.
+
 
 #---------------------------------------------------------------------------------------------------
 
@@ -1503,20 +1567,20 @@ def main():
     #xxx = map_network.get_factory_terminal_producers("starter", "inductor")
     #print(xxx)
 
-    target1_node = MapTargetNode("starter", "tube and applicator", "target1", "tube")
-    supplier_node = map_network.get_factory_node("starter", "tube and applicator", "d-tube-1")
-    target1_node.add_supplier(supplier_node)
-    map_network.add_node(target1_node)
+    #target1_node = MapTargetNode("starter", "tube and applicator", "target1", "tube")
+    #supplier_node = map_network.get_factory_node("starter", "tube and applicator", "d-tube-1")
+    #target1_node.add_supplier(supplier_node)
+    #map_network.add_node(target1_node)
 
-    target2_node = MapTargetNode("starter", "tube and applicator", "target2", "applicator")
-    supplier_node = map_network.get_factory_node("starter", "tube and applicator", "s-applicator-1")
-    target2_node.add_supplier(supplier_node)
-    map_network.add_node(target2_node)
+    #target2_node = MapTargetNode("starter", "tube and applicator", "target2", "applicator")
+    #supplier_node = map_network.get_factory_node("starter", "tube and applicator", "s-applicator-1")
+    #target2_node.add_supplier(supplier_node)
+    #map_network.add_node(target2_node)
 
 
 
-    target1_node.set_target(1000)
-    target2_node.set_target(1000)
+    #target1_node.set_target(1000)
+    #target2_node.set_target(1000)
 
     print()
     print()
@@ -1526,7 +1590,19 @@ def main():
     print()
     #spike_calc_factory_resource_usage("starter", "inductor", map_network)
     #spike_calc_factory_resource_usage("starter", "wolfram wire", map_network)
-    spike_calc_factory_resource_usage("starter", "tube and applicator", map_network)
+    #spike_calc_factory_resource_usage("starter", "tube and applicator", map_network)
+
+
+    target1_node = MapTargetNode("test-site", "factory", "target1", "glass")
+    target1_node.add_supplier(
+        map_network.get_factory_node("test-site", "factory", "s-glass-1")
+    )
+
+    target1_node.set_target(1000)
+    spike_calc_factory_resource_usage2("test-site", "factory", map_network)
+
+    cp = map_network.get_factory_node("test-site", "factory", "calcium-powder-1")
+    print(cp)
 
     #key = make_map_node_key("stabilizer-5", "wolfram 2", "stabilizer")
     #node = map_network.map_nodes[key]
