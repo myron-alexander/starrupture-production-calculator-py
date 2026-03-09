@@ -1713,11 +1713,11 @@ body {
         )
 
     # Node block dimensions.
-    block_width_px = 180
+    block_width_px = 220
     """
     Width, in pixels, to draw the factory node block.
     """
-    block_height_px = 120
+    block_height_px = 165
     """
     Height, in pixels, to draw the factory node block.
     """
@@ -1960,32 +1960,39 @@ body {
         match row.type:
             case NodeType.Resource:
                 add_text(f'Item: {row.definition["resource_item"]}')
-                add_text('Supply Rate: 0 ipm')
+                add_text('Supply Rate: todo ipm')
                 add_text(f'Max Rate: {row.definition["rate_ipm"]} ipm')
 
             case NodeType.Crafter:
-                add_text(f'Crafts: {row.definition["crafted_item"]}')
-                if 0 < len(row.inputs):
-                    add_text('Inputs:')
-                    for input_node in row.inputs:
-                        truncated = input_node.id[:18]+"..." if 20 < len(input_node.id) \
-                                    else input_node.id
-                        add_text(f'• {truncated}', x=text_x + 10)
+                item = row.definition["crafted_item"]
+                recipe = self.game_data.get_craft_recipe(item)
+                max_rate = self.game_data.get_production_rate_ipm(item)
+                add_text(f'Crafts: {item}')
+                add_text('Supply Rate: todo ipm')
+                add_text(f'Max Rate: {max_rate} ipm')
+                add_text('Inputs:')
+                for name, _, ipm in recipe:
+                    truncated = name[:18]+"..." if 20 < len(name) else name
+                    add_text(f'• {truncated} req: {ipm} ipm', x=text_x + 10)
 
             case NodeType.Storage:
                 add_text(f'Stores: {row.definition["stored_item"] or "*"}')
+                add_text('Supply Rate: todo ipm')
 
             case NodeType.Dispatcher:
                 add_text(f'Dispatches: {row.definition["dispatched_item"]}')
                 add_text(f'Rate: {row.definition["output_rate_limit_ipm"]} ipm')
+                add_text('Supply Rate: todo ipm')
 
             case NodeType.Receiver:
                 site = row.definition["site_id"]
                 factory = row.definition["factory_id"]
                 dispatcher = row.definition["dispatcher_id"]
-                from_text = f'From: {site}/{factory}'
-                add_text(f'{from_text}')
+                add_text('From:')
+                add_text(f'{site}', x=text_x + 10)
+                add_text(f'/{factory}', x=text_x + 10)
                 add_text(f'/{dispatcher}', x=text_x + 10)
+                add_text('Supply Rate: todo ipm')
 
         return svg_content
 

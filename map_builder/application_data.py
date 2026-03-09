@@ -102,7 +102,7 @@ class GameData:
 
     #---------------------------------------------------------------------------
 
-    def get_production_rate_ipm(self, item_name:str, variant:str|None) -> int:
+    def get_production_rate_ipm(self, item_name:str, variant:str|None = None) -> int:
         if variant is not None:
             for r in self.raw_item_definitions:
                 if r.item_name == item_name and r.variant == variant:
