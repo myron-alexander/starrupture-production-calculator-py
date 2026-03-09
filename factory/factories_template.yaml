@@ -260,26 +260,33 @@ sites:
 
 
         # Optional and only required when a source of items is dispatched from another factory.
-        # There is a 1:1 relationship from factory dispatcher to receiver. The factory receiver
-        # definition is necessary so that the items can be routed to multiple destinations within
-        # the factory.
+        # Multiple dispatchers can link to a single receiver for a M:1 relationship. I originally
+        # designed this with a 1:1 relationship when I intended these as only virtual ports but
+        # since then I have changed my mind and now want the dispatcher and receiver to directly
+        # model the mechanisms in the game.
         receivers:
 
-          # Identifies the receiver. Within the factory, cannot be
-          # the same as any other crafter machine id, storage machine id, receiver id, or dispatcher
-          # id. Also cannot be the same as a resource id of the site since those are treated as
-          # machines shared across factories.
+          # Identifies the receiver. Within the factory, cannot be the same as any other crafter
+          # machine id, storage machine id, receiver id, or dispatcher id. Also cannot be the same
+          # as a resource id of the site since those are treated as machines shared across
+          # factories.
           <receiver id>:
-            # Rates and items are determined from the corresponding dispatcher.
-            # The dispatcher must be from another factory.
 
-            # Required. The site of the dispatcher.
-            site_id: ""
-            # Required. The factory of the dispatcher.
-            factory_id: ""
-            # Required. The dispatcher. Since the dispatcher_id is unique only with a factory of a
-            # site, all three IDs are required.
-            dispatcher_id: ""
+            # List of dispatchers that send items to this receiver. When a dispatcher is linked to
+            # this receiver, the receiver identity must be set in the dispatcher as well. This
+            # is for validation and as an easy mechanism to show that a dispatcher is already
+            # linked.
+            dispatchers:
+              - # Rates and items are determined from the corresponding dispatcher.
+                # The dispatcher must be from another factory.
+
+                # Required. The site of the dispatcher.
+                site_id: ""
+                # Required. The factory of the dispatcher.
+                factory_id: ""
+                # Required. The dispatcher. Since the dispatcher_id is unique only with a factory of a
+                # site, all three IDs are required.
+                dispatcher_id: ""
 
             # Optional name of the building that facilitates the input of items into the factory.
             # This is optional as ingress can be facilitated by rails which are not counted as
@@ -290,7 +297,7 @@ sites:
 
 
         # Optional and only required when this factory is the source of items being dispatched to
-        # another factory.
+        # another factory. A dispatcher may only connect to one receiver.
         dispatchers:
 
           # Identifies the dispatcher. Within the factory, cannot be
@@ -338,6 +345,18 @@ sites:
             # mechanims is a building, then the entry must be present and the value must be the
             # name of a dispatcher type building.
             building_id: "building name"
+
+            # Required. Link to a receiver. When a receiver has not been linked, the values will
+            # be empty strings. When this dispatcher is linked to a receiver, the receiver identity
+            # must be set here. This is for validation and as an easy mechanism to show that the
+            # dispatcher is already linked.
+            receiver:
+              # Required. The site of the receiver.
+              site_id: ""
+              # Required. The factory of the receiver.
+              factory_id: ""
+              # Required. The receiver.
+              receiver_id: ""
 
 
         # Optional. The calculation for production chain node production rates is based on a pull
