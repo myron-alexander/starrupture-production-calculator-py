@@ -102,6 +102,27 @@ class GameData:
 
     #---------------------------------------------------------------------------
 
+    def get_production_rate_ipm(self, item_name:str, variant:str|None) -> int:
+        if variant is not None:
+            for r in self.raw_item_definitions:
+                if r.item_name == item_name and r.variant == variant:
+                    return r.items_per_minute
+        else:
+            for r in self.item_definitions:
+                if r.item_name == item_name:
+                    return r.items_per_minute
+        raise ValueError(f"Item '{item_name}' with variant '{variant}' not found.")
+
+    #---------------------------------------------------------------------------
+
+    def get_craft_recipe(self, item_name:str) -> list[tuple[str, int, int]]:
+        if item_name in self.item_recipes:
+            return self.item_recipes[item_name]
+        else:
+            raise ValueError(f"Crafting recipe for item '{item_name}' not found.")
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 def dump_game_data(game_data:GameData):

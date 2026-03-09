@@ -17,6 +17,7 @@ import os
 from enum import Enum
 from dataclasses import dataclass
 from typing import Any, Callable
+from application_data import GameData, load_game_data
 
 #---------------------------------------------------------------------------------------------------
 
@@ -708,7 +709,7 @@ class RoutingOccupancyGrid:
                 anchor_point_offset = 1
                 if start_x is None:
                     if 0 == col_idx:
-                        # Occupy padding and anchors on the right side when first column. 
+                        # Occupy padding and anchors on the right side when first column.
                         start_x = 0
                         pad_x = self.channel_padding_cells + anchor_point_offset
                     elif 0 < col_idx < last_column:
@@ -911,7 +912,7 @@ class RoutingOccupancyGrid:
     follow the flow.
 
     Flow always follows from right to left, no routing should allow a line to be drawn going right.
-    
+
     The connection possibilites for one item type, with ideal examples, are:
 
     1. Single source node, single consumer node.
@@ -1061,7 +1062,7 @@ class RoutingOccupancyGrid:
 
     Possibility 4 has a solution now. The network consideration added by the AI provides a decent
     solution.
-    
+
     The implementation did introduce a new issue by including routes into a single network that
     should be in separate networks. In the following example, all routes are conveying the same
     item type however routes 1 and 2 are shown in the visualization with the same color and thus it
@@ -1069,20 +1070,20 @@ class RoutingOccupancyGrid:
     supplying (b) and (d). Node (c) is being supplied only from (b) so should be in a different
     network and represented by a different color.
 
-        ┌────────┐   ┌────────┐                          
-        │Consumer│   │Consumer│                          
-        │Node (d)│◄┐ │Node (c)│◄┐                        
+        ┌────────┐   ┌────────┐
+        │Consumer│   │Consumer│
+        │Node (d)│◄┐ │Node (c)│◄┐
         └────────┘ │ └────────┘ 2               ┌───────┐
                    1            2               │Source │
                    └────────111─2─111─────────┬─┤Node   │
                                 2             1 └───────┘
-                                2             │          
-                                2             │          
-                                2 ┌────────┐  │          
-                                │ │Consumer│  │          
-                                └─┤Node (b)│◄─┘          
-                                  └────────┘             
-    
+                                2             │
+                                2             │
+                                2 ┌────────┐  │
+                                │ │Consumer│  │
+                                └─┤Node (b)│◄─┘
+                                  └────────┘
+
     TODO: Solve the addition of unrelated routes to the network.
     Most of the visual issues look solved "good enough", only the unrelated routes drawn as one
     network remain.
@@ -1716,7 +1717,7 @@ body {
     """
     Width, in pixels, to draw the factory node block.
     """
-    block_height_px = 90
+    block_height_px = 120
     """
     Height, in pixels, to draw the factory node block.
     """
@@ -1747,8 +1748,14 @@ body {
     top margin for the visualization.
     """
 
-    text_line_height = 14
+    #text_line_height = 14
+    text_line_height = 15
     text_baseline_offset = 2
+
+    #---------------------------------------------------------------------------
+
+    def __init__(self, game_data:GameData) -> None:
+        self.game_data = game_data
 
     #---------------------------------------------------------------------------
 
@@ -1940,59 +1947,45 @@ body {
         """
         svg_content = ""
 
+        def add_line(line:str) -> None:
+            nonlocal text_y, svg_content
+            svg_content += line
+            text_y += self.text_line_height
+
+        def add_text(text:str, color:str = "#b3e5fc", x:int = text_x) -> None:
+            add_line(
+                f'<text x="{x}" y="{text_y}" class="block-text" fill="{color}">'
+                f'{text}</text>')
+
         match row.type:
             case NodeType.Resource:
-                svg_content += \
-                    f'<text x="{text_x}" y="{text_y}" class="block-text" fill="#b3e5fc">'\
-                    f'Item: {row.definition["resource_item"]}</text>'
-                text_y += self.text_line_height
-                svg_content += \
-                    f'<text x="{text_x}" y="{text_y}" class="block-text" fill="#b3e5fc">'\
-                    f'Rate: {row.definition["rate_ipm"]} ipm</text>'
+                add_text(f'Item: {row.definition["resource_item"]}')
+                add_text('Supply Rate: 0 ipm')
+                add_text(f'Max Rate: {row.definition["rate_ipm"]} ipm')
 
             case NodeType.Crafter:
-                svg_content += \
-                    f'<text x="{text_x}" y="{text_y}" class="block-text" fill="#b3e5fc">'\
-                    f'Crafts: {row.definition["crafted_item"]}</text>'
-                text_y += self.text_line_height
+                add_text(f'Crafts: {row.definition["crafted_item"]}')
                 if 0 < len(row.inputs):
-                    svg_content += \
-                        f'<text x="{text_x}" y="{text_y}" class="block-text" fill="#b3e5fc">'\
-                        f'Inputs:</text>'
-                    text_y += self.text_line_height
+                    add_text('Inputs:')
                     for input_node in row.inputs:
-                        truncated = input_node.id[:18]+"..." if 20 < len(input_node.id) else input_node.id
-                        svg_content += \
-                            f'<text x="{text_x + 10}" y="{text_y}" class="block-text"'\
-                            f' fill="#b3e5fc">• {truncated}</text>'
-                        text_y += self.text_line_height
+                        truncated = input_node.id[:18]+"..." if 20 < len(input_node.id) \
+                                    else input_node.id
+                        add_text(f'• {truncated}', x=text_x + 10)
 
             case NodeType.Storage:
-                svg_content += \
-                    f'<text x="{text_x}" y="{text_y}" class="block-text" fill="#b3e5fc">'\
-                    f'Stores: {row.definition["stored_item"] or "*"}</text>'
+                add_text(f'Stores: {row.definition["stored_item"] or "*"}')
 
             case NodeType.Dispatcher:
-                svg_content += \
-                    f'<text x="{text_x}" y="{text_y}" class="block-text" fill="#b3e5fc">'\
-                    f'Dispatches: {row.definition["dispatched_item"]}</text>'
-                text_y += self.text_line_height
-                svg_content += \
-                    f'<text x="{text_x}" y="{text_y}" class="block-text" fill="#b3e5fc">'\
-                    f'Rate: {row.definition["output_rate_limit_ipm"]} ipm</text>'
+                add_text(f'Dispatches: {row.definition["dispatched_item"]}')
+                add_text(f'Rate: {row.definition["output_rate_limit_ipm"]} ipm')
 
             case NodeType.Receiver:
                 site = row.definition["site_id"]
                 factory = row.definition["factory_id"]
                 dispatcher = row.definition["dispatcher_id"]
                 from_text = f'From: {site}/{factory}'
-                svg_content += \
-                    f'<text x="{text_x}" y="{text_y}" class="block-text" fill="#b3e5fc">'\
-                    f'{from_text}</text>'
-                text_y += self.text_line_height
-                svg_content += \
-                    f'<text x="{text_x}" y="{text_y}" class="block-text" fill="#b3e5fc">'\
-                    f'    /{dispatcher}</text>'
+                add_text(f'{from_text}')
+                add_text(f'/{dispatcher}', x=text_x + 10)
 
         return svg_content
 
@@ -2149,7 +2142,8 @@ def extract_all_dispatched_items(data:dict[str, Any]):
 #---------------------------------------------------------------------------------------------------
 
 def visualize_factory_on_a_grid(
-        data:dict[str, Any], site_id:str, factory_id:str) -> tuple[int, int, str, str]|None:
+        data:dict[str, Any], site_id:str, factory_id:str, game_data:GameData
+    ) -> tuple[int, int, str, str]|None:
     """
     Generate a SVG diagram of the requested site and factory as a grid of connected factory nodes.
 
@@ -2344,13 +2338,13 @@ def visualize_factory_on_a_grid(
     #
 
     #rog.debug_print_occgrid(result.connections)
-    
+
 
     #
     # Generate visualization of the factory node display grid and connector lines as a SVG image.
     #
 
-    svg_visualizer = SvgVisualizer()
+    svg_visualizer = SvgVisualizer(game_data)
     svg_content = svg_visualizer.visualize(display_grid, result, rog)
 
     return svg_content
@@ -2428,7 +2422,9 @@ def main():
     with open(f"{os.path.dirname(__file__)}/pins_data.json") as f:
         data = json.load(f)
 
-    viz = visualize_factory_on_a_grid(data, "starter", "inductor")
+    game_data = load_game_data()
+
+    viz = visualize_factory_on_a_grid(data, "starter", "inductor", game_data)
 
     __write_html(viz[2], viz[3])
 

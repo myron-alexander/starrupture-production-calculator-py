@@ -414,7 +414,7 @@ def render_visualize_factory(pin_id, factory_id):
 
     purpose = factory.get("purpose", "No purpose set")
 
-    svg_data = visualize_factory_on_a_grid(pins, pin_id, factory_id)
+    svg_data = visualize_factory_on_a_grid(pins, pin_id, factory_id, game_data) # type: ignore
 
     html_styles = """
 body {
