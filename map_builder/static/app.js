@@ -63,8 +63,6 @@ const receiverModal = document.getElementById('receiverModal');
 const receiverModalTitle = document.getElementById('receiverModalTitle');
 const receiverId = document.getElementById('receiverId');
 const receiverSelectDispatcherBtn = document.getElementById('receiverSelectDispatcherBtn');
-const receiverSiteLabel = document.getElementById('receiverSiteLabel');
-const receiverFactoryLabel = document.getElementById('receiverFactoryLabel');
 const receiverDispatcherLabel = document.getElementById('receiverDispatcherLabel');
 const receiverBuildingId = document.getElementById('receiverBuildingId');
 const receiverCoreGroup = document.getElementById('receiverCoreGroup');
@@ -3402,9 +3400,7 @@ function handleReceiverBuildingChange() {
 
 function setReceiverDispatcherLabels(selections) {
     const refs = Array.isArray(selections) ? selections : [];
-    renderReceiverLabelBadges(receiverSiteLabel, refs.map(ref => ref.site_id));
-    renderReceiverLabelBadges(receiverFactoryLabel, refs.map(ref => ref.factory_id));
-    renderReceiverLabelBadges(receiverDispatcherLabel, refs.map(ref => ref.dispatcher_id));
+    renderReceiverLabelBadges(receiverDispatcherLabel, refs.map(ref => `${ref.site_id} / ${ref.factory_id} / ${ref.dispatcher_id}`));
 }
 
 function handleSelectAllReceiverDispatchers(event) {
