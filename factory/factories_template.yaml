@@ -264,6 +264,11 @@ sites:
         # designed this with a 1:1 relationship when I intended these as only virtual ports but
         # since then I have changed my mind and now want the dispatcher and receiver to directly
         # model the mechanisms in the game.
+        #
+        # I originally designed the receiver to receive only one item type but the game allows
+        # a receiver to supply different item types, each from a separate dispatcher so I have
+        # changed the design to allow for it. My original design was for simplicity and to support
+        # how I use the game as I don't dispatch different items to a single receiver.
         receivers:
 
           # Identifies the receiver. Within the factory, cannot be the same as any other crafter
