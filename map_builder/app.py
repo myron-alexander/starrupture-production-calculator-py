@@ -440,20 +440,22 @@ def update_pin(pin_id):
                                     )
                                 ]
 
-                                deduped_refs = []
-                                if filtered_refs:
-                                    seen = set()
-                                    for ref in filtered_refs:
-                                        key = (ref['site_id'], ref['factory_id'], ref['dispatcher_id'])
-                                        if key in seen:
-                                            continue
-                                        seen.add(key)
-                                        deduped_refs.append(ref)
-                                receiver['dispatchers'] = deduped_refs
-                                # Remove legacy single dispatcher fields if present.
-                                receiver.pop('site_id', None)
-                                receiver.pop('factory_id', None)
-                                receiver.pop('dispatcher_id', None)
+                                if len(filtered_refs) < len(normalized_refs):
+                                    deduped_refs = []
+                                    if filtered_refs:
+                                        seen = set()
+                                        for ref in filtered_refs:
+                                            key = (ref['site_id'], ref['factory_id'], ref['dispatcher_id'])
+                                            if key in seen:
+                                                continue
+                                            seen.add(key)
+                                            deduped_refs.append(ref)
+                                    print(f"Updating receiver '{rid}' refs: norm:{len(normalized_refs)} filt:{len(filtered_refs)} ddup:{len(deduped_refs)}. from {refs} to {deduped_refs}.")
+                                    receiver['dispatchers'] = deduped_refs
+                                    # Remove legacy single dispatcher fields if present.
+                                    receiver.pop('site_id', None)
+                                    receiver.pop('factory_id', None)
+                                    receiver.pop('dispatcher_id', None)
 
             # Remove legacy name field if present
             if 'name' in pins[pin_id]:
