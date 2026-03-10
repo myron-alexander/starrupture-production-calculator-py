@@ -3462,6 +3462,18 @@ function handleSelectReceiverDispatchers() {
 
 function buildReceiverDispatcherList() {
     const list = [];
+    const selectedKeys = new Set((selectedReceiverDispatchers || []).map(receiverDispatcherRefKey));
+    const referencedKeys = new Set();
+
+    // Gather dispatchers already in use by any receiver in any site/factory.
+    for (const pin of Object.values(pins || {})) {
+        for (const factory of Object.values(pin.factories || {})) {
+            for (const receiver of Object.values(factory.receivers || {})) {
+                const refs = normalizeReceiverDispatcherReferences(receiver);
+                refs.forEach(ref => referencedKeys.add(receiverDispatcherRefKey(ref)));
+            }
+        }
+    }
 
     for (const [siteId, pin] of Object.entries(pins || {})) {
         if (!pin.factories) continue;
@@ -3471,11 +3483,25 @@ function buildReceiverDispatcherList() {
             if (!factory.dispatchers) continue;
             for (const [dispatcherId, dispatcher] of Object.entries(factory.dispatchers)) {
                 const item = dispatcher.dispatched_item || dispatcher.dispatched_item || '';
-                list.push({
+                const entry = {
                     item,
                     site_id: siteId,
                     factory_id: factoryId,
                     dispatcher_id: dispatcherId
+                };
+                const key = receiverDispatcherRefKey(entry);
+
+                // Show only dispatchers that are currently unassigned, except keep already
+                // selected entries visible while editing so they can be retained/changed.
+                if (referencedKeys.has(key) && !selectedKeys.has(key)) {
+                    continue;
+                }
+
+                list.push({
+                    item: entry.item,
+                    site_id: entry.site_id,
+                    factory_id: entry.factory_id,
+                    dispatcher_id: entry.dispatcher_id
                 });
             }
         }
