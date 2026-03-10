@@ -3277,7 +3277,34 @@ async function handleDeleteStorage() {
     }
 }
 
+
+/**
+ * @typedef {Object} DispatcherReference
+ * @property {string} site_id - Site of the dispatcher.
+ * @property {string} factory_id - Factory of the dispatcher.
+ * @property {string} dispatcher_id - Dispatcher identity.
+ */
+
+/**
+ * @typedef {Object} ReceiverDefinition
+ * @property {string} building_id - Identifies the building type when populated, otherwise an
+ *                                  empty string.
+ * @property {DispatcherReference[]} dispatchers - List of dispatchers connected to this receiver or
+ *                                                 an empty list if none.
+ */
+
+
 // Receiver Modal Functions
+/**
+ * Get the list of dispatcher references from the provided receiver. The function handles both
+ * the multi-dispatcher receiver and legacy single-dispatcher receiver configurations.
+ * 
+ * @param {ReceiverDefinition} receiver 
+ * 
+ * @returns {DispatcherReference[]}
+ *      List of dispatchers references, where each reference is an object with fields "site_id",
+ *      "factory_id", and "dispatcher_id".
+ */
 function normalizeReceiverDispatcherReferences(receiver) {
     const refs = [];
 

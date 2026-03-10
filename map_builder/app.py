@@ -343,6 +343,7 @@ def update_pin(pin_id):
                                     seen.add(key)
                                     deduped_refs.append(ref)
                                 receiver['dispatchers'] = deduped_refs
+                                # Remove legacy single dispatcher fields if present.
                                 receiver.pop('site_id', None)
                                 receiver.pop('factory_id', None)
                                 receiver.pop('dispatcher_id', None)
@@ -363,7 +364,8 @@ def update_pin(pin_id):
 
             deleted_receivers_count = 0
             if 'factories' in data:
-                # Before updating factories, detect deleted dispatchers and cascade delete receivers
+                # Before updating factories, detect deleted dispatchers and remove references in
+                # receivers.
                 old_factories = pins[pin_id].get('factories', {})
                 new_factories = data['factories']
 
@@ -389,18 +391,17 @@ def update_pin(pin_id):
                             if dispatcher_id not in new_dispatchers:
                                 deleted_dispatchers.append((pin_id, factory_id, dispatcher_id))
 
-                # Before the receiver deletion operation, copy the new factories. The deletions are
+                # Before the receiver modification operation, copy the new factories. The deletions are
                 # done on the pins instance so if data is copied to pins, it will undo the deletions
                 # within all factories of pins[pin_id].
                 pins[pin_id]['factories'] = data['factories']
 
-                # Delete receivers in ALL factories of ALL sites that reference deleted dispatchers
+                # Update receivers in ALL factories of ALL sites that reference deleted dispatchers
                 if deleted_dispatchers:
                     for pin in pins.values():
                         factories = pin.get('factories', {})
                         for factory in factories.values():
                             receivers = factory.get('receivers', {})
-                            receivers_to_delete = []
 
                             for rid, receiver in receivers.items():
                                 refs = receiver.get('dispatchers', [])
@@ -439,26 +440,20 @@ def update_pin(pin_id):
                                     )
                                 ]
 
-                                if len(filtered_refs) != len(normalized_refs):
-                                    if filtered_refs:
-                                        deduped_refs = []
-                                        seen = set()
-                                        for ref in filtered_refs:
-                                            key = (ref['site_id'], ref['factory_id'], ref['dispatcher_id'])
-                                            if key in seen:
-                                                continue
-                                            seen.add(key)
-                                            deduped_refs.append(ref)
-                                        receiver['dispatchers'] = deduped_refs
-                                        receiver.pop('site_id', None)
-                                        receiver.pop('factory_id', None)
-                                        receiver.pop('dispatcher_id', None)
-                                    else:
-                                        deleted_receivers_count += 1
-                                        receivers_to_delete.append(rid)
-
-                            for rid in receivers_to_delete:
-                                del receivers[rid]
+                                deduped_refs = []
+                                if filtered_refs:
+                                    seen = set()
+                                    for ref in filtered_refs:
+                                        key = (ref['site_id'], ref['factory_id'], ref['dispatcher_id'])
+                                        if key in seen:
+                                            continue
+                                        seen.add(key)
+                                        deduped_refs.append(ref)
+                                receiver['dispatchers'] = deduped_refs
+                                # Remove legacy single dispatcher fields if present.
+                                receiver.pop('site_id', None)
+                                receiver.pop('factory_id', None)
+                                receiver.pop('dispatcher_id', None)
 
             # Remove legacy name field if present
             if 'name' in pins[pin_id]:
