@@ -176,10 +176,13 @@
     <div id="selectReceiverDispatcherModal" class="modal selector-modal">
         <div class="resource-selector-modal-content">
             <span class="close" data-modal="selectReceiverDispatcherModal">&times;</span>
-            <h2>Select Dispatcher</h2>
+            <h2>Select Dispatchers</h2>
             <table id="receiverDispatcherSelectionTable" style="width: 100%; border-collapse: collapse;">
                 <thead>
                     <tr style="background-color: #333; position: sticky; top: 0;">
+                        <th style="border: 1px solid #555; padding: 10px; text-align: center; width: 40px;">
+                            <input type="checkbox" id="selectAllReceiverDispatchersCheckbox">
+                        </th>
                         <th style="border: 1px solid #555; padding: 10px; text-align: left;">Item</th>
                         <th style="border: 1px solid #555; padding: 10px; text-align: left;">Site</th>
                         <th style="border: 1px solid #555; padding: 10px; text-align: left;">Factory</th>
@@ -188,6 +191,10 @@
                 </thead>
                 <tbody></tbody>
             </table>
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button id="selectReceiverDispatchersBtn" class="btn btn-primary">Select</button>
+                <button id="cancelReceiverDispatchersBtn" type="button" class="btn btn-secondary" data-modal="selectReceiverDispatcherModal">Cancel</button>
+            </div>
         </div>
     </div>
 
@@ -407,18 +414,18 @@
                     <input type="text" id="receiverId" placeholder="Unique identifier">
                 </div>
                 <div class="form-group">
-                    <button id="receiverSelectDispatcherBtn" class="btn btn-secondary" type="button">Select Dispatcher</button>
+                    <button id="receiverSelectDispatcherBtn" class="btn btn-secondary" type="button">Select Dispatchers</button>
                 </div>
                 <div class="form-group">
-                    <label>Source Site ID:</label>
+                    <label>Source Site IDs:</label>
                     <div id="receiverSiteLabel" class="from-ids-badges"></div>
                 </div>
                 <div class="form-group">
-                    <label>Source Factory ID:</label>
+                    <label>Source Factory IDs:</label>
                     <div id="receiverFactoryLabel" class="from-ids-badges"></div>
                 </div>
                 <div class="form-group">
-                    <label>Dispatcher ID:</label>
+                    <label>Dispatcher IDs:</label>
                     <div id="receiverDispatcherLabel" class="from-ids-badges"></div>
                 </div>
                 <div class="form-group">

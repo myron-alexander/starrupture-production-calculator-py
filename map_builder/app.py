@@ -32,6 +32,109 @@ PINS_CACHE = None
 def get_map_image_filename() -> str:
     return FILLED_MAP_IMAGE if os.path.exists(FILLED_MAP_IMAGE) else MAP_IMAGE
 
+def _persist_pins_to_file(pins):
+    """Persist pins atomically and durably. Caller is responsible for synchronization."""
+    pins_dir = os.path.dirname(os.path.abspath(PINS_FILE)) or '.'
+
+    fd, temp_path = tempfile.mkstemp(prefix='pins_', suffix='.tmp', dir=pins_dir, text=True)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(pins, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+
+        os.replace(temp_path, PINS_FILE)
+
+        dir_fd = os.open(pins_dir, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+def _normalize_receiver_dispatchers(pins) -> bool:
+    """Normalize receiver linkage to the `dispatchers` list model; returns True when changed."""
+    if not isinstance(pins, dict):
+        return False
+
+    changed = False
+
+    for pin in pins.values():
+        if not isinstance(pin, dict):
+            continue
+
+        factories = pin.get('factories', {})
+        if not isinstance(factories, dict):
+            continue
+
+        for factory in factories.values():
+            if not isinstance(factory, dict):
+                continue
+
+            receivers = factory.get('receivers', {})
+            if not isinstance(receivers, dict):
+                continue
+
+            for receiver in receivers.values():
+                if not isinstance(receiver, dict):
+                    continue
+
+                refs = []
+                dispatchers = receiver.get('dispatchers', [])
+
+                if isinstance(dispatchers, list):
+                    for ref in dispatchers:
+                        if not isinstance(ref, dict):
+                            continue
+                        site_id = (ref.get('site_id') or '').strip()
+                        factory_id = (ref.get('factory_id') or '').strip()
+                        dispatcher_id = (ref.get('dispatcher_id') or '').strip()
+                        if site_id and factory_id and dispatcher_id:
+                            refs.append({
+                                'site_id': site_id,
+                                'factory_id': factory_id,
+                                'dispatcher_id': dispatcher_id,
+                            })
+
+                # Legacy fallback: single receiver link fields.
+                if not refs:
+                    legacy_site_id = (receiver.get('site_id') or '').strip()
+                    legacy_factory_id = (receiver.get('factory_id') or '').strip()
+                    legacy_dispatcher_id = (receiver.get('dispatcher_id') or '').strip()
+                    if legacy_site_id and legacy_factory_id and legacy_dispatcher_id:
+                        refs.append({
+                            'site_id': legacy_site_id,
+                            'factory_id': legacy_factory_id,
+                            'dispatcher_id': legacy_dispatcher_id,
+                        })
+
+                deduped_refs = []
+                seen = set()
+                for ref in refs:
+                    key = (ref['site_id'], ref['factory_id'], ref['dispatcher_id'])
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    deduped_refs.append(ref)
+
+                if receiver.get('dispatchers') != deduped_refs:
+                    receiver['dispatchers'] = deduped_refs
+                    changed = True
+
+                if 'site_id' in receiver:
+                    receiver.pop('site_id', None)
+                    changed = True
+                if 'factory_id' in receiver:
+                    receiver.pop('factory_id', None)
+                    changed = True
+                if 'dispatcher_id' in receiver:
+                    receiver.pop('dispatcher_id', None)
+                    changed = True
+
+    return changed
+
 # Initialize pins storage
 def _load_pins_from_file():
     """Load pins from JSON file."""
@@ -47,6 +150,8 @@ def load_pins():
     with PINS_WRITE_LOCK:
         if PINS_CACHE is None:
             PINS_CACHE = _load_pins_from_file()
+            if _normalize_receiver_dispatchers(PINS_CACHE):
+                _persist_pins_to_file(PINS_CACHE)
         return copy.deepcopy(PINS_CACHE)
 
 @contextmanager
@@ -62,28 +167,10 @@ def pins_transaction_lock():
 def save_pins(pins):
     """Write-through save: update cache, then persist synchronously and durably."""
     global PINS_CACHE
-    pins_dir = os.path.dirname(os.path.abspath(PINS_FILE)) or '.'
 
     with PINS_WRITE_LOCK:
         PINS_CACHE = copy.deepcopy(pins)
-
-        fd, temp_path = tempfile.mkstemp(prefix='pins_', suffix='.tmp', dir=pins_dir, text=True)
-        try:
-            with os.fdopen(fd, 'w', encoding='utf-8') as f:
-                json.dump(PINS_CACHE, f, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-
-            os.replace(temp_path, PINS_FILE)
-
-            dir_fd = os.open(pins_dir, os.O_RDONLY)
-            try:
-                os.fsync(dir_fd)
-            finally:
-                os.close(dir_fd)
-        finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+        _persist_pins_to_file(PINS_CACHE)
 
 # Routes
 @app.route('/')
@@ -218,8 +305,47 @@ def update_pin(pin_id):
                     for factory in factories.values():
                         receivers = factory.get('receivers', {})
                         for receiver in receivers.values():
-                            if receiver.get('site_id') == old_id:
-                                receiver['site_id'] = new_id
+                            updated_refs = []
+                            refs = receiver.get('dispatchers', [])
+
+                            if isinstance(refs, list):
+                                for ref in refs:
+                                    if not isinstance(ref, dict):
+                                        continue
+                                    ref_site_id = ref.get('site_id')
+                                    if ref_site_id == old_id:
+                                        ref['site_id'] = new_id
+                                    if ref.get('site_id') and ref.get('factory_id') and ref.get('dispatcher_id'):
+                                        updated_refs.append(ref)
+
+                            # Legacy single dispatcher fields fallback.
+                            if not updated_refs:
+                                legacy_site_id = receiver.get('site_id')
+                                legacy_factory_id = receiver.get('factory_id')
+                                legacy_dispatcher_id = receiver.get('dispatcher_id')
+                                if legacy_site_id == old_id:
+                                    legacy_site_id = new_id
+                                if legacy_site_id and legacy_factory_id and legacy_dispatcher_id:
+                                    updated_refs.append({
+                                        'site_id': legacy_site_id,
+                                        'factory_id': legacy_factory_id,
+                                        'dispatcher_id': legacy_dispatcher_id,
+                                    })
+
+                            if updated_refs:
+                                # Deduplicate and normalize to the current model shape.
+                                deduped_refs = []
+                                seen = set()
+                                for ref in updated_refs:
+                                    key = (ref['site_id'], ref['factory_id'], ref['dispatcher_id'])
+                                    if key in seen:
+                                        continue
+                                    seen.add(key)
+                                    deduped_refs.append(ref)
+                                receiver['dispatchers'] = deduped_refs
+                                receiver.pop('site_id', None)
+                                receiver.pop('factory_id', None)
+                                receiver.pop('dispatcher_id', None)
 
             # Update only the fields that are provided
             if 'x' in data:
@@ -274,16 +400,63 @@ def update_pin(pin_id):
                         factories = pin.get('factories', {})
                         for factory in factories.values():
                             receivers = factory.get('receivers', {})
-                            receivers_to_delete = [
-                                rid for rid, receiver in receivers.items()
-                                if any(
-                                    receiver.get('site_id') == disp[0] and
-                                    receiver.get('factory_id') == disp[1] and
-                                    receiver.get('dispatcher_id') == disp[2]
-                                    for disp in deleted_dispatchers
-                                )
-                            ]
-                            deleted_receivers_count += len(receivers_to_delete)
+                            receivers_to_delete = []
+
+                            for rid, receiver in receivers.items():
+                                refs = receiver.get('dispatchers', [])
+                                normalized_refs = []
+
+                                if isinstance(refs, list):
+                                    for ref in refs:
+                                        if not isinstance(ref, dict):
+                                            continue
+                                        if ref.get('site_id') and ref.get('factory_id') and ref.get('dispatcher_id'):
+                                            normalized_refs.append({
+                                                'site_id': ref.get('site_id'),
+                                                'factory_id': ref.get('factory_id'),
+                                                'dispatcher_id': ref.get('dispatcher_id'),
+                                            })
+
+                                # Legacy single dispatcher fields fallback.
+                                if not normalized_refs:
+                                    legacy_site_id = receiver.get('site_id')
+                                    legacy_factory_id = receiver.get('factory_id')
+                                    legacy_dispatcher_id = receiver.get('dispatcher_id')
+                                    if legacy_site_id and legacy_factory_id and legacy_dispatcher_id:
+                                        normalized_refs.append({
+                                            'site_id': legacy_site_id,
+                                            'factory_id': legacy_factory_id,
+                                            'dispatcher_id': legacy_dispatcher_id,
+                                        })
+
+                                filtered_refs = [
+                                    ref for ref in normalized_refs
+                                    if not any(
+                                        ref['site_id'] == disp[0] and
+                                        ref['factory_id'] == disp[1] and
+                                        ref['dispatcher_id'] == disp[2]
+                                        for disp in deleted_dispatchers
+                                    )
+                                ]
+
+                                if len(filtered_refs) != len(normalized_refs):
+                                    if filtered_refs:
+                                        deduped_refs = []
+                                        seen = set()
+                                        for ref in filtered_refs:
+                                            key = (ref['site_id'], ref['factory_id'], ref['dispatcher_id'])
+                                            if key in seen:
+                                                continue
+                                            seen.add(key)
+                                            deduped_refs.append(ref)
+                                        receiver['dispatchers'] = deduped_refs
+                                        receiver.pop('site_id', None)
+                                        receiver.pop('factory_id', None)
+                                        receiver.pop('dispatcher_id', None)
+                                    else:
+                                        deleted_receivers_count += 1
+                                        receivers_to_delete.append(rid)
+
                             for rid in receivers_to_delete:
                                 del receivers[rid]
 

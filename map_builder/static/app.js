@@ -75,8 +75,10 @@ const deleteReceiverBtn = document.getElementById('deleteReceiverBtn');
 // Receiver Dispatcher Selector Modal Elements
 const selectReceiverDispatcherModal = document.getElementById('selectReceiverDispatcherModal');
 const receiverDispatcherSelectionTable = document.getElementById('receiverDispatcherSelectionTable');
+const selectAllReceiverDispatchersCheckbox = document.getElementById('selectAllReceiverDispatchersCheckbox');
+const selectReceiverDispatchersBtn = document.getElementById('selectReceiverDispatchersBtn');
 
-let selectedReceiverDispatcher = null;
+let selectedReceiverDispatchers = [];
 
 // Dispatcher Modal Elements
 const dispatcherModal = document.getElementById('dispatcherModal');
@@ -277,6 +279,12 @@ function attachEventListeners() {
     document.querySelectorAll('[data-modal="selectReceiverDispatcherModal"]').forEach(el => {
         el.addEventListener('click', closeSelectReceiverDispatcherModal);
     });
+    if (selectAllReceiverDispatchersCheckbox) {
+        selectAllReceiverDispatchersCheckbox.addEventListener('change', handleSelectAllReceiverDispatchers);
+    }
+    if (selectReceiverDispatchersBtn) {
+        selectReceiverDispatchersBtn.addEventListener('click', handleSelectReceiverDispatchers);
+    }
 
     // Dispatcher Modal controls
     document.querySelectorAll('[data-modal="dispatcherModal"]').forEach(el => {
@@ -1016,16 +1024,29 @@ function renderItemDetails(sectionType, item, itemId = null, parentPinId = null)
         html += '</div>';
         return html;
     } else if (sectionType === 'Receivers') {
-        // Look up the dispatcher to get the item being received
-        let receivedItem = 'Unknown item';
-        const dispatcher = pins[item.site_id]?.factories[item.factory_id]?.dispatchers[item.dispatcher_id];
-        if (dispatcher) {
-            receivedItem = dispatcher.dispatched_item || dispatcher.dispatched_item || 'Unknown item';
-        }
+        const dispatcherRefs = normalizeReceiverDispatcherReferences(item);
+        const receivedItems = [];
+        const sourceLabels = [];
+
+        dispatcherRefs.forEach(ref => {
+            const dispatcher = getDispatcherByReference(ref);
+            const dispatchedItem = dispatcher
+                ? (dispatcher.dispatched_item || dispatcher.dispatched_item || 'Unknown item')
+                : 'Unknown item';
+            receivedItems.push(dispatchedItem);
+            sourceLabels.push(`${ref.site_id || '?'}/${ref.factory_id || '?'}/${ref.dispatcher_id || '?'}`);
+        });
+
+        const receivedItemLabel = receivedItems.length > 0
+            ? [...new Set(receivedItems)].join(', ')
+            : 'Unknown item';
+        const sourceLabel = sourceLabels.length > 0
+            ? sourceLabels.join(', ')
+            : 'None';
 
         return `
-            <div class="tree-block-value">Item: ${receivedItem}</div>
-            <div class="tree-block-value">From: ${item.site_id || '?'}/${item.factory_id || '?'}/${item.dispatcher_id || '?'}</div>
+            <div class="tree-block-value">Items: ${receivedItemLabel}</div>
+            <div class="tree-block-value">From: ${sourceLabel}</div>
             ${item.building_id ? `<div class="tree-block-value">Building: ${item.building_id}</div>` : ''}
             ${item.core_id ? `<div class="tree-block-value">Core: ${item.core_id}</div>` : ''}
         `;
@@ -1242,57 +1263,51 @@ async function handleDeletePin() {
     if (!selectedPinId) return;
 
     try {
-        // Before deleting the site, find and remove all receivers that reference dispatchers from this site
+        // Before deleting the site, remove references to dispatchers from this site.
         const deletedSiteId = selectedPinId;
-        const deletedSite = pins[deletedSiteId];
 
-        // Collect all dispatcher IDs from all factories in the site being deleted
-        const deletedDispatchers = [];
-        if (deletedSite && deletedSite.factories) {
-            for (const [factoryId, factory] of Object.entries(deletedSite.factories)) {
-                if (factory.dispatchers) {
-                    for (const dispatcherId of Object.keys(factory.dispatchers)) {
-                        deletedDispatchers.push({ factoryId, dispatcherId });
-                    }
-                }
-            }
-        }
-
-        // Find and delete receivers in other sites that reference these dispatchers
         for (const [siteId, site] of Object.entries(pins)) {
-            if (siteId === deletedSiteId) continue; // Skip the site being deleted
+            if (siteId === deletedSiteId) continue;
 
+            let siteChanged = false;
             if (site.factories) {
-                for (const [factoryId, factory] of Object.entries(site.factories)) {
-                    if (factory.receivers) {
-                        const receiversToDelete = [];
-                        for (const [receiverId, receiver] of Object.entries(factory.receivers)) {
-                            // Check if this receiver references a dispatcher from the deleted site
-                            if (receiver.site_id === deletedSiteId) {
+                for (const factory of Object.values(site.factories)) {
+                    if (!factory.receivers) continue;
+
+                    const receiversToDelete = [];
+                    for (const [receiverId, receiver] of Object.entries(factory.receivers)) {
+                        const refs = normalizeReceiverDispatcherReferences(receiver);
+                        const filteredRefs = refs.filter(ref => ref.site_id !== deletedSiteId);
+
+                        if (filteredRefs.length !== refs.length) {
+                            siteChanged = true;
+                            if (filteredRefs.length === 0) {
                                 receiversToDelete.push(receiverId);
+                            } else {
+                                receiver.dispatchers = filteredRefs;
+                                delete receiver.site_id;
+                                delete receiver.factory_id;
+                                delete receiver.dispatcher_id;
                             }
                         }
-
-                        // Delete the receivers
-                        receiversToDelete.forEach(receiverId => {
-                            delete factory.receivers[receiverId];
-                        });
-
-                        // If any receivers were deleted, update the site
-                        if (receiversToDelete.length > 0) {
-                            // Save the updated factory/site
-                            fetch(`/api/pins/${siteId}`, {
-                                method: 'PUT',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({ factories: site.factories })
-                            }).catch(error => {
-                                console.error(`Error updating site ${siteId}:`, error);
-                            });
-                        }
                     }
+
+                    receiversToDelete.forEach(receiverId => {
+                        delete factory.receivers[receiverId];
+                    });
                 }
+            }
+
+            if (siteChanged) {
+                fetch(`/api/pins/${siteId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ factories: site.factories })
+                }).catch(error => {
+                    console.error(`Error updating site ${siteId}:`, error);
+                });
             }
         }
 
@@ -2351,24 +2366,15 @@ function buildCrafterSourcesList(inputItem) {
     // Add receivers with matching dispatcher item
     if (factory && factory.receivers) {
         for (const [receiverId, receiver] of Object.entries(factory.receivers)) {
-            if (receiver.site_id && receiver.factory_id && receiver.dispatcher_id) {
-                const dispatcherPin = pins[receiver.site_id];
-                if (dispatcherPin && dispatcherPin.factories && dispatcherPin.factories[receiver.factory_id]) {
-                    const dispatcherFactory = dispatcherPin.factories[receiver.factory_id];
-                    if (dispatcherFactory.dispatchers && dispatcherFactory.dispatchers[receiver.dispatcher_id]) {
-                        const dispatcher = dispatcherFactory.dispatchers[receiver.dispatcher_id];
-                        const dispatchedItem = dispatcher.dispatched_item || dispatcher.dispatched_item || '';
-                        if (dispatchedItem.toLowerCase() === inputItemLower) {
-                            sources.push({
-                                fromId: receiverId,
-                                item: dispatchedItem,
-                                rateIpm: '',
-                                building: receiver.building_id || '',
-                                type: 'receiver'
-                            });
-                        }
-                    }
-                }
+            const receiverItems = getReceiverDispatchedItems(receiver);
+            if (receiverItems.some(item => item.toLowerCase() === inputItemLower)) {
+                sources.push({
+                    fromId: receiverId,
+                    item: inputItem,
+                    rateIpm: '',
+                    building: receiver.building_id || '',
+                    type: 'receiver'
+                });
             }
         }
     }
@@ -2561,23 +2567,20 @@ function buildStorageSourcesList(storedItem, excludeStorageId = null) {
     // Add receivers (match dispatcher item, or all if stored_item is "*")
     if (factory.receivers) {
         for (const [receiverId, receiver] of Object.entries(factory.receivers)) {
-            if (receiver.site_id && receiver.factory_id && receiver.dispatcher_id) {
-                const dispatcherPin = pins[receiver.site_id];
-                if (dispatcherPin && dispatcherPin.factories && dispatcherPin.factories[receiver.factory_id]) {
-                    const dispatcherFactory = dispatcherPin.factories[receiver.factory_id];
-                    if (dispatcherFactory.dispatchers && dispatcherFactory.dispatchers[receiver.dispatcher_id]) {
-                        const dispatcher = dispatcherFactory.dispatchers[receiver.dispatcher_id];
-                        const dispatchedItem = dispatcher.dispatched_item || dispatcher.dispatched_item || '';
-                        if (matchAny || dispatchedItem.toLowerCase() === storedItemLower) {
-                            sources.push({
-                                fromId: receiverId,
-                                item: dispatchedItem,
-                                building: receiver.building_id || '',
-                                type: 'receiver'
-                            });
-                        }
-                    }
-                }
+            const receiverItems = getReceiverDispatchedItems(receiver);
+            if (receiverItems.length === 0) continue;
+
+            const matchingItems = matchAny
+                ? receiverItems
+                : receiverItems.filter(item => item.toLowerCase() === storedItemLower);
+
+            if (matchingItems.length > 0) {
+                sources.push({
+                    fromId: receiverId,
+                    item: [...new Set(matchingItems)].join(', '),
+                    building: receiver.building_id || '',
+                    type: 'receiver'
+                });
             }
         }
     }
@@ -3277,6 +3280,85 @@ async function handleDeleteStorage() {
 }
 
 // Receiver Modal Functions
+function normalizeReceiverDispatcherReferences(receiver) {
+    const refs = [];
+
+    if (receiver && Array.isArray(receiver.dispatchers)) {
+        receiver.dispatchers.forEach(ref => {
+            if (!ref) return;
+            const siteId = (ref.site_id || '').trim();
+            const factoryId = (ref.factory_id || '').trim();
+            const dispatcherId = (ref.dispatcher_id || '').trim();
+            if (siteId && factoryId && dispatcherId) {
+                refs.push({ site_id: siteId, factory_id: factoryId, dispatcher_id: dispatcherId });
+            }
+        });
+    }
+
+    if (refs.length === 0 && receiver) {
+        const legacySiteId = (receiver.site_id || '').trim();
+        const legacyFactoryId = (receiver.factory_id || '').trim();
+        const legacyDispatcherId = (receiver.dispatcher_id || '').trim();
+        if (legacySiteId && legacyFactoryId && legacyDispatcherId) {
+            refs.push({
+                site_id: legacySiteId,
+                factory_id: legacyFactoryId,
+                dispatcher_id: legacyDispatcherId
+            });
+        }
+    }
+
+    const deduped = [];
+    const seen = new Set();
+    refs.forEach(ref => {
+        const key = `${ref.site_id}::${ref.factory_id}::${ref.dispatcher_id}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            deduped.push(ref);
+        }
+    });
+
+    return deduped;
+}
+
+function receiverDispatcherRefKey(ref) {
+    return `${ref.site_id}::${ref.factory_id}::${ref.dispatcher_id}`;
+}
+
+function getDispatcherByReference(ref) {
+    return pins[ref.site_id]?.factories?.[ref.factory_id]?.dispatchers?.[ref.dispatcher_id] || null;
+}
+
+function getReceiverDispatchedItems(receiver) {
+    const items = [];
+    const refs = normalizeReceiverDispatcherReferences(receiver);
+    refs.forEach(ref => {
+        const dispatcher = getDispatcherByReference(ref);
+        if (!dispatcher) return;
+        const dispatchedItem = (dispatcher.dispatched_item || dispatcher.dispatched_item || '').trim();
+        if (dispatchedItem) {
+            items.push(dispatchedItem);
+        }
+    });
+    return [...new Set(items)];
+}
+
+function renderReceiverLabelBadges(element, values) {
+    const uniqueValues = [...new Set((values || []).filter(Boolean))];
+    if (uniqueValues.length === 0) {
+        element.textContent = '-';
+        return;
+    }
+
+    element.innerHTML = '';
+    uniqueValues.forEach(value => {
+        const badge = document.createElement('span');
+        badge.className = 'from-id-badge';
+        badge.textContent = value;
+        element.appendChild(badge);
+    });
+}
+
 function populateReceiverCoreOptions(pinId, selectedCoreId = '') {
     const cores = (pins[pinId] && pins[pinId].cores) ? pins[pinId].cores : {};
     const coreIds = Object.keys(cores).sort();
@@ -3318,14 +3400,41 @@ function handleReceiverBuildingChange() {
     }
 }
 
-function setReceiverDispatcherLabels(selection) {
-    const siteValue = selection ? selection.site_id : '';
-    const factoryValue = selection ? selection.factory_id : '';
-    const dispatcherValue = selection ? selection.dispatcher_id : '';
+function setReceiverDispatcherLabels(selections) {
+    const refs = Array.isArray(selections) ? selections : [];
+    renderReceiverLabelBadges(receiverSiteLabel, refs.map(ref => ref.site_id));
+    renderReceiverLabelBadges(receiverFactoryLabel, refs.map(ref => ref.factory_id));
+    renderReceiverLabelBadges(receiverDispatcherLabel, refs.map(ref => ref.dispatcher_id));
+}
 
-    receiverSiteLabel.textContent = siteValue || '-';
-    receiverFactoryLabel.textContent = factoryValue || '-';
-    receiverDispatcherLabel.textContent = dispatcherValue || '-';
+function handleSelectAllReceiverDispatchers(event) {
+    const checked = !!event.target.checked;
+    receiverDispatcherSelectionTable
+        .querySelectorAll('tbody input[type="checkbox"]')
+        .forEach(checkbox => {
+            checkbox.checked = checked;
+        });
+}
+
+function handleSelectReceiverDispatchers() {
+    const selected = [];
+
+    receiverDispatcherSelectionTable
+        .querySelectorAll('tbody input[type="checkbox"]:checked')
+        .forEach(checkbox => {
+            const { siteId, factoryId, dispatcherId } = checkbox.dataset;
+            if (siteId && factoryId && dispatcherId) {
+                selected.push({
+                    site_id: siteId,
+                    factory_id: factoryId,
+                    dispatcher_id: dispatcherId
+                });
+            }
+        });
+
+    selectedReceiverDispatchers = selected;
+    setReceiverDispatcherLabels(selectedReceiverDispatchers);
+    closeSelectReceiverDispatcherModal();
 }
 
 function buildReceiverDispatcherList() {
@@ -3367,10 +3476,16 @@ function populateReceiverDispatcherTable() {
     tbody.innerHTML = '';
 
     const list = buildReceiverDispatcherList();
+    const selectedKeys = new Set(selectedReceiverDispatchers.map(receiverDispatcherRefKey));
+
     list.forEach(entry => {
         const row = document.createElement('tr');
         row.style.borderBottom = '1px solid #555';
         row.style.cursor = 'pointer';
+
+        const entryKey = receiverDispatcherRefKey(entry);
+        const checkedAttr = selectedKeys.has(entryKey) ? 'checked' : '';
+
         row.addEventListener('mouseenter', () => {
             row.style.backgroundColor = '#404040';
         });
@@ -3378,20 +3493,40 @@ function populateReceiverDispatcherTable() {
             row.style.backgroundColor = '';
         });
         row.addEventListener('click', () => {
-            selectedReceiverDispatcher = entry;
-            setReceiverDispatcherLabels(entry);
-            closeSelectReceiverDispatcherModal();
+            const checkbox = row.querySelector('input[type="checkbox"]');
+            if (!checkbox) return;
+            checkbox.checked = !checkbox.checked;
         });
 
         row.innerHTML = `
+            <td style="border: 1px solid #555; padding: 10px; text-align: center; width: 40px;">
+                <input
+                    type="checkbox"
+                    data-site-id="${entry.site_id}"
+                    data-factory-id="${entry.factory_id}"
+                    data-dispatcher-id="${entry.dispatcher_id}"
+                    ${checkedAttr}
+                >
+            </td>
             <td style="border: 1px solid #555; padding: 10px;">${entry.item}</td>
             <td style="border: 1px solid #555; padding: 10px;">${entry.site_id}</td>
             <td style="border: 1px solid #555; padding: 10px;">${entry.factory_id}</td>
             <td style="border: 1px solid #555; padding: 10px;">${entry.dispatcher_id}</td>
         `;
 
+        const checkbox = row.querySelector('input[type="checkbox"]');
+        if (checkbox) {
+            checkbox.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+        }
+
         tbody.appendChild(row);
     });
+
+    if (selectAllReceiverDispatchersCheckbox) {
+        selectAllReceiverDispatchersCheckbox.checked = false;
+    }
 }
 
 function openSelectReceiverDispatcherModal() {
@@ -3409,11 +3544,11 @@ function openAddReceiverModal(pinId, factoryId) {
     selectedPinId = pinId;
     selectedFactoryId = factoryId;
     editingReceiverId = null;
-    selectedReceiverDispatcher = null;
+    selectedReceiverDispatchers = [];
     receiverModalTitle.textContent = 'Add Receiver';
     receiverId.value = '';
     receiverId.disabled = false;
-    setReceiverDispatcherLabels(null);
+    setReceiverDispatcherLabels([]);
     receiverBuildingId.value = '';
     receiverCoreGroup.style.display = 'none';
     receiverCoreId.value = '';
@@ -3431,13 +3566,8 @@ function openEditReceiverModal(pinId, factoryId, recId) {
     receiverModalTitle.textContent = 'Edit Receiver';
     receiverId.value = recId;
     receiverId.disabled = false;
-    selectedReceiverDispatcher = {
-        site_id: receiver.site_id || '',
-        factory_id: receiver.factory_id || '',
-        dispatcher_id: receiver.dispatcher_id || '',
-        item: ''
-    };
-    setReceiverDispatcherLabels(selectedReceiverDispatcher);
+    selectedReceiverDispatchers = normalizeReceiverDispatcherReferences(receiver);
+    setReceiverDispatcherLabels(selectedReceiverDispatchers);
     receiverBuildingId.value = receiver.building_id || '';
 
     // Show/hide core field based on building selection
@@ -3457,6 +3587,7 @@ function closeReceiverModal() {
     receiverModal.classList.remove('show');
     editingReceiverId = null;
     selectedFactoryId = null;
+    selectedReceiverDispatchers = [];
 }
 
 async function handleSaveReceiver() {
@@ -3468,8 +3599,8 @@ async function handleSaveReceiver() {
         return;
     }
 
-    if (!selectedReceiverDispatcher || !selectedReceiverDispatcher.site_id || !selectedReceiverDispatcher.factory_id || !selectedReceiverDispatcher.dispatcher_id) {
-        alert('Please select a dispatcher');
+    if (!Array.isArray(selectedReceiverDispatchers) || selectedReceiverDispatchers.length === 0) {
+        alert('Please select at least one dispatcher');
         return;
     }
 
@@ -3501,9 +3632,11 @@ async function handleSaveReceiver() {
     }
 
     const receiverData = {
-        site_id: selectedReceiverDispatcher.site_id,
-        factory_id: selectedReceiverDispatcher.factory_id,
-        dispatcher_id: selectedReceiverDispatcher.dispatcher_id,
+        dispatchers: selectedReceiverDispatchers.map(ref => ({
+            site_id: ref.site_id,
+            factory_id: ref.factory_id,
+            dispatcher_id: ref.dispatcher_id
+        })),
         building_id: receiverBuildingId.value.trim()
     };
 
@@ -3928,10 +4061,23 @@ async function handleSaveDispatcher() {
             for (const factory of Object.values(pin.factories || {})) {
                 const receivers = factory.receivers || {};
                 for (const receiver of Object.values(receivers)) {
-                    if (receiver.site_id === selectedPinId &&
-                        receiver.factory_id === selectedFactoryId &&
-                        receiver.dispatcher_id === editingDispatcherId) {
-                        receiver.dispatcher_id = dispId;
+                    const refs = normalizeReceiverDispatcherReferences(receiver);
+                    let changed = false;
+
+                    refs.forEach(ref => {
+                        if (ref.site_id === selectedPinId &&
+                            ref.factory_id === selectedFactoryId &&
+                            ref.dispatcher_id === editingDispatcherId) {
+                            ref.dispatcher_id = dispId;
+                            changed = true;
+                        }
+                    });
+
+                    if (changed) {
+                        receiver.dispatchers = refs;
+                        delete receiver.site_id;
+                        delete receiver.factory_id;
+                        delete receiver.dispatcher_id;
                     }
                 }
             }
