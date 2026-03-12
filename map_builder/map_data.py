@@ -101,6 +101,7 @@ class MapFactory(MapNode):
         self.storages:dict[str,MapSingleStorageNode] = {}
         self.dispatchers:dict[str,MapDispatcherNode] = {}
         self.receivers:dict[str,MapReceiverNode] = {}
+        self.targets:dict[str,MapTargetNode] = {}
 
     #---------------------------------------------------------------------------
 
@@ -129,6 +130,13 @@ class MapFactory(MapNode):
         assert receiver.id not in self.receivers, \
             f"Receiver with ID '{receiver.id}' already exists in factory '{self.id}'"
         self.receivers[receiver.id] = receiver
+
+    #---------------------------------------------------------------------------
+
+    def add_target(self, target:"MapTargetNode") -> None:
+        assert target.id not in self.targets, \
+            f"Target with ID '{target.id}' already exists in factory '{self.id}'"
+        self.targets[target.id] = target
 
     #---------------------------------------------------------------------------
 
@@ -177,7 +185,6 @@ class MapSingleSupplyNode(ABC):
 
     def __init__(self, supplied_item_name:str) -> None:
         self.supplied_item_name = supplied_item_name
-        self.supply_ipm = 0
 
     #---------------------------------------------------------------------------
 
@@ -247,35 +254,36 @@ class MapMultiSupplyNode:
     #---------------------------------------------------------------------------
 
     def __init__(self, supplied_item_names:list[str]|None) -> None:
-        self.supplied_items:list[MapSupplyConnector] = []
+        self._supplied_items:dict[str,MapSupplyConnector] = {}
         if supplied_item_names is not None:
             for item_name in supplied_item_names:
-                self.supplied_items.append(MapSupplyConnector(self, item_name))
+                self._supplied_items[item_name] = MapSupplyConnector(self, item_name)
+
+    #---------------------------------------------------------------------------
+
+    @property
+    def supplied_items(self) -> tuple[MapSupplyConnector, ...]:
+        return tuple(self._supplied_items.values())
 
     #---------------------------------------------------------------------------
 
     def add_supplied_item(self, item_name:str) -> MapSupplyConnector:
-        connector = next(
-            (ii for ii in self.supplied_items if ii.supplied_item_name == item_name), None)
-        if connector is None:
-            connector = MapSupplyConnector(self, item_name)
-            self.supplied_items.append(connector)
-        return connector
+        return self._supplied_items.setdefault(item_name, MapSupplyConnector(self, item_name))
 
     #---------------------------------------------------------------------------
 
     def get_item_connector(self, item_name:str) -> MapSupplyConnector:
-        for supplied_item in self.supplied_items:
-            if supplied_item.supplied_item_name == item_name:
-                return supplied_item
+        connector = self._supplied_items.get(item_name)
+        if connector:
+            return connector
         raise ValueError(f"Supplied item '{item_name}' not found in multi-supply node.")
 
     #---------------------------------------------------------------------------
 
     def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
-        for supplied_item in self.supplied_items:
-            if supplied_item.supplied_item_name == request_item_name:
-                return supplied_item.get_suppliers(request_item_name)
+        connector = self._supplied_items.get(request_item_name)
+        if connector:
+            return connector.get_suppliers(request_item_name)
         return tuple()
 
     #---------------------------------------------------------------------------
@@ -325,7 +333,13 @@ class RecipeItem:
 
     def __init__(self, recipe_item_name:str, required_ipm:int) -> None:
         self.recipe_item_name = recipe_item_name
+        """
+        Name of the item required by this recipe to craft the crafted item.
+        """
         self.required_ipm = required_ipm
+        """
+        Amount required per minute of this recipe item to craft the crafted item.
+        """
         self.suppliers:list[MapSingleSupplyNode] = []
 
     #---------------------------------------------------------------------------
@@ -516,6 +530,52 @@ class MapReceiverNode(MapNode, MapFactoryNode, MapMultiSupplyNode):
 
     def get_id(self) -> str:
         return self.id
+
+    #---------------------------------------------------------------------------
+
+#---------------------------------------------------------------------------------------------------
+
+class MapTargetNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
+    """
+    A target node represents a desired output from the factory. It is not an actual node in the
+    factory but is used to represent the demand for an item that is being produced by the factory.
+    """
+
+    #---------------------------------------------------------------------------
+
+    def __init__(self,
+                 site_id:str,
+                 factory_id:str,
+                 target_id:str,
+                 stored_item_name:str,
+                 building_id:str) -> None:
+
+        MapNode.__init__(self, MapNode.id_for_factory_node(site_id, factory_id, target_id))
+        MapFactoryNode.__init__(self, site_id, factory_id)
+        MapSingleSupplyNode.__init__(self, stored_item_name)
+        self.target_id = target_id
+        self.building_id = building_id
+        self.suppliers:list[MapSingleSupplyNode] = []
+
+    #---------------------------------------------------------------------------
+
+    def add_supplier(self, supplier:MapSingleSupplyNode) -> None:
+        assert supplier.supplied_item_name == self.supplied_item_name, \
+            f"Supplier item name '{supplier.supplied_item_name}' does not match" \
+            f" storage item name '{self.supplied_item_name}'"
+        self.suppliers.append(supplier)
+
+    #---------------------------------------------------------------------------
+
+    def get_id(self) -> str:
+        return self.id
+
+    #---------------------------------------------------------------------------
+
+    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+        if request_item_name != self.supplied_item_name:
+            return tuple()
+        return tuple(self.suppliers)
 
     #---------------------------------------------------------------------------
 
