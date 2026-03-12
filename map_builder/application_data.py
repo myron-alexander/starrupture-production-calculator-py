@@ -123,6 +123,21 @@ class GameData:
 
     #---------------------------------------------------------------------------
 
+    def get_item_building(self, item_name:str) -> str:
+        building = next(
+            (i.factory for i in self.item_definitions if i.item_name == item_name), None)
+        
+        if not building:
+            building = next(
+                (i.factory for i in self.raw_item_definitions if i.item_name == item_name), None)
+
+        if building:
+            return building
+        
+        raise ValueError(f"Building for item '{item_name}' not found.")
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 def dump_game_data(game_data:GameData):
