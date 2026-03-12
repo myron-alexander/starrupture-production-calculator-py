@@ -75,16 +75,16 @@ class MapSite(MapNode):
     #---------------------------------------------------------------------------
 
     def add_resource_node(self, resource_node:"MapResourceNode") -> None:
-        assert resource_node.id not in self.resource_nodes, \
-            f"Resource node with ID '{resource_node.id}' already exists in site '{self.id}'"
-        self.resource_nodes[resource_node.id] = resource_node
+        assert resource_node.resource_id not in self.resource_nodes, \
+            f"Resource node with ID '{resource_node.resource_id}' already exists in site '{self.site_id}'"
+        self.resource_nodes[resource_node.resource_id] = resource_node
 
     #---------------------------------------------------------------------------
 
     def add_factory(self, factory:"MapFactory") -> None:
-        assert factory.id not in self.factories, \
-            f"Factory with ID '{factory.id}' already exists in site '{self.id}'"
-        self.factories[factory.id] = factory
+        assert factory.factory_id not in self.factories, \
+            f"Factory with ID '{factory.factory_id}' already exists in site '{self.site_id}'"
+        self.factories[factory.factory_id] = factory
 
     #---------------------------------------------------------------------------
 
@@ -106,37 +106,37 @@ class MapFactory(MapNode):
     #---------------------------------------------------------------------------
 
     def add_crafter(self, crafter:"MapCrafterNode") -> None:
-        assert crafter.id not in self.crafters, \
-            f"Crafter with ID '{crafter.id}' already exists in factory '{self.id}'"
-        self.crafters[crafter.id] = crafter
+        assert crafter.crafter_id not in self.crafters, \
+            f"Crafter with ID '{crafter.crafter_id}' already exists in factory '{self.factory_id}'"
+        self.crafters[crafter.crafter_id] = crafter
 
     #---------------------------------------------------------------------------
 
     def add_storage(self, storage:"MapSingleStorageNode") -> None:
-        assert storage.id not in self.storages, \
-            f"Storage with ID '{storage.id}' already exists in factory '{self.id}'"
-        self.storages[storage.id] = storage
+        assert storage.storage_id not in self.storages, \
+            f"Storage with ID '{storage.storage_id}' already exists in factory '{self.factory_id}'"
+        self.storages[storage.storage_id] = storage
 
     #---------------------------------------------------------------------------
 
     def add_dispatcher(self, dispatcher:"MapDispatcherNode") -> None:
-        assert dispatcher.id not in self.dispatchers, \
-            f"Dispatcher with ID '{dispatcher.id}' already exists in factory '{self.id}'"
-        self.dispatchers[dispatcher.id] = dispatcher
+        assert dispatcher.dispatcher_id not in self.dispatchers, \
+            f"Dispatcher with ID '{dispatcher.dispatcher_id}' already exists in factory '{self.factory_id}'"
+        self.dispatchers[dispatcher.dispatcher_id] = dispatcher
 
     #---------------------------------------------------------------------------
 
     def add_receiver(self, receiver:"MapReceiverNode") -> None:
-        assert receiver.id not in self.receivers, \
-            f"Receiver with ID '{receiver.id}' already exists in factory '{self.id}'"
-        self.receivers[receiver.id] = receiver
+        assert receiver.receiver_id not in self.receivers, \
+            f"Receiver with ID '{receiver.receiver_id}' already exists in factory '{self.factory_id}'"
+        self.receivers[receiver.receiver_id] = receiver
 
     #---------------------------------------------------------------------------
 
     def add_target(self, target:"MapTargetNode") -> None:
-        assert target.id not in self.targets, \
-            f"Target with ID '{target.id}' already exists in factory '{self.id}'"
-        self.targets[target.id] = target
+        assert target.target_id not in self.targets, \
+            f"Target with ID '{target.target_id}' already exists in factory '{self.factory_id}'"
+        self.targets[target.target_id] = target
 
     #---------------------------------------------------------------------------
 
@@ -153,7 +153,7 @@ class MapSiteNode:
 
     def set_site(self, site:MapSite) -> None:
         assert site.site_id == self.site_id, \
-            f"Site ID '{site.id}' does not match expected site ID '{self.site_id}'"
+            f"Site ID '{site.site_id}' does not match expected site ID '{self.site_id}'"
         self.site = site
 
     #---------------------------------------------------------------------------
@@ -172,7 +172,7 @@ class MapFactoryNode(MapSiteNode):
 
     def set_factory(self, factory:MapFactory) -> None:
         assert factory.factory_id == self.factory_id, \
-            f"Factory ID '{factory.id}' does not match expected factory ID '{self.factory_id}'"
+            f"Factory ID '{factory.factory_id}' does not match expected factory ID '{self.factory_id}'"
         self.factory = factory
         self.set_site(factory.site)
 
@@ -547,14 +547,12 @@ class MapTargetNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
                  site_id:str,
                  factory_id:str,
                  target_id:str,
-                 stored_item_name:str,
-                 building_id:str) -> None:
+                 target_item_name:str) -> None:
 
         MapNode.__init__(self, MapNode.id_for_factory_node(site_id, factory_id, target_id))
         MapFactoryNode.__init__(self, site_id, factory_id)
-        MapSingleSupplyNode.__init__(self, stored_item_name)
+        MapSingleSupplyNode.__init__(self, target_item_name)
         self.target_id = target_id
-        self.building_id = building_id
         self.suppliers:list[MapSingleSupplyNode] = []
 
     #---------------------------------------------------------------------------
@@ -562,7 +560,7 @@ class MapTargetNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
     def add_supplier(self, supplier:MapSingleSupplyNode) -> None:
         assert supplier.supplied_item_name == self.supplied_item_name, \
             f"Supplier item name '{supplier.supplied_item_name}' does not match" \
-            f" storage item name '{self.supplied_item_name}'"
+            f" target item name '{self.supplied_item_name}'"
         self.suppliers.append(supplier)
 
     #---------------------------------------------------------------------------
@@ -591,9 +589,9 @@ class MapData:
     #---------------------------------------------------------------------------
 
     def _add_site(self, site:MapSite) -> None:
-        assert site.id not in self.sites, \
-            f"Site with ID '{site.id}' already exists in map data"
-        self.sites[site.id] = site
+        assert site.site_id not in self.sites, \
+            f"Site with ID '{site.site_id}' already exists in map data"
+        self.sites[site.site_id] = site
 
     #---------------------------------------------------------------------------
 
@@ -927,6 +925,15 @@ class MapData:
                         print(f"  - {dispatched_item.supplied_item_name} from dispatcher(s):")
                         for supplier in dispatched_item.suppliers:
                             print(f"    - {supplier.get_id()}")
+                
+                for target in factory.targets.values():
+                    print("-" * 40)
+                    print(f"factory id  : {target.factory_id}")
+                    print(f"target id   : {target.target_id}")
+                    print(f"target item : {target.supplied_item_name}")
+                    print( "suppliers   :")
+                    for supplier in target.suppliers:
+                        print(f"  - {supplier.get_id()}")
 
     #---------------------------------------------------------------------------
 
@@ -952,6 +959,10 @@ def main():
     #map_data = MapData().set_map_data(map_dict_data, game_data)
 
     map_data = load_map_data(game_data)
+
+    target_node = MapTargetNode("test-site", "factory", "target1", "glass")
+    map_data.sites["test-site"].factories["factory"].add_target(target_node)
+    target_node.add_supplier(map_data._get_supplier_node("glass", "test-site", "s-glass-1", "factory"))
 
     print()
     print()
