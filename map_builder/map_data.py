@@ -34,6 +34,8 @@ from application_data import GameData, load_game_data
 class MapNode:
     def __init__(self, global_node_id:str) -> None:
         self.id = global_node_id
+        self.ledger:Any = None
+        self.graph:Any = None
 
     @staticmethod
     def id_for_site(site_id:str) -> str:
@@ -185,6 +187,16 @@ class MapSingleSupplyNode(ABC):
 
     #---------------------------------------------------------------------------
 
+    @abstractmethod
+    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+        """
+        Get this node's suppliers of items. The request_item_name parameter is used to determine
+        which suppliers to return in the case of a multi-item supplier.
+        """
+        pass
+
+    #---------------------------------------------------------------------------
+
     # TODO: Add abtract method request_supplies(self, request_ipm:int) -> int:
 
     #---------------------------------------------------------------------------
@@ -222,6 +234,13 @@ class MapSupplyConnector(MapSingleSupplyNode, MapNode):
 
     #---------------------------------------------------------------------------
 
+    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+        if request_item_name != self.supplied_item_name:
+            return tuple()
+        return tuple(self.suppliers)
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 class MapMultiSupplyNode:
@@ -250,6 +269,14 @@ class MapMultiSupplyNode:
             if supplied_item.supplied_item_name == item_name:
                 return supplied_item
         raise ValueError(f"Supplied item '{item_name}' not found in multi-supply node.")
+
+    #---------------------------------------------------------------------------
+
+    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+        for supplied_item in self.supplied_items:
+            if supplied_item.supplied_item_name == request_item_name:
+                return supplied_item.get_suppliers(request_item_name)
+        return tuple()
 
     #---------------------------------------------------------------------------
 
@@ -285,6 +312,11 @@ class MapResourceNode(MapNode, MapSiteNode, MapProductionSupplyNode):
 
     #---------------------------------------------------------------------------
 
+    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+        return tuple()
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 class RecipeItem:
@@ -300,6 +332,13 @@ class RecipeItem:
 
     def add_supplier(self, supplier:MapSingleSupplyNode) -> None:
         self.suppliers.append(supplier)
+
+    #---------------------------------------------------------------------------
+
+    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+        if request_item_name != self.recipe_item_name:
+            return tuple()
+        return tuple(self.suppliers)
 
     #---------------------------------------------------------------------------
 
@@ -322,7 +361,7 @@ class MapCrafterNode(MapNode, MapFactoryNode, MapProductionSupplyNode):
         MapFactoryNode.__init__(self, site_id, factory_id)
         MapProductionSupplyNode.__init__(self, crafted_item, recipe_production_ipm)
         self.crafter_id = crafter_id
-        self.recipe = (
+        self.recipe:tuple[RecipeItem, ...] = tuple(
             RecipeItem(recipe_item, required_ipm) for recipe_item, _, required_ipm in craft_recipe
         )
         self.building_id = building_id
@@ -339,6 +378,19 @@ class MapCrafterNode(MapNode, MapFactoryNode, MapProductionSupplyNode):
 
     def get_id(self) -> str:
         return self.id
+
+    #---------------------------------------------------------------------------
+
+    def get_recipe_items(self) -> tuple[RecipeItem, ...]:
+        return self.recipe
+
+    #---------------------------------------------------------------------------
+
+    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+        for recipe_item in self.recipe:
+            if recipe_item.recipe_item_name == request_item_name:
+                return recipe_item.get_suppliers(request_item_name)
+        return tuple()
 
     #---------------------------------------------------------------------------
 
@@ -383,6 +435,13 @@ class MapSingleStorageNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
+    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+        if request_item_name != self.supplied_item_name:
+            return tuple()
+        return tuple(self.suppliers)
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 class MapDispatcherNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
@@ -419,6 +478,13 @@ class MapDispatcherNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
     def get_id(self) -> str:
         return self.id
+
+    #---------------------------------------------------------------------------
+
+    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+        if request_item_name != self.supplied_item_name:
+            return tuple()
+        return tuple(self.suppliers)
 
     #---------------------------------------------------------------------------
 
@@ -468,6 +534,18 @@ class MapData:
         assert site.id not in self.sites, \
             f"Site with ID '{site.id}' already exists in map data"
         self.sites[site.id] = site
+
+    #---------------------------------------------------------------------------
+
+    def delete_all_ledgers(self) -> None:
+        for node in self.map_nodes:
+            node.ledger = None
+
+    #---------------------------------------------------------------------------
+
+    def delete_all_graphs(self) -> None:
+        for node in self.map_nodes:
+            node.graph = None
 
     #---------------------------------------------------------------------------
 
@@ -752,7 +830,7 @@ class MapData:
                     print(f"factory id        : {crafter.factory_id}")
                     print(f"crafter id        : {crafter.crafter_id}")
                     print(f"crafted item name : {crafter.supplied_item_name}")
-                    print(f"production ipm    : {crafter.max_production_ipm}")
+                    print(f"max production ipm: {crafter.max_production_ipm}")
                     for recipe_item in crafter.recipe:
                         print(f"  - {recipe_item.recipe_item_name:<20}:"
                               f" {recipe_item.required_ipm} ipm")
@@ -822,6 +900,29 @@ def main():
     print()
     print()
     map_data.debug_dump_nodes()
+
+    print()
+    print()
+    print()
+    print()
+    print()
+    print()
+
+    def walk_tree(node:MapSingleSupplyNode, depth:int = 0) -> None:
+        indent = "  " * depth
+        print(f"{indent}- {node.get_id()} ({type(node).__name__})")
+        if isinstance(node, MapCrafterNode):
+            for recipe_item in node.get_recipe_items():
+                print(f"{indent}  - Recipe item: {recipe_item.recipe_item_name}")
+                for supplier in recipe_item.get_suppliers(recipe_item.recipe_item_name):
+                    walk_tree(supplier, depth + 2)
+        elif isinstance(node, MapSingleSupplyNode):
+            for supplier in node.get_suppliers(node.supplied_item_name):
+                walk_tree(supplier, depth + 1)
+
+    node = map_data._get_node_by_id("test-site", "s-glass-1", "factory")
+    if isinstance(node, MapSingleSupplyNode):
+        walk_tree(node)
 
 
 
