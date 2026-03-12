@@ -658,13 +658,46 @@ class MapData:
 
     #---------------------------------------------------------------------------
 
-    def _get_supplier_node(
+    def get_supplier_node(
             self,
             supplied_item_name:str,
             site_id:str,
             node_id:str,
             factory_id:str|None = None) -> MapSingleSupplyNode:
+        """
+        Get the supplier node for the given item and node reference. The node reference is given
+        by the site ID, node ID, and optionally factory ID. If the factory ID is not provided, it
+        will look for a resource node with the given site ID and node ID. If the factory ID is
+        provided, it will look for both resource nodes and factory nodes with the given site ID,
+        node ID, and factory ID. This is necessary because the caller won't know the type of node
+        when looking up a from_id reference.
 
+        Parameters
+        ----------
+        supplied_item_name : str
+            The name of the item being supplied. This is used to determine which supplier to return
+            in the case of a multi-item supplier.
+
+        site_id : str
+            The ID of the site where the supplier node is located.
+
+        node_id : str
+            The ID of the node being referenced. This is the resource ID for resource nodes and the
+            crafter/storage/dispatcher/receiver ID for factory nodes.
+
+        factory_id : str | None, optional
+            The ID of the factory where the supplier node is located. This is only needed when
+            looking up factory nodes, but it is optional to allow looking up resource nodes without
+            needing to provide a factory ID.
+
+        Returns
+        -------
+
+        MapSingleSupplyNode
+            The supplier node for the given item and node reference. If the node is not found,
+            or the node is not one of MapSingleSupplyNode, MapMultiSupplyNode, then a ValueError
+            is raised.
+        """
         node = self._get_node_by_id(site_id, node_id, factory_id)
         if isinstance(node, MapSingleSupplyNode):
             return node
@@ -675,6 +708,9 @@ class MapData:
     #---------------------------------------------------------------------------
 
     def set_map_data(self, map_data:dict[str, Any], game_data:GameData) -> "MapData":
+        """
+        Build the map data from the given map data dictionary.
+        """
         for site_id, site_data in map_data.items():
             site = MapSite( site_id,
                             int(site_data['x']),
@@ -837,7 +873,7 @@ class MapData:
                         from_ids = input_data["from_ids"]
                         for from_id in from_ids:
                             #print(f"{crafter_id} / {recipe_item_name} from {from_id}")
-                            supplier_node = self._get_supplier_node(
+                            supplier_node = self.get_supplier_node(
                                 recipe_item_name, site_id, from_id, factory_id)
                             node.add_recipe_item_supplier(recipe_item_name, supplier_node)
 
@@ -848,7 +884,7 @@ class MapData:
                     for input_data in storage_values.get("inputs", []):
                         from_ids = input_data["from_ids"]
                         for from_id in from_ids:
-                            supplier_node = self._get_supplier_node(
+                            supplier_node = self.get_supplier_node(
                                 node.supplied_item_name, site_id, from_id, factory_id)
                             node.add_supplier(supplier_node)
 
@@ -859,7 +895,7 @@ class MapData:
                         raise ValueError(f"Node with ID '{node.id}' is not a MapDispatcherNode.")
                     from_ids = dispatcher_values["from_ids"]
                     for from_id in from_ids:
-                        supplier_node = self._get_supplier_node(
+                        supplier_node = self.get_supplier_node(
                             node.supplied_item_name, site_id, from_id, factory_id)
                         node.add_supplier(supplier_node)
 
@@ -925,7 +961,7 @@ class MapData:
                         print(f"  - {dispatched_item.supplied_item_name} from dispatcher(s):")
                         for supplier in dispatched_item.suppliers:
                             print(f"    - {supplier.get_id()}")
-                
+
                 for target in factory.targets.values():
                     print("-" * 40)
                     print(f"factory id  : {target.factory_id}")
@@ -962,7 +998,7 @@ def main():
 
     target_node = MapTargetNode("test-site", "factory", "target1", "glass")
     map_data.sites["test-site"].factories["factory"].add_target(target_node)
-    target_node.add_supplier(map_data._get_supplier_node("glass", "test-site", "s-glass-1", "factory"))
+    target_node.add_supplier(map_data.get_supplier_node("glass", "test-site", "s-glass-1", "factory"))
 
     print()
     print()
