@@ -8,6 +8,7 @@
 scratch/
 map_builder/pins_data.json
 map_builder/starrupture_map_filled.png
+map_builder/*_redux.py
 
 # Python temp files
 **/__pycache__/
@@ -18,3 +19,6 @@ map_builder/starrupture_map_filled.png
 
 # Copied files
 *?([0-9])*
+
+
+
