@@ -522,12 +522,12 @@ class MapData:
                             site_data['teleporter'],
                             site_data.get('description', ''))
             self._add_node(site)
-            print("-" * 40)
-            print(f"Site ID    : {site.site_id}")
-            print(f"Latitude   : {site.x}")
-            print(f"Longitude  : {site.y}")
-            print(f"Teleporter : {site.teleporter}")
-            print(f"Description: {site.description}")
+            #print("-" * 40)
+            #print(f"Site ID    : {site.site_id}")
+            #print(f"Latitude   : {site.x}")
+            #print(f"Longitude  : {site.y}")
+            #print(f"Teleporter : {site.teleporter}")
+            #print(f"Description: {site.description}")
             for resource_id, resource_data in site_data.get('resource_nodes', {}).items():
                 item_name = resource_data["resource_item"]
                 variant = resource_data["variant"]
@@ -541,11 +541,11 @@ class MapData:
                                         building_id)
                 node.set_site(site)
                 self._add_node(node)
-                print("-" * 40)
-                print(f"resource id       : {node.resource_id}")
-                print(f"item name         : {node.supplied_item_name}")
-                print(f"variant           : {node.variant}")
-                print(f"max production ipm: {node.max_production_ipm}")
+                #print("-" * 40)
+                #print(f"resource id       : {node.resource_id}")
+                #print(f"item name         : {node.supplied_item_name}")
+                #print(f"variant           : {node.variant}")
+                #print(f"max production ipm: {node.max_production_ipm}")
 
             for factory_id, factory_values in site_data.get("factories", {}).items():
                 factory = MapFactory(site, factory_id)
@@ -566,19 +566,19 @@ class MapData:
                                             building_id)
                     node.set_factory(factory)
                     self._add_node(node)
-                    print("-" * 40)
-                    print(f"factory id        : {node.factory_id}")
-                    print(f"crafter id        : {node.crafter_id}")
-                    print(f"crafted item name : {node.supplied_item_name}")
-                    print(f"production ipm    : {node.max_production_ipm}")
-                    for recipe_item, _, required_ipm in recipe:
-                        print(f"  - {recipe_item:<20}: {required_ipm} ipm")
-                        from_ids = [
-                            ids for x in crafter_values["inputs"]
-                                if x["input_item"] == recipe_item
-                                for ids in x["from_ids"]
-                        ]
-                        print(f"    from ids: {", ".join(from_ids)}")
+                    #print("-" * 40)
+                    #print(f"factory id        : {node.factory_id}")
+                    #print(f"crafter id        : {node.crafter_id}")
+                    #print(f"crafted item name : {node.supplied_item_name}")
+                    #print(f"production ipm    : {node.max_production_ipm}")
+                    #for recipe_item, _, required_ipm in recipe:
+                    #    print(f"  - {recipe_item:<20}: {required_ipm} ipm")
+                    #    from_ids = [
+                    #        ids for x in crafter_values["inputs"]
+                    #            if x["input_item"] == recipe_item
+                    #            for ids in x["from_ids"]
+                    #    ]
+                    #    print(f"    from ids: {", ".join(from_ids)}")
 
                 for storage_id, storage_values in machines.get("storage", {}).items():
                     item_name = storage_values["stored_item"]
@@ -587,14 +587,14 @@ class MapData:
                         site_id, factory_id, storage_id, item_name, building_id)
                     node.set_factory(factory)
                     self._add_node(node)
-                    print("-" * 40)
-                    print(f"factory id       : {node.factory_id}")
-                    print(f"storage id       : {node.storage_id}")
-                    print(f"stored item name : {node.supplied_item_name}")
-                    print(f"building id      : {node.building_id}")
-                    for input_data in storage_values.get("inputs", []):
-                        from_ids = input_data["from_ids"]
-                        print(f"  - from ids: {', '.join(from_ids)}")
+                    #print("-" * 40)
+                    #print(f"factory id       : {node.factory_id}")
+                    #print(f"storage id       : {node.storage_id}")
+                    #print(f"stored item name : {node.supplied_item_name}")
+                    #print(f"building id      : {node.building_id}")
+                    #for input_data in storage_values.get("inputs", []):
+                    #    from_ids = input_data["from_ids"]
+                    #    print(f"  - from ids: {', '.join(from_ids)}")
 
                 for dispatcher_id, dispatcher_values \
                         in factory_values.get("dispatchers", {}).items():
@@ -612,14 +612,14 @@ class MapData:
                                              building_id)
                     node.set_factory(factory)
                     self._add_node(node)
-                    print("-" * 40)
-                    print(f"factory id        : {node.factory_id}")
-                    print(f"dispatcher id     : {node.dispatcher_id}")
-                    print(f"dispatched item   : {node.supplied_item_name}")
-                    print(f"building id       : {node.building_id}")
-                    print(f"output rate limit : {node.output_rate_limit_ipm} ipm")
-                    print(f"input rate limit  : {node.input_rate_limit_ipm} ipm")
-                    print(f"from ids          : {', '.join(from_ids)}")
+                    #print("-" * 40)
+                    #print(f"factory id        : {node.factory_id}")
+                    #print(f"dispatcher id     : {node.dispatcher_id}")
+                    #print(f"dispatched item   : {node.supplied_item_name}")
+                    #print(f"building id       : {node.building_id}")
+                    #print(f"output rate limit : {node.output_rate_limit_ipm} ipm")
+                    #print(f"input rate limit  : {node.input_rate_limit_ipm} ipm")
+                    #print(f"from ids          : {', '.join(from_ids)}")
 
                 for receiver_id, receiver_values in factory_values.get("receivers", {}).items():
                     building_id = receiver_values.get("building_id", "")
@@ -630,13 +630,13 @@ class MapData:
                     node = MapReceiverNode(site_id, factory_id, receiver_id, building_id)
                     node.set_factory(factory)
                     self._add_node(node)
-                    print("-" * 40)
-                    print(f"factory id  : {node.factory_id}")
-                    print(f"receiver id : {node.receiver_id}")
-                    print(f"building id : {node.building_id}")
-                    print( "dispatchers :")
-                    for s, f, d in dispatchers:
-                        print(f"  - {s} / {f} / {d}")
+                    #print("-" * 40)
+                    #print(f"factory id  : {node.factory_id}")
+                    #print(f"receiver id : {node.receiver_id}")
+                    #print(f"building id : {node.building_id}")
+                    #print( "dispatchers :")
+                    #for s, f, d in dispatchers:
+                    #    print(f"  - {s} / {f} / {d}")
 
         #
         # Link nodes. This has to happen after all nodes have been created.
@@ -676,7 +676,7 @@ class MapData:
                         recipe_item_name = input_data["input_item"]
                         from_ids = input_data["from_ids"]
                         for from_id in from_ids:
-                            print(f"{crafter_id} / {recipe_item_name} from {from_id}")
+                            #print(f"{crafter_id} / {recipe_item_name} from {from_id}")
                             supplier_node = self._get_supplier_node(
                                 recipe_item_name, site_id, from_id, factory_id)
                             node.add_recipe_item_supplier(recipe_item_name, supplier_node)
