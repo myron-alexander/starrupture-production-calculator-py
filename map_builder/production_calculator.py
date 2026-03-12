@@ -1,3 +1,17 @@
+"""
+Production capacity calculator.
+
+Not complete, only implemented a vary naive approach.
+Missing:
+
+1. Calculating difference between wanted rate and supplied rate. This would be shown for the inputs
+   to blocks.
+2. Taking into consideration transport rate limits.
+3. Loading targets from map data and calculating the production rates for all the targets.
+4. Support for multi-type storage.
+5. Allow for setting a target amount alongside the rate, and calculating the time to reach the
+   target amount at the current supply rate.
+"""
 
 #---------------------------------------------------------------------------------------------------
 
