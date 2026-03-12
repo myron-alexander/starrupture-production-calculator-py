@@ -1,3 +1,27 @@
+
+#---------------------------------------------------------------------------------------------------
+
+__all__ = [
+    'MapNode',
+    'MapSite',
+    'MapFactory',
+    'MapSiteNode',
+    'MapFactoryNode',
+    'MapSingleSupplyNode',
+    'MapSupplyConnector',
+    'MapMultiSupplyNode',
+    'MapProductionSupplyNode',
+    'MapResourceNode',
+    'RecipeItem',
+    'MapCrafterNode',
+    'MapSingleStorageNode',
+    'MapDispatcherNode',
+    'MapReceiverNode',
+    'MapData',
+    'load_map_data_dict_from_file',
+    'load_map_data',
+]
+
 #---------------------------------------------------------------------------------------------------
 
 from abc import ABC, abstractmethod
@@ -754,7 +778,7 @@ class MapData:
                     print(f"input rate limit  : {dispatched_item.input_rate_limit_ipm} ipm")
                     for supplier in dispatched_item.suppliers:
                         print(f"  from supplier: {supplier.get_id()}")
-                
+
                 for receiver in factory.receivers.values():
                     print("-" * 40)
                     print(f"factory id  : {receiver.factory_id}")
@@ -771,13 +795,25 @@ class MapData:
 
 #---------------------------------------------------------------------------------------------------
 
+def load_map_data_dict_from_file(file_path:str = 'pins_data.json') -> dict[str, Any]:
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+#---------------------------------------------------------------------------------------------------
+
+def load_map_data(game_data:GameData, file_path:str = 'pins_data.json') -> MapData:
+    map_dict_data = load_map_data_dict_from_file(file_path)
+    return MapData().set_map_data(map_dict_data, game_data)
+
+#---------------------------------------------------------------------------------------------------
+
 def main():
-    with open('pins_data.json', 'r', encoding='utf-8') as f:
-        map_dict_data = json.load(f)
-
     game_data = load_game_data()
+    #with open('pins_data.json', 'r', encoding='utf-8') as f:
+    #    map_dict_data = json.load(f)
+    #map_data = MapData().set_map_data(map_dict_data, game_data)
 
-    map_data = MapData().set_map_data(map_dict_data, game_data)
+    map_data = load_map_data(game_data)
 
     print()
     print()
@@ -786,6 +822,8 @@ def main():
     print()
     print()
     map_data.debug_dump_nodes()
+
+
 
 
 #---------------------------------------------------------------------------------------------------
