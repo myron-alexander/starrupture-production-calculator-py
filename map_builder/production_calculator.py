@@ -718,7 +718,7 @@ class TargetLedger(Ledger):
     def __init__(self, owner:mmapd.MapTargetNode) -> None:
         super().__init__()
         self._owner = owner
-        self._target_ipm:int = 0
+        self._target_ipm:int = owner.target_rate_ipm
         self._supply_rate_ipm:int = 0
         """
         The actual rate of supply from all the suppliers attempting to provide the target rate.
@@ -742,6 +742,9 @@ class TargetLedger(Ledger):
     #---------------------------------------------------------------------------
 
     def request_supplies(self, requestor:Ledger, request_item:str, request_ipm:int) -> int:
+        """
+        For target nodes, the request item must be an empty string.
+        """
         if self != requestor:
             raise ValueError(
                 "Target nodes can only be requested by themselves.")
@@ -754,18 +757,25 @@ class TargetLedger(Ledger):
         if request_ipm < 0:
             raise ValueError("Request ipm cannot be negative.")
 
-        if request_item != self._owner.supplied_item_name:
+        if 0 < len(request_item):
             raise ValueError(
-                f"Requested item '{request_item}' does not match the supplied item"
-                f" '{self._owner.supplied_item_name}' for this ledger of target node"
-                f" '{self._owner.get_global_id()}'.")
+                f"Request item must be an empty string for target node."
+                f" Got '{request_item}'.")
 
+        supplied_item_name = None
         remaining_request_ipm = request_ipm
-        for supplier in self._owner.get_suppliers(request_item):
+        for supplier in self._owner.get_suppliers():
+            if supplied_item_name is None:
+                supplied_item_name = supplier.supplied_item_name
+            elif supplied_item_name != supplier.supplied_item_name:
+                raise ValueError(
+                     "All suppliers to a target node must supply the same item. Found at least two"
+                    f" different supplied items: '{supplied_item_name}' and"
+                    f" '{supplier.supplied_item_name}'.")
             node = cast(mmapd.MapNode, supplier)
             ledger = cast(Ledger, node.ledger)
             remaining_request_ipm \
-                -= ledger.request_supplies(self, request_item, remaining_request_ipm)
+                -= ledger.request_supplies(self, supplied_item_name, remaining_request_ipm)
 
         self._supply_rate_ipm = request_ipm - remaining_request_ipm
 
@@ -779,13 +789,26 @@ class TargetLedger(Ledger):
         This can only be called once the network has been fully built.
         """
         self._target_ipm = target_ipm
-        self.request_supplies(self, self._owner.supplied_item_name, target_ipm)
+        self.request_supplies(self, "", self._target_ipm)
+
+    #---------------------------------------------------------------------------
+
+    def execute_target(self) -> None:
+        """
+        Execute the production calculation for the target node using the current target rate.
+        """
+        self.request_supplies(self, "", self._target_ipm)
 
     #---------------------------------------------------------------------------
 
 #---------------------------------------------------------------------------------------------------
 
-def set_map_data_ledgers(map_data:mmapd.MapData) -> None:
+def set_map_data_ledgers(map_data:mmapd.MapData) -> list[TargetLedger]:
+    """
+    Populate the ledgers for all the nodes in the map data and return the list of target ledgers
+    for the target nodes in the map data.
+    """
+    target_ledgers:list[TargetLedger] = []
     for site in map_data.sites.values():
         for resource_node in site.resource_nodes.values():
             resource_node.ledger = ResourceLedger(resource_node)
@@ -800,6 +823,28 @@ def set_map_data_ledgers(map_data:mmapd.MapData) -> None:
                 receiver_node.ledger = ReceiverLedger(receiver_node)
             for target_node in factory.targets.values():
                 target_node.ledger = TargetLedger(target_node)
+                target_ledgers.append(target_node.ledger)
+    return target_ledgers
+
+#---------------------------------------------------------------------------------------------------
+
+def calculate_production_capacity_for_targets(target_ledgers:list[TargetLedger]) -> None:
+    """
+    Calculate the production capacity for the target nodes by executing the production calculation
+    for each target ledger.
+    """
+    for target_ledger in target_ledgers:
+        target_ledger.execute_target()
+
+#---------------------------------------------------------------------------------------------------
+
+def calculate_production_capacity(map_data:mmapd.MapData) -> None:
+    """
+    Populate the ledgers for all the nodes in the map data and calculate the production capacity for
+    the target nodes.
+    """
+    target_ledgers = set_map_data_ledgers(map_data)
+    calculate_production_capacity_for_targets(target_ledgers)
 
 #---------------------------------------------------------------------------------------------------
 
@@ -817,6 +862,7 @@ def spike_calc_factory_resource_usage2(
     factory_nodes.extend(list(factory.storages.values()))
     factory_nodes.extend(list(factory.site.resource_nodes.values()))
     factory_nodes.extend(i for r in factory.receivers.values() for i in r.supplied_items)
+    factory_nodes.extend(list(factory.dispatchers.values()))
 
     factory_nodes.sort(key=lambda n:n.global_id)
 
@@ -836,15 +882,20 @@ def main():
     game_data = load_game_data()
     map_data = mmapd.load_map_data(game_data)
 
-    target_node = mmapd.MapTargetNode("test-site", "factory", "target1", "glass")
-    map_data.sites["test-site"].factories["factory"].add_target(target_node)
-    target_node.add_supplier(map_data.sites["test-site"].factories["factory"].storages["s-glass-1"])
+    calculate_production_capacity(map_data)
 
-    set_map_data_ledgers(map_data)
-
-    target_node.ledger.set_target(100)
-
+    print()
+    print()
+    print()
     spike_calc_factory_resource_usage2("test-site", "factory", map_data)
+    print()
+    print()
+    print()
+    spike_calc_factory_resource_usage2("starter", "inductor", map_data)
+    print()
+    print()
+    print()
+    spike_calc_factory_resource_usage2("starter", "tube and applicator", map_data)
 
 #---------------------------------------------------------------------------------------------------
 

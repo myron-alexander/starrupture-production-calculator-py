@@ -26,7 +26,7 @@ __all__ = [
 
 from abc import ABC, abstractmethod
 import json
-from typing import Any
+from typing import Any, cast
 from application_data import GameData, load_game_data
 
 #---------------------------------------------------------------------------------------------------
@@ -153,7 +153,7 @@ class MapFactory(MapNode):
     def get_terminal_nodes(self) -> tuple[MapNode, ...]:
         """
         Get the terminal nodes of this factory. Terminal nodes are nodes that are not inputs
-        to any other nodes in the factory. 
+        to any other nodes in the factory.
         """
         # Build list of components that are inputs.
         is_input = set()
@@ -163,7 +163,7 @@ class MapFactory(MapNode):
             is_input |= set(v.get_all_supplier_node_ids())
         for v in self.storages.values():
             is_input |= set(v.get_all_supplier_node_ids())
-        
+
         # Dispatchers are always terminal within the factory.
         terminals = [v for v in self.dispatchers.values()]
         terminals += [v for v in self.crafters.values() if v.get_node_id() not in is_input]
@@ -682,7 +682,9 @@ class MapReceiverNode(MapNode, MapFactoryNode, MapMultiSupplyNode):
 
 #---------------------------------------------------------------------------------------------------
 
-class MapTargetNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
+# MapTargetNode does not supply items and is not part of the production chain so doesn't implement
+# a *SupplyNode interface.
+class MapTargetNode(MapNode, MapFactoryNode):
     """
     A target node represents a desired output from the factory. It is not an actual node in the
     factory but is used to represent the demand for an item that is being produced by the factory.
@@ -694,20 +696,32 @@ class MapTargetNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
                  site_id:str,
                  factory_id:str,
                  target_id:str,
-                 target_item_name:str) -> None:
+                 target_rate_ipm:int,
+                 target_amount:int) -> None:
 
         MapNode.__init__(self, MapNode.id_for_factory_node(site_id, factory_id, target_id))
         MapFactoryNode.__init__(self, site_id, factory_id)
-        MapSingleSupplyNode.__init__(self, target_item_name)
         self.target_id = target_id
         self.suppliers:list[MapSingleSupplyNode] = []
+        self.target_rate_ipm:int = target_rate_ipm
+        """
+        Target production rate in items per minute. If set to zero, then target is disabled and
+        shouldn't be used for production calculations.
+        """
+        self.target_amount:int = target_amount
+        """
+        Optional amount of the target item to produce. When not provided, will be zero.
+        """
 
     #---------------------------------------------------------------------------
 
     def add_supplier(self, supplier:MapSingleSupplyNode) -> None:
-        assert supplier.supplied_item_name == self.supplied_item_name, \
-            f"Supplier item name '{supplier.supplied_item_name}' does not match" \
-            f" target item name '{self.supplied_item_name}'"
+        if self.suppliers and self.suppliers[0].supplied_item_name != supplier.supplied_item_name:
+            raise ValueError(
+                f"Supplier '{supplier.get_global_id()}' item name '{supplier.supplied_item_name}'"
+                 " does not match existing"
+                f" supplier item name '{self.suppliers[0].supplied_item_name}' for target node"
+                f" '{self.global_id}'. All suppliers for a target node must supply the same item.")
         self.suppliers.append(supplier)
 
     #---------------------------------------------------------------------------
@@ -722,9 +736,7 @@ class MapTargetNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
-        if request_item_name != self.supplied_item_name:
-            return tuple()
+    def get_suppliers(self) -> tuple["MapSingleSupplyNode", ...]:
         return tuple(self.suppliers)
 
     #---------------------------------------------------------------------------
@@ -780,6 +792,8 @@ class MapData:
                     node.factory.add_dispatcher(node)
                 elif isinstance(node, MapReceiverNode):
                     node.factory.add_receiver(node)
+                elif isinstance(node, MapTargetNode):
+                    node.factory.add_target(node)
                 else:
                     raise ValueError(f"Unsupported factory node type: {type(node).__name__}")
             else:
@@ -986,6 +1000,26 @@ class MapData:
                     #for s, f, d in dispatchers:
                     #    print(f"  - {s} / {f} / {d}")
 
+                for target_id, target_values in factory_values.get("targets", {}).items():
+                    target_rate_ipm = int(target_values["target_rate_ipm"])
+                    target_amount = int(target_values["target_amount"])
+                    node = MapTargetNode(site_id,
+                                         factory_id,
+                                         target_id,
+                                         target_rate_ipm,
+                                         target_amount)
+                    node.set_factory(factory)
+                    self._add_node(node)
+                    #print("-" * 40)
+                    #print(f"factory id      : {node.factory_id}")
+                    #print(f"target id       : {node.target_id}")
+                    #print(f"target rate ipm : {node.target_rate_ipm}")
+                    #print(f"target amount   : {node.target_amount}")
+                    #print("suppliers  :")
+                    #for supplier in target_values.get("from_ids", []):
+                    #    print(f"  - {supplier}")
+
+
         #
         # Link nodes. This has to happen after all nodes have been created.
         #
@@ -1051,6 +1085,16 @@ class MapData:
                             node.supplied_item_name, site_id, from_id, factory_id)
                         node.add_supplier(supplier_node)
 
+                for target_id, target_values in factory_values.get("targets", {}).items():
+                    node = self._get_node_by_id(site_id, target_id, factory_id)
+                    if not isinstance(node, MapTargetNode):
+                        raise ValueError(f"Node with ID '{node.global_id}' is not a MapTargetNode.")
+                    for from_id in target_values.get("from_ids", []):
+                        supplier_node = self._get_node_by_id(site_id, from_id, factory_id)
+                        # The plan is that even when multi-item storage is implemented, the
+                        # target node will only allow crafter and single item storage.
+                        node.add_supplier(cast(MapSingleSupplyNode, supplier_node))
+
         return self
 
     #---------------------------------------------------------------------------
@@ -1085,30 +1129,30 @@ class MapData:
 
                 for storage in factory.storages.values():
                     print("-" * 40)
-                    print(f"factory id       : {storage.factory_id}")
-                    print(f"storage id       : {storage.storage_id}")
-                    print(f"stored item name : {storage.supplied_item_name}")
-                    print(f"building id      : {storage.building_id}")
+                    print(f"factory id      : {storage.factory_id}")
+                    print(f"storage id      : {storage.storage_id}")
+                    print(f"stored item name: {storage.supplied_item_name}")
+                    print(f"building id     : {storage.building_id}")
                     for supplier in storage.suppliers:
                         print(f"  from supplier: {supplier.get_global_id()}")
 
                 for dispatched_item in factory.dispatchers.values():
                     print("-" * 40)
-                    print(f"factory id        : {dispatched_item.factory_id}")
-                    print(f"dispatcher id     : {dispatched_item.dispatcher_id}")
-                    print(f"dispatched item   : {dispatched_item.supplied_item_name}")
-                    print(f"building id       : {dispatched_item.building_id}")
-                    print(f"output rate limit : {dispatched_item.output_rate_limit_ipm} ipm")
-                    print(f"input rate limit  : {dispatched_item.input_rate_limit_ipm} ipm")
+                    print(f"factory id       : {dispatched_item.factory_id}")
+                    print(f"dispatcher id    : {dispatched_item.dispatcher_id}")
+                    print(f"dispatched item  : {dispatched_item.supplied_item_name}")
+                    print(f"building id      : {dispatched_item.building_id}")
+                    print(f"output rate limit: {dispatched_item.output_rate_limit_ipm} ipm")
+                    print(f"input rate limit : {dispatched_item.input_rate_limit_ipm} ipm")
                     for supplier in dispatched_item.suppliers:
                         print(f"  from supplier: {supplier.get_global_id()}")
 
                 for receiver in factory.receivers.values():
                     print("-" * 40)
-                    print(f"factory id  : {receiver.factory_id}")
-                    print(f"receiver id : {receiver.receiver_id}")
-                    print(f"building id : {receiver.building_id}")
-                    print( "dispatched items :")
+                    print(f"factory id : {receiver.factory_id}")
+                    print(f"receiver id: {receiver.receiver_id}")
+                    print(f"building id: {receiver.building_id}")
+                    print( "dispatched items:")
                     for dispatched_item in receiver.supplied_items:
                         print(f"  - {dispatched_item.supplied_item_name} from dispatcher(s):")
                         for supplier in dispatched_item.suppliers:
@@ -1116,10 +1160,12 @@ class MapData:
 
                 for target in factory.targets.values():
                     print("-" * 40)
-                    print(f"factory id  : {target.factory_id}")
-                    print(f"target id   : {target.target_id}")
-                    print(f"target item : {target.supplied_item_name}")
-                    print( "suppliers   :")
+                    print(f"factory id     : {target.factory_id}")
+                    print(f"target id      : {target.target_id}")
+                    print(f"target item    : {target.suppliers[0].supplied_item_name if target.suppliers else 'N/A'}")
+                    print(f"target rate ipm: {target.target_rate_ipm}")
+                    print(f"target amount  : {target.target_amount}")
+                    print( "suppliers:")
                     for supplier in target.suppliers:
                         print(f"  - {supplier.get_global_id()}")
 
@@ -1148,9 +1194,9 @@ def main():
 
     map_data = load_map_data(game_data)
 
-    target_node = MapTargetNode("test-site", "factory", "target1", "glass")
-    map_data.sites["test-site"].factories["factory"].add_target(target_node)
-    target_node.add_supplier(map_data.get_supplier_node("glass", "test-site", "s-glass-1", "factory"))
+    #target_node = MapTargetNode("test-site", "factory", "target1", "glass")
+    #map_data.sites["test-site"].factories["factory"].add_target(target_node)
+    #target_node.add_supplier(map_data.get_supplier_node("glass", "test-site", "s-glass-1", "factory"))
 
     print()
     print()
