@@ -885,9 +885,10 @@ class RoutingOccupancyGrid:
             case NodeType.Dispatcher:
                 return str(node.definition["dispatched_item"])
             case NodeType.Receiver:
-                key = f"{node.definition["site_id"]}"\
-                        f";{node.definition["factory_id"]}"\
-                        f";{node.definition["dispatcher_id"]}"
+                input = node.definition["dispatchers"][0]
+                key = f"{input["site_id"]}"\
+                        f";{input["factory_id"]}"\
+                        f";{input["dispatcher_id"]}"
                 dispatched_item = self._dispatcher_item_map[key]
                 return dispatched_item
         return "*"
@@ -1985,13 +1986,15 @@ body {
                 add_text('Supply Rate: todo ipm')
 
             case NodeType.Receiver:
-                site = row.definition["site_id"]
-                factory = row.definition["factory_id"]
-                dispatcher = row.definition["dispatcher_id"]
                 add_text('From:')
-                add_text(f'{site}', x=text_x + 10)
-                add_text(f'/{factory}', x=text_x + 10)
-                add_text(f'/{dispatcher}', x=text_x + 10)
+                inputs = row.definition["dispatchers"]
+                for ii in inputs:
+                    site = ii["site_id"]
+                    factory = ii["factory_id"]
+                    dispatcher = ii["dispatcher_id"]
+                    add_text(f'{site}', x=text_x + 10)
+                    add_text(f'/{factory}', x=text_x + 10)
+                    add_text(f'/{dispatcher}', x=text_x + 10)
                 add_text('Supply Rate: todo ipm')
 
         return svg_content
