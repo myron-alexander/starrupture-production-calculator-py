@@ -384,6 +384,7 @@ header p {
     margin-bottom: 6px;
     font-size: 15px;
     transition: background 0.2s;
+    max-width: 30em;
 }
 
 .tree-block:hover:not(.add-button) {
@@ -683,5 +684,9 @@ header p {
 
     .map-section {
         min-height: 400px;
+    }
+
+    .tree-block {
+        max-width: 100%;
     }
 }
