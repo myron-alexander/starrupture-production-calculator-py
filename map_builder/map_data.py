@@ -31,11 +31,34 @@ from application_data import GameData, load_game_data
 
 #---------------------------------------------------------------------------------------------------
 
-class MapNode:
+class MapNode(ABC):
+
+    #--------------------------------------------------------------------------
+
     def __init__(self, global_node_id:str) -> None:
         self.global_id = global_node_id
         self.ledger:Any = None
         self.graph:Any = None
+
+    #--------------------------------------------------------------------------
+
+    def get_global_id(self) -> str:
+        """
+        Get the ID of this node this is globally unique.
+        """
+        return self.global_id
+
+    #--------------------------------------------------------------------------
+
+    @abstractmethod
+    def get_node_id(self) -> str:
+        """
+        Get the ID of this node that is locally unique.
+        """
+        pass
+
+    #--------------------------------------------------------------------------
+
 
     @staticmethod
     def id_for_site(site_id:str) -> str:
@@ -74,6 +97,11 @@ class MapSite(MapNode):
 
     #---------------------------------------------------------------------------
 
+    def get_node_id(self) -> str:
+        return self.site_id
+
+    #---------------------------------------------------------------------------
+
     def add_resource_node(self, resource_node:"MapResourceNode") -> None:
         assert resource_node.resource_id not in self.resource_nodes, \
             f"Resource node with ID '{resource_node.resource_id}' already exists in site '{self.site_id}'"
@@ -102,6 +130,11 @@ class MapFactory(MapNode):
         self.dispatchers:dict[str,MapDispatcherNode] = {}
         self.receivers:dict[str,MapReceiverNode] = {}
         self.targets:dict[str,MapTargetNode] = {}
+
+    #---------------------------------------------------------------------------
+
+    def get_node_id(self) -> str:
+        return self.factory_id
 
     #---------------------------------------------------------------------------
 
@@ -216,11 +249,6 @@ class MapSingleSupplyNode(ABC):
 
     #---------------------------------------------------------------------------
 
-    # TODO: Add abtract method request_supplies(self, request_ipm:int) -> int:
-
-    #---------------------------------------------------------------------------
-
-
 #---------------------------------------------------------------------------------------------------
 
 class MapSupplyConnector(MapSingleSupplyNode, MapNode):
@@ -249,7 +277,12 @@ class MapSupplyConnector(MapSingleSupplyNode, MapNode):
     #---------------------------------------------------------------------------
 
     def get_global_id(self) -> str:
-        return self.global_id
+        return MapNode.get_global_id(self)
+
+    #---------------------------------------------------------------------------
+
+    def get_node_id(self) -> str:
+        return self.owner.get_node_id()
 
     #---------------------------------------------------------------------------
 
@@ -328,7 +361,12 @@ class MapResourceNode(MapNode, MapSiteNode, MapProductionSupplyNode):
     #---------------------------------------------------------------------------
 
     def get_global_id(self) -> str:
-        return self.global_id
+        return MapNode.get_global_id(self)
+
+    #---------------------------------------------------------------------------
+
+    def get_node_id(self) -> str:
+        return self.resource_id
 
     #---------------------------------------------------------------------------
 
@@ -403,7 +441,12 @@ class MapCrafterNode(MapNode, MapFactoryNode, MapProductionSupplyNode):
     #---------------------------------------------------------------------------
 
     def get_global_id(self) -> str:
-        return self.global_id
+        return MapNode.get_global_id(self)
+
+    #---------------------------------------------------------------------------
+
+    def get_node_id(self) -> str:
+        return self.crafter_id
 
     #---------------------------------------------------------------------------
 
@@ -457,7 +500,12 @@ class MapSingleStorageNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
     #---------------------------------------------------------------------------
 
     def get_global_id(self) -> str:
-        return self.global_id
+        return MapNode.get_global_id(self)
+
+    #---------------------------------------------------------------------------
+
+    def get_node_id(self) -> str:
+        return self.storage_id
 
     #---------------------------------------------------------------------------
 
@@ -503,7 +551,12 @@ class MapDispatcherNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
     #---------------------------------------------------------------------------
 
     def get_global_id(self) -> str:
-        return self.global_id
+        return MapNode.get_global_id(self)
+
+    #---------------------------------------------------------------------------
+
+    def get_node_id(self) -> str:
+        return self.dispatcher_id
 
     #---------------------------------------------------------------------------
 
@@ -541,7 +594,12 @@ class MapReceiverNode(MapNode, MapFactoryNode, MapMultiSupplyNode):
     #---------------------------------------------------------------------------
 
     def get_global_id(self) -> str:
-        return self.global_id
+        return MapNode.get_global_id(self)
+
+    #---------------------------------------------------------------------------
+
+    def get_node_id(self) -> str:
+        return self.receiver_id
 
     #---------------------------------------------------------------------------
 
@@ -578,7 +636,12 @@ class MapTargetNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
     #---------------------------------------------------------------------------
 
     def get_global_id(self) -> str:
-        return self.global_id
+        return MapNode.get_global_id(self)
+
+    #---------------------------------------------------------------------------
+
+    def get_node_id(self) -> str:
+        return self.target_id
 
     #---------------------------------------------------------------------------
 
