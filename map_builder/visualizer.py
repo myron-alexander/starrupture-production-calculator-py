@@ -2172,7 +2172,10 @@ def visualize_factory_on_a_grid(
     def walk_inputs(
             terminal_idx:int, node:mmapd.MapSingleSupplyNode, item_name:str, depth:int) -> None:
 
+        #print(f"Walking inputs for {item_name} at node {node.get_node_id()} depth {depth}")
+
         for n in node.get_suppliers(item_name):
+            #print(f"Supplier {n.get_node_id()} type {type(n)}")
             if isinstance(n, mmapd.MapCrafterNode):
                 add_node(
                     item_name, terminal_idx, node.get_node_id(), NodeType.Crafter, n, depth)
@@ -2211,7 +2214,8 @@ def visualize_factory_on_a_grid(
         node = FactoryNode(NodeType.Crafter, n, 0, terminal_idx)
         terminals.append(node)
         nodes.append(node)
-        walk_inputs(terminal_idx, n, n.supplied_item_name, 1)
+        for r in n.get_recipe_items():
+            walk_inputs(terminal_idx, n, r.recipe_item_name, 1)
 
     definitions = [n for n in terminal_map_nodes if isinstance(n, mmapd.MapSingleStorageNode)]
     for n in definitions:
@@ -2232,6 +2236,20 @@ def visualize_factory_on_a_grid(
     display_grid = DisplayGrid()
     for i in range(len(terminals)):
         display_grid.add_terminal_tree(terminals, i)
+
+    #for n in terminals:
+    #    print(f"Terminal node {n.id} at depth {n.depths} terminal_idx {n.terminal_idxs}")
+    #print()
+    #print()
+    #print()
+    #print()
+    #for n in nodes:
+    #    print(f"Node {n.id} at depth {n.depths} terminal_idx {n.terminal_idxs}")
+    #print()
+    #print()
+    #print()
+    #print()
+    #display_grid.print_grid()
 
     #
     # Create connection lines between factory nodes.
@@ -2396,7 +2414,8 @@ def main():
 
     map_data = mmapd.load_map_data(game_data)
 
-    viz = visualize_factory_on_a_grid(map_data, "starter", "inductor", game_data)
+    #viz = visualize_factory_on_a_grid(map_data, "starter", "inductor", game_data)
+    viz = visualize_factory_on_a_grid(map_data, "wolfram north", "supermagnet", game_data)
 
     __write_html(viz[2], viz[3])
 
