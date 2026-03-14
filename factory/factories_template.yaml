@@ -375,11 +375,15 @@ sites:
           # machines shared across factories.
           <target_id>:
 
-            # The required rate that the combination of all suppliers must attempt to satisfy.
+            # Required. The required rate that the combination of all suppliers must attempt to satisfy.
             target_rate_ipm: 1
 
+            # Optional amount of an item to reach. For calculating the time necessary to reach
+            # the goal based on the actual production rate.
+            target_amount: 1
+
             # The list of suppliers that must meet the target. The id must be from either a
-            # dispatcher, machine or resource within the factory.
+            # crafter or storage within the factory.
             from_ids:
-              - "dispatcher, machine, resource id"
+              - "crafter or storage"
 
