@@ -376,6 +376,7 @@ sites:
           <target_id>:
 
             # Required. The required rate that the combination of all suppliers must attempt to satisfy.
+            # When set to zero, the target is disabled.
             target_rate_ipm: 1
 
             # Optional amount of an item to reach. For calculating the time necessary to reach

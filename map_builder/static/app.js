@@ -3573,7 +3573,7 @@ function openAddTargetModal(pinId, factoryId) {
     targetModalTitle.textContent = 'Add Target';
     targetId.value = '';
     targetId.disabled = false;
-    targetRateIpm.value = '120';
+    targetRateIpm.value = '0';
     targetAmount.value = '0';
     setTargetFromIdsBadges([]);
     deleteTargetBtn.style.display = 'none';
@@ -3616,8 +3616,8 @@ async function handleSaveTarget() {
     }
 
     const rate = parseInt(targetRateIpm.value, 10);
-    if (isNaN(rate) || rate < 1) {
-        alert('Please enter a valid positive target rate');
+    if (isNaN(rate) || rate < 0) {
+        alert('Please enter a valid non-negative target rate');
         return;
     }
 
