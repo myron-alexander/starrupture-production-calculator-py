@@ -3535,11 +3535,32 @@ function handleSelectAllTargetSources(event) {
 }
 
 function handleSelectTargetSources() {
-    const selectedIds = Array.from(
+    const selectedSources = Array.from(
         targetSourcesSelectionTable.querySelectorAll('tbody .target-source-checkbox:checked')
     )
-        .map(checkbox => checkbox.value.trim())
-        .filter(id => id);
+        .map(checkbox => {
+            const row = checkbox.closest('tr');
+            const itemCell = row ? row.children[2] : null;
+            return {
+                id: checkbox.value.trim(),
+                item: (itemCell ? itemCell.textContent : '').trim()
+            };
+        })
+        .filter(source => source.id);
+
+    // Target sources must all produce/store the same item.
+    const selectedItems = [...new Set(
+        selectedSources
+            .map(source => source.item.toLowerCase())
+            .filter(item => item && item !== '-')
+    )];
+
+    if (selectedItems.length > 1) {
+        alert('All selected target sources must provide the same item.');
+        return;
+    }
+
+    const selectedIds = selectedSources.map(source => source.id);
 
     setTargetFromIdsBadges(selectedIds);
     closeSelectTargetSourcesModal();
