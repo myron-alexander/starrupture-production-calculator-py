@@ -7,26 +7,33 @@ Missing:
 1. Calculating difference between wanted rate and supplied rate. This would be shown for the inputs
    to blocks.
 2. Taking into consideration transport rate limits.
-3. Loading targets from map data and calculating the production rates for all the targets.
 4. Support for multi-type storage.
-5. Allow for setting a target amount alongside the rate, and calculating the time to reach the
-   target amount at the current supply rate.
+
+Done:
+3. Loading targets from map data and calculating the production rates for all the targets.
+
+Removed:
+- This is not necessary, once the rate per minutes is known, calculating the time can be done
+  elswhere very easily.
+    5. Allow for setting a target amount alongside the rate, and calculating the time to reach the
+    target amount at the current supply rate.
 """
 
 #---------------------------------------------------------------------------------------------------
 
 __all__ = [
+    'set_map_data_ledgers',
+    'calculate_production_capacity_for_targets',
+    'calculate_production_capacity'
 ]
 
 #---------------------------------------------------------------------------------------------------
 
-import json
 import math
 from abc import ABC, abstractmethod
-from collections import Counter
-from typing import Any, cast
+from typing import cast
 
-from application_data import GameData, load_game_data
+from application_data import load_game_data
 import map_data as mmapd
 
 #---------------------------------------------------------------------------------------------------

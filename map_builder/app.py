@@ -14,6 +14,7 @@ from typing import Any
 from visualizer import visualize_factory_on_a_grid
 from application_data import *
 import map_data as mmapd
+import production_calculator as prodc
 
 #---------------------------------------------------------------------------------------------------
 
@@ -568,6 +569,7 @@ def visualize_factory(pin_id, factory_id):
         raise ValueError("Game data not loaded")
 
     map_data = mmapd.MapData().set_map_data(pins, game_data)
+    prodc.calculate_production_capacity(map_data)
     svg_data = visualize_factory_on_a_grid(map_data, pin_id, factory_id, game_data)
     if svg_data is None:
         return jsonify(error="Factory is empty"), 404
@@ -595,6 +597,7 @@ def render_visualize_factory(pin_id, factory_id):
     purpose = factory.get("purpose", "No purpose set")
 
     map_data = mmapd.MapData().set_map_data(pins, game_data)
+    prodc.calculate_production_capacity(map_data)
     svg_data = visualize_factory_on_a_grid(map_data, pin_id, factory_id, game_data)
 
     html_styles = """

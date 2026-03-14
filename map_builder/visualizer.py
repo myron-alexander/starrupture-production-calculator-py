@@ -1888,7 +1888,7 @@ body {
             case NodeType.Resource:
                 node = cast(mmapd.MapResourceNode, row.definition)
                 add_text(f'Item: {node.supplied_item_name}')
-                add_text('Supply Rate: todo ipm')
+                add_text(f'Supply Rate: {node.ledger.supply_rate_ipm() if node.ledger else ""} ipm')
                 add_text(f'Max Rate: {node.max_production_ipm} ipm')
 
             case NodeType.Crafter:
@@ -1897,7 +1897,7 @@ body {
                 recipe = node.get_recipe_items()
                 max_rate = node.max_production_ipm
                 add_text(f'Crafts: {item}')
-                add_text('Supply Rate: todo ipm')
+                add_text(f'Supply Rate: {node.ledger.supply_rate_ipm() if node.ledger else ""} ipm')
                 add_text(f'Max Rate: {max_rate} ipm')
                 add_text('Inputs:')
                 for ri in recipe:
@@ -1909,25 +1909,34 @@ body {
             case NodeType.Storage:
                 node = cast(mmapd.MapSingleStorageNode, row.definition)
                 add_text(f'Stores: {node.supplied_item_name}')
-                add_text('Supply Rate: todo ipm')
+                add_text(f'Supply Rate: {node.ledger.supply_rate_ipm() if node.ledger else ""} ipm')
 
             case NodeType.Dispatcher:
                 node = cast(mmapd.MapDispatcherNode, row.definition)
                 item = node.supplied_item_name
                 add_text(f'Dispatches: {item}')
                 add_text(f'Rate: {node.output_rate_limit_ipm} ipm')
-                add_text('Supply Rate: todo ipm')
+                add_text(f'Supply Rate: {node.ledger.supply_rate_ipm() if node.ledger else ""} ipm')
 
             case NodeType.Receiver:
                 add_text('From:')
                 node = cast(mmapd.MapReceiverNode, row.definition)
+                supply_rates = []
                 for connector in node.supplied_items:
+                    if connector.ledger:
+                        supply_rates.append(
+                            (connector.supplied_item_name, connector.ledger.supply_rate_ipm()))
                     for ii in connector.get_suppliers(connector.supplied_item_name):
                         node = cast(mmapd.MapDispatcherNode, ii)
                         add_text(f'{node.site_id}', x=text_x + 10)
-                        add_text(f'/{node.factory_id}', x=text_x + 10)
-                        add_text(f'/{node.dispatcher_id}', x=text_x + 10)
-                add_text('Supply Rate: todo ipm')
+                        add_text(f'/{node.factory_id}', x=text_x + 20)
+                        add_text(f'/{node.dispatcher_id}', x=text_x + 20)
+                if supply_rates:
+                    add_text('Supply Rate:')
+                    for item_name, ipm in supply_rates:
+                        add_text(f'• {item_name}: {ipm} ipm', x=text_x + 10)
+                else:
+                    add_text('Supply Rate: 0 ipm')
 
         return svg_content
 
