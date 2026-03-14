@@ -33,7 +33,7 @@ from application_data import GameData, load_game_data
 
 class MapNode:
     def __init__(self, global_node_id:str) -> None:
-        self.id = global_node_id
+        self.global_id = global_node_id
         self.ledger:Any = None
         self.graph:Any = None
 
@@ -102,6 +102,18 @@ class MapFactory(MapNode):
         self.dispatchers:dict[str,MapDispatcherNode] = {}
         self.receivers:dict[str,MapReceiverNode] = {}
         self.targets:dict[str,MapTargetNode] = {}
+
+    #---------------------------------------------------------------------------
+
+    @property
+    def is_empty(self) -> bool:
+        # Targets are not considered as part of the production chain thus a factory with only
+        # targets is still considered empty.
+        return not (   self.crafters
+                    or self.storages
+                    or self.dispatchers
+                    or self.receivers
+                   )
 
     #---------------------------------------------------------------------------
 
@@ -189,7 +201,7 @@ class MapSingleSupplyNode(ABC):
     #---------------------------------------------------------------------------
 
     @abstractmethod
-    def get_id(self) -> str:
+    def get_global_id(self) -> str:
         pass
 
     #---------------------------------------------------------------------------
@@ -219,7 +231,7 @@ class MapSupplyConnector(MapSingleSupplyNode, MapNode):
     def __init__(self, owner:"MapMultiSupplyNode", supplied_item_name:str) -> None:
         MapSingleSupplyNode.__init__(self, supplied_item_name)
         if isinstance(owner, MapNode):
-            MapNode.__init__(self, owner.id)
+            MapNode.__init__(self, owner.global_id)
         else:
             raise ValueError(
                 f"Owner of MapSupplyConnector must be a MapNode, got {type(owner).__name__}")
@@ -236,8 +248,8 @@ class MapSupplyConnector(MapSingleSupplyNode, MapNode):
 
     #---------------------------------------------------------------------------
 
-    def get_id(self) -> str:
-        return self.id
+    def get_global_id(self) -> str:
+        return self.global_id
 
     #---------------------------------------------------------------------------
 
@@ -315,8 +327,8 @@ class MapResourceNode(MapNode, MapSiteNode, MapProductionSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_id(self) -> str:
-        return self.id
+    def get_global_id(self) -> str:
+        return self.global_id
 
     #---------------------------------------------------------------------------
 
@@ -390,8 +402,8 @@ class MapCrafterNode(MapNode, MapFactoryNode, MapProductionSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_id(self) -> str:
-        return self.id
+    def get_global_id(self) -> str:
+        return self.global_id
 
     #---------------------------------------------------------------------------
 
@@ -444,8 +456,8 @@ class MapSingleStorageNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_id(self) -> str:
-        return self.id
+    def get_global_id(self) -> str:
+        return self.global_id
 
     #---------------------------------------------------------------------------
 
@@ -490,8 +502,8 @@ class MapDispatcherNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_id(self) -> str:
-        return self.id
+    def get_global_id(self) -> str:
+        return self.global_id
 
     #---------------------------------------------------------------------------
 
@@ -528,8 +540,8 @@ class MapReceiverNode(MapNode, MapFactoryNode, MapMultiSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_id(self) -> str:
-        return self.id
+    def get_global_id(self) -> str:
+        return self.global_id
 
     #---------------------------------------------------------------------------
 
@@ -565,8 +577,8 @@ class MapTargetNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_id(self) -> str:
-        return self.id
+    def get_global_id(self) -> str:
+        return self.global_id
 
     #---------------------------------------------------------------------------
 
@@ -614,12 +626,12 @@ class MapData:
             node.site.add_factory(node)
         elif isinstance(node, MapSiteNode):
             if node.site is None:
-                raise ValueError(f"Site node '{node.id}' does not have an associated site")
+                raise ValueError(f"Site node '{node.global_id}' does not have an associated site")
             if isinstance(node, MapResourceNode):
                 node.site.add_resource_node(node)
             elif isinstance(node, MapFactoryNode):
                 if node.factory is None:
-                    raise ValueError(f"Factory node '{node.id}' does not have an associated factory")
+                    raise ValueError(f"Factory node '{node.global_id}' does not have an associated factory")
                 if isinstance(node, MapCrafterNode):
                     node.factory.add_crafter(node)
                 elif isinstance(node, MapSingleStorageNode):
@@ -643,7 +655,7 @@ class MapData:
             # Look for resource nodes.
             map_node_id = MapNode.id_for_site_node(site_id, node_id)
             for node in self.map_nodes:
-                if node.id == map_node_id:
+                if node.global_id == map_node_id:
                     return node
         else:
             # Look for both resource nodes and factory nodes. This is necessary as the caller
@@ -651,7 +663,7 @@ class MapData:
             map_factory_node_id = MapNode.id_for_factory_node(site_id, factory_id, node_id)
             map_site_node_id = MapNode.id_for_site_node(site_id, node_id)
             for node in self.map_nodes:
-                if node.id in (map_factory_node_id, map_site_node_id):
+                if node.global_id in (map_factory_node_id, map_site_node_id):
                     return node
         raise ValueError(
             f"Node site '{site_id}', factory '{factory_id}', id '{node_id}' not found in map data.")
@@ -703,7 +715,7 @@ class MapData:
             return node
         if isinstance(node, MapMultiSupplyNode):
             return node.get_item_connector(supplied_item_name)
-        raise ValueError(f"Node with ID '{node.id}' is not a supply node.")
+        raise ValueError(f"Node with ID '{node.global_id}' is not a supply node.")
 
     #---------------------------------------------------------------------------
 
@@ -847,7 +859,7 @@ class MapData:
                 for receiver_id, receiver_values in factory_values.get("receivers", {}).items():
                     node = self._get_node_by_id(site_id, receiver_id, factory_id)
                     if not isinstance(node, MapReceiverNode):
-                        raise ValueError(f"Node with ID '{node.id}' is not a MapReceiverNode.")
+                        raise ValueError(f"Node with ID '{node.global_id}' is not a MapReceiverNode.")
                     dispatchers = receiver_values["dispatchers"]
                     for dispatcher in dispatchers:
                         dispatcher_node = self._get_node_by_id(
@@ -856,7 +868,7 @@ class MapData:
                             dispatcher["factory_id"])
                         if not isinstance(dispatcher_node, MapDispatcherNode):
                             raise ValueError(
-                                f"Dispatcher node '{dispatcher_node.id}' is not a"
+                                f"Dispatcher node '{dispatcher_node.global_id}' is not a"
                                  " MapDispatcherNode.")
                         node.add_dispatcher(dispatcher_node)
 
@@ -867,7 +879,7 @@ class MapData:
                 for crafter_id, crafter_values in machines.get("crafters", {}).items():
                     node = self._get_node_by_id(site_id, crafter_id, factory_id)
                     if not isinstance(node, MapCrafterNode):
-                        raise ValueError(f"Node with ID '{node.id}' is not a MapCrafterNode.")
+                        raise ValueError(f"Node with ID '{node.global_id}' is not a MapCrafterNode.")
                     for input_data in crafter_values.get("inputs", []):
                         recipe_item_name = input_data["input_item"]
                         from_ids = input_data["from_ids"]
@@ -880,7 +892,7 @@ class MapData:
                 for storage_id, storage_values in machines.get("storage", {}).items():
                     node = self._get_node_by_id(site_id, storage_id, factory_id)
                     if not isinstance(node, MapSingleStorageNode):
-                        raise ValueError(f"Node with ID '{node.id}' is not a MapSingleStorageNode.")
+                        raise ValueError(f"Node with ID '{node.global_id}' is not a MapSingleStorageNode.")
                     for input_data in storage_values.get("inputs", []):
                         from_ids = input_data["from_ids"]
                         for from_id in from_ids:
@@ -892,7 +904,7 @@ class MapData:
                         in factory_values.get("dispatchers", {}).items():
                     node = self._get_node_by_id(site_id, dispatcher_id, factory_id)
                     if not isinstance(node, MapDispatcherNode):
-                        raise ValueError(f"Node with ID '{node.id}' is not a MapDispatcherNode.")
+                        raise ValueError(f"Node with ID '{node.global_id}' is not a MapDispatcherNode.")
                     from_ids = dispatcher_values["from_ids"]
                     for from_id in from_ids:
                         supplier_node = self.get_supplier_node(
@@ -929,7 +941,7 @@ class MapData:
                         print(f"  - {recipe_item.recipe_item_name:<20}:"
                               f" {recipe_item.required_ipm} ipm")
                         for supplier in recipe_item.suppliers:
-                            print(f"    from supplier: {supplier.get_id()}")
+                            print(f"    from supplier: {supplier.get_global_id()}")
 
                 for storage in factory.storages.values():
                     print("-" * 40)
@@ -938,7 +950,7 @@ class MapData:
                     print(f"stored item name : {storage.supplied_item_name}")
                     print(f"building id      : {storage.building_id}")
                     for supplier in storage.suppliers:
-                        print(f"  from supplier: {supplier.get_id()}")
+                        print(f"  from supplier: {supplier.get_global_id()}")
 
                 for dispatched_item in factory.dispatchers.values():
                     print("-" * 40)
@@ -949,7 +961,7 @@ class MapData:
                     print(f"output rate limit : {dispatched_item.output_rate_limit_ipm} ipm")
                     print(f"input rate limit  : {dispatched_item.input_rate_limit_ipm} ipm")
                     for supplier in dispatched_item.suppliers:
-                        print(f"  from supplier: {supplier.get_id()}")
+                        print(f"  from supplier: {supplier.get_global_id()}")
 
                 for receiver in factory.receivers.values():
                     print("-" * 40)
@@ -960,7 +972,7 @@ class MapData:
                     for dispatched_item in receiver.supplied_items:
                         print(f"  - {dispatched_item.supplied_item_name} from dispatcher(s):")
                         for supplier in dispatched_item.suppliers:
-                            print(f"    - {supplier.get_id()}")
+                            print(f"    - {supplier.get_global_id()}")
 
                 for target in factory.targets.values():
                     print("-" * 40)
@@ -969,7 +981,7 @@ class MapData:
                     print(f"target item : {target.supplied_item_name}")
                     print( "suppliers   :")
                     for supplier in target.suppliers:
-                        print(f"  - {supplier.get_id()}")
+                        print(f"  - {supplier.get_global_id()}")
 
     #---------------------------------------------------------------------------
 
@@ -1017,7 +1029,7 @@ def main():
 
     def walk_tree(node:MapSingleSupplyNode, depth:int = 0) -> None:
         indent = "  " * depth
-        print(f"{indent}- {node.get_id()} ({type(node).__name__})")
+        print(f"{indent}- {node.get_global_id()} ({type(node).__name__})")
         if isinstance(node, MapCrafterNode):
             for recipe_item in node.get_recipe_items():
                 print(f"{indent}  - Recipe item: {recipe_item.recipe_item_name}")

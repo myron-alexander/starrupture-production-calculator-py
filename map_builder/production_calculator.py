@@ -177,7 +177,7 @@ class ResourceLedger(SingleItemLedger):
     #---------------------------------------------------------------------------
 
     def get_owner_id(self) -> str:
-        return self._owner.get_id()
+        return self._owner.get_global_id()
 
     #---------------------------------------------------------------------------
 
@@ -187,7 +187,7 @@ class ResourceLedger(SingleItemLedger):
 
         assert request_item == self._owner.supplied_item_name, \
             f"Requested item '{request_item}' does not match the supplied item"\
-            f" '{self._owner.supplied_item_name}' for single storage node '{self._owner.get_id()}'."
+            f" '{self._owner.supplied_item_name}' for single storage node '{self._owner.get_global_id()}'."
 
         if request_ipm < 0:
             raise ValueError("Request ipm cannot be negative.")
@@ -252,7 +252,7 @@ class CrafterLedger(SingleItemLedger):
     #---------------------------------------------------------------------------
 
     def get_owner_id(self) -> str:
-        return self._owner.get_id()
+        return self._owner.get_global_id()
 
     #---------------------------------------------------------------------------
 
@@ -285,7 +285,7 @@ class CrafterLedger(SingleItemLedger):
 
         assert request_item == self._owner.supplied_item_name, \
             f"Requested item '{request_item}' does not match the supplied item"\
-            f" '{self._owner.supplied_item_name}' for single storage node '{self._owner.get_id()}'."
+            f" '{self._owner.supplied_item_name}' for single storage node '{self._owner.get_global_id()}'."
 
         #print(f"request_supplies: {self.key} --> {requestor.key}")
 
@@ -324,7 +324,7 @@ class CrafterLedger(SingleItemLedger):
         assert True if 0 < request_ipm else other_requests_ipm == required_ipm
 
         assert self._owner.max_production_ipm > 0\
-            , f"Max production ipm for node '{self._owner.get_id()}' must be greater than zero"\
+            , f"Max production ipm for node '{self._owner.get_global_id()}' must be greater than zero"\
                " to calculate rate ratio."
 
         rate_ratio:float = required_ipm / self._owner.max_production_ipm
@@ -408,7 +408,7 @@ class SingleStorageLedger(SingleItemLedger):
     #---------------------------------------------------------------------------
 
     def get_owner_id(self) -> str:
-        return self._owner.get_id()
+        return self._owner.get_global_id()
 
     #---------------------------------------------------------------------------
 
@@ -421,7 +421,7 @@ class SingleStorageLedger(SingleItemLedger):
 
         assert request_item == self._owner.supplied_item_name, \
             f"Requested item '{request_item}' does not match the supplied item"\
-            f" '{self._owner.supplied_item_name}' for single storage node '{self._owner.get_id()}'."
+            f" '{self._owner.supplied_item_name}' for single storage node '{self._owner.get_global_id()}'."
 
         if request_ipm < 0:
             raise ValueError("Request ipm cannot be negative.")
@@ -494,7 +494,7 @@ class DispatcherLedger(SingleItemLedger):
     #---------------------------------------------------------------------------
 
     def get_owner_id(self) -> str:
-        return self._owner.get_id()
+        return self._owner.get_global_id()
 
     #---------------------------------------------------------------------------
 
@@ -507,7 +507,7 @@ class DispatcherLedger(SingleItemLedger):
 
         assert request_item == self._owner.supplied_item_name, \
             f"Requested item '{request_item}' does not match the supplied item"\
-            f" '{self._owner.supplied_item_name}' for dispatcher node '{self._owner.get_id()}'."
+            f" '{self._owner.supplied_item_name}' for dispatcher node '{self._owner.get_global_id()}'."
 
         if request_ipm < 0:
             raise ValueError("Request ipm cannot be negative.")
@@ -727,7 +727,7 @@ class TargetLedger(Ledger):
     #---------------------------------------------------------------------------
 
     def get_owner_id(self) -> str:
-        return self._owner.get_id()
+        return self._owner.get_global_id()
 
     #---------------------------------------------------------------------------
 
@@ -758,7 +758,7 @@ class TargetLedger(Ledger):
             raise ValueError(
                 f"Requested item '{request_item}' does not match the supplied item"
                 f" '{self._owner.supplied_item_name}' for this ledger of target node"
-                f" '{self._owner.get_id()}'.")
+                f" '{self._owner.get_global_id()}'.")
 
         remaining_request_ipm = request_ipm
         for supplier in self._owner.get_suppliers(request_item):
@@ -818,15 +818,15 @@ def spike_calc_factory_resource_usage2(
     factory_nodes.extend(list(factory.site.resource_nodes.values()))
     factory_nodes.extend(i for r in factory.receivers.values() for i in r.supplied_items)
 
-    factory_nodes.sort(key=lambda n:n.id)
+    factory_nodes.sort(key=lambda n:n.global_id)
 
     for n in factory_nodes:
-        id = n.id
+        id = n.global_id
         max_production_ipm = 0
         if isinstance(n, mmapd.MapProductionSupplyNode):
             max_production_ipm = n.max_production_ipm
         if isinstance(n, mmapd.MapSupplyConnector):
-            id = f"{n.id} ({n.supplied_item_name})"
+            id = f"{n.global_id} ({n.supplied_item_name})"
         ledger = cast(SingleItemLedger,n.ledger)
         print(f"{id}  {max_production_ipm}  {ledger.supply_rate_ipm()}")
 
