@@ -16,8 +16,9 @@ import math
 import os
 from enum import Enum
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, cast
 from application_data import GameData, load_game_data
+import map_data as mmapd
 
 #---------------------------------------------------------------------------------------------------
 
@@ -94,17 +95,19 @@ class FactoryNode:
     def __init__(
             self,
             type:NodeType,
-            id:str,
-            definition:dict[str,Any],
+            definition:mmapd.MapNode,
             depth:int,
             terminal_idx:int) -> None:
 
         self.type:NodeType = type
-        self.id = id
+        self.id = definition.get_node_id()
         self.definition = definition
         self.depths = [depth]
         self.terminal_idxs = [terminal_idx]
-        self.inputs:list["FactoryNode"] = []
+        # List of inputs into this node. Each input has the associated item. This is necessary for
+        # multi-item suppliers. If a node is consuming multiple items from a single supplier, then
+        # each item is listed as a separate input with the same supplier node but different item.
+        self.inputs:list[tuple["FactoryNode",str]] = []
         self.owner_terminal_idx:int|None = None
         """
         When the node is used in the production chain leading up to multiple terminals, then
@@ -120,9 +123,9 @@ class FactoryNode:
     def is_ingress(self) -> bool:
         return self.type == NodeType.Resource or self.type == NodeType.Receiver
 
-    def add_child(self, child:"FactoryNode") -> None:
-        if child not in self.inputs:
-            self.inputs.append(child)
+    def add_child(self, item_name:str, child:"FactoryNode") -> None:
+        if (child, item_name) not in self.inputs:
+            self.inputs.append((child, item_name))
 
     def add_depth(self, depth:int) -> None:
         if depth not in self.depths:
@@ -156,64 +159,6 @@ class FactoryNode:
 
 #---------------------------------------------------------------------------------------------------
 
-class SiteData:
-    def __init__(self, data:dict[str,Any], site_id:str, factory_id:str) -> None:
-        self.site = data[site_id]
-        self.factory = self.site["factories"][factory_id]
-        self.dispatchers = self.factory.get("dispatchers", {})
-        self.crafters = self.factory.get("machines", {}).get("crafters", {})
-        self.storage = self.factory.get("machines", {}).get("storage", {})
-        self.resources = self.site.get("resource_nodes",{})
-        self.receivers = self.factory.get("receivers", {})
-
-
-    @property
-    def is_empty(self) -> bool:
-        """
-        Does the factory have no nodes on the grid?
-
-        Returns
-        -------
-        bool:
-            True when no nodes on the grid.
-
-        """
-        return 0 == (
-            len(self.dispatchers) + len(self.crafters) + len(self.storage) + len(self.receivers)
-        )
-
-
-    def walk_inputs(
-            self,
-            terminal_idx:int,
-            id:str,
-            inputs:list[dict[str,Any]],
-            func:Callable[[int, str, NodeType, str, dict[str, Any], int], None],
-            depth:int = 1):
-
-        for ii in inputs:
-            for i in ii["from_ids"]:
-                crafter = self.crafters.get(i)
-                if crafter:
-                    #print(f"crafter: {i}")
-                    func(terminal_idx, id, NodeType.Crafter, i, crafter, depth)
-                    self.walk_inputs(terminal_idx, i, crafter["inputs"], func, depth + 1)
-                storage = self.storage.get(i)
-                if storage:
-                    #print(f"storage: {i}")
-                    func(terminal_idx, id, NodeType.Storage, i, storage, depth)
-                    self.walk_inputs(terminal_idx, i, storage["inputs"], func, depth + 1)
-                resource = self.resources.get(i)
-                if resource:
-                    #print(f"resource: {i}")
-                    func(terminal_idx, id, NodeType.Resource, i, resource, depth)
-                receiver = self.receivers.get(i)
-                if receiver:
-                    #print(f"receiver: {i}")
-                    func(terminal_idx, id, NodeType.Receiver, i, receiver, depth)
-
-#---------------------------------------------------------------------------------------------------
-
 def print_terminal_tree(
         node:FactoryNode, depth_limit:int = 101, indent:str = "", current_depth:int = 0) -> None:
 
@@ -228,7 +173,7 @@ def print_terminal_tree(
     print(indent+boxed_name)
     print(f"{indent}└{'─'*(box_size-2)}┘")
 
-    for i in node.inputs:
+    for i, _ in node.inputs:
         print_terminal_tree(i, depth_limit, "|   " + indent, current_depth + 1)
 
 #---------------------------------------------------------------------------------------------------
@@ -293,7 +238,7 @@ class DisplayGrid:
             else:
                 raise ValueError(
                     f"The use_depth of node '{node.id}' should have been set by finalize.")
-        for i in node.inputs:
+        for i, _ in node.inputs:
             self.__walk_terminal_tree_and_add_nodes(terminal_idx, i, current_depth+1)
 
 
@@ -494,17 +439,17 @@ class RoutingOccupancyGrid:
         """
         self.node_boxes:dict[str, NodeBox] = {}
         self.node_anchors:dict[str, NodeAnchors] = {}
-        self.node_output_items:dict[str, str] = {}
         self.node_input_items:dict[str,list[str]] = {}
-        self.edges:list[tuple[str, str]] = []
+        self.edges:list[tuple[str, str, str]] = []
         """
         List of connections from source to destination nodes.
+        (source id, destination id, supplied item)
         """
         self.routes:list[ConnectorRoute] = []
 
     #---------------------------------------------------------------------------
 
-    def __build_item_network_components(self) -> dict[tuple[str, str], str]:
+    def __build_item_network_components(self) -> dict[tuple[str, str, str], str]:
         """
         Build a connected-component key for every route edge, per supplied item.
 
@@ -512,11 +457,13 @@ class RoutingOccupancyGrid:
         source/consumer nodes are placed into one network key.
         """
         item_edges:dict[str, list[tuple[str, str]]] = {}
-        for source_id, consumer_id in self.edges:
-            supplied_item = self.node_output_items[source_id]
-            item_edges.setdefault(supplied_item, []).append((source_id, consumer_id))
+        for source_id, consumer_id, supplied_item_name in self.edges:
+            supplied_item = supplied_item_name
+            item_edges \
+                .setdefault(supplied_item, []) \
+                .append((source_id, consumer_id))
 
-        edge_network_key:dict[tuple[str, str], str] = {}
+        edge_network_key:dict[tuple[str, str, str], str] = {}
 
         for item, edges in item_edges.items():
             adjacency:dict[str, set[str]] = {}
@@ -544,7 +491,7 @@ class RoutingOccupancyGrid:
 
             for source_id, consumer_id in edges:
                 comp_idx = node_component[source_id]
-                edge_network_key[(source_id, consumer_id)] = f"{item}::cc{comp_idx}"
+                edge_network_key[(source_id, consumer_id, item)] = f"{item}::cc{comp_idx}"
 
         return edge_network_key
 
@@ -657,7 +604,6 @@ class RoutingOccupancyGrid:
 
         self.node_boxes:dict[str, NodeBox] = {}
         self.node_anchors:dict[str, NodeAnchors] = {}
-        self.node_output_items:dict[str, str] = {}
         self.node_input_items:dict[str,list[str]] = {}
 
         # The last column and rows don't having padding cells to the right, below them.
@@ -761,12 +707,10 @@ class RoutingOccupancyGrid:
                     type=node.type.name,
                 )
 
-                self.node_output_items[node.id] = self.__get_node_output_item(node)
-
                 # Set the list of input items for each node so that the router can ensure a
                 # connector on a consumer node is only receiving one item type.
                 self.node_input_items[node.id] = [
-                    self.__get_node_output_item(fn) for fn in node.inputs
+                    fn[1] for fn in node.inputs
                 ]
 
                 #
@@ -818,14 +762,17 @@ class RoutingOccupancyGrid:
     #---------------------------------------------------------------------------
 
     def __populate_edges(self, display_grid:DisplayGrid):
-        edges:set[tuple[str, str]] = set()
+        edges:set[tuple[str, str, str]] = set()
+        """
+        (source id, destination id, supplied item)
+        """
         for column in display_grid.grid:
             for node in column:
                 if node is None:
                     continue
                 for source in node.inputs:
-                    if source.id in self.node_boxes:
-                        edges.add((source.id, node.id))
+                    if source[0].id in self.node_boxes:
+                        edges.add((source[0].id, node.id, source[1]))
         self.edges = sorted(edges)
 
     #---------------------------------------------------------------------------
@@ -850,11 +797,11 @@ class RoutingOccupancyGrid:
 
         routes:list[ConnectorRoute] = []
         edge_network_key = self.__build_item_network_components()
-        for source_id, consumer_id in self.edges:
+        for source_id, consumer_id, supplied_item in self.edges:
             source_side, consumer_side = choose_sides(source_id, consumer_id)
-            supplied_item = self.node_output_items[source_id]
+            supplied_item = supplied_item
             group_key = f"{source_id}::{supplied_item}"
-            network_key = edge_network_key[(source_id, consumer_id)]
+            network_key = edge_network_key[(source_id, consumer_id, supplied_item)]
             #group_key = f"{consumer_id}::{supplied_item}"
             #group_key = f"{supplied_item}"
             #group_key = f"{self.node_boxes[source_id].col}::{supplied_item}"
@@ -871,27 +818,6 @@ class RoutingOccupancyGrid:
             ))
 
         self.routes = routes
-
-    #---------------------------------------------------------------------------
-
-    def __get_node_output_item(self, node:FactoryNode) -> str:
-        match node.type:
-            case NodeType.Resource:
-                return str(node.definition["resource_item"])
-            case NodeType.Crafter:
-                return str(node.definition["crafted_item"])
-            case NodeType.Storage:
-                return str(node.definition["stored_item"])
-            case NodeType.Dispatcher:
-                return str(node.definition["dispatched_item"])
-            case NodeType.Receiver:
-                input = node.definition["dispatchers"][0]
-                key = f"{input["site_id"]}"\
-                        f";{input["factory_id"]}"\
-                        f";{input["dispatcher_id"]}"
-                dispatched_item = self._dispatcher_item_map[key]
-                return dispatched_item
-        return "*"
 
     #---------------------------------------------------------------------------
 
@@ -1337,7 +1263,7 @@ class RoutingOccupancyGrid:
             #     is not the same as the one supplied by the route.
             if locked_goal_anchor is None:
                 # When locked_goal_anchor is None, it *must* mean that an anchor on the consumer
-                # has not been assighed to the supplied item.
+                # has not been assigned to the supplied item.
                 for ii in self.node_input_items[route.consumer_id]:
                     item_anchor = \
                         consumer_item_goal_anchor.get((route.consumer_id, ii))
@@ -1960,41 +1886,47 @@ body {
 
         match row.type:
             case NodeType.Resource:
-                add_text(f'Item: {row.definition["resource_item"]}')
+                node = cast(mmapd.MapResourceNode, row.definition)
+                add_text(f'Item: {node.supplied_item_name}')
                 add_text('Supply Rate: todo ipm')
-                add_text(f'Max Rate: {row.definition["rate_ipm"]} ipm')
+                add_text(f'Max Rate: {node.max_production_ipm} ipm')
 
             case NodeType.Crafter:
-                item = row.definition["crafted_item"]
-                recipe = self.game_data.get_craft_recipe(item)
-                max_rate = self.game_data.get_production_rate_ipm(item)
+                node = cast(mmapd.MapCrafterNode, row.definition)
+                item = node.supplied_item_name
+                recipe = node.get_recipe_items()
+                max_rate = node.max_production_ipm
                 add_text(f'Crafts: {item}')
                 add_text('Supply Rate: todo ipm')
                 add_text(f'Max Rate: {max_rate} ipm')
                 add_text('Inputs:')
-                for name, _, ipm in recipe:
+                for ri in recipe:
+                    name = ri.recipe_item_name
+                    ipm = ri.required_ipm
                     truncated = name[:18]+"..." if 20 < len(name) else name
                     add_text(f'• {truncated} req: {ipm} ipm', x=text_x + 10)
 
             case NodeType.Storage:
-                add_text(f'Stores: {row.definition["stored_item"] or "*"}')
+                node = cast(mmapd.MapSingleStorageNode, row.definition)
+                add_text(f'Stores: {node.supplied_item_name}')
                 add_text('Supply Rate: todo ipm')
 
             case NodeType.Dispatcher:
-                add_text(f'Dispatches: {row.definition["dispatched_item"]}')
-                add_text(f'Rate: {row.definition["output_rate_limit_ipm"]} ipm')
+                node = cast(mmapd.MapDispatcherNode, row.definition)
+                item = node.supplied_item_name
+                add_text(f'Dispatches: {item}')
+                add_text(f'Rate: {node.output_rate_limit_ipm} ipm')
                 add_text('Supply Rate: todo ipm')
 
             case NodeType.Receiver:
                 add_text('From:')
-                inputs = row.definition["dispatchers"]
-                for ii in inputs:
-                    site = ii["site_id"]
-                    factory = ii["factory_id"]
-                    dispatcher = ii["dispatcher_id"]
-                    add_text(f'{site}', x=text_x + 10)
-                    add_text(f'/{factory}', x=text_x + 10)
-                    add_text(f'/{dispatcher}', x=text_x + 10)
+                node = cast(mmapd.MapReceiverNode, row.definition)
+                for connector in node.supplied_items:
+                    for ii in connector.get_suppliers(connector.supplied_item_name):
+                        node = cast(mmapd.MapDispatcherNode, ii)
+                        add_text(f'{node.site_id}', x=text_x + 10)
+                        add_text(f'/{node.factory_id}', x=text_x + 10)
+                        add_text(f'/{node.dispatcher_id}', x=text_x + 10)
                 add_text('Supply Rate: todo ipm')
 
         return svg_content
@@ -2135,31 +2067,29 @@ body {
 
 #---------------------------------------------------------------------------------------------------
 
-def extract_all_dispatched_items(data:dict[str, Any]):
+def extract_all_dispatched_items(map_data:mmapd.MapData) -> dict[str, str]:
     """
-    For all the dispatchers in the loaded JSON data, get the dispatched items.
+    For all the dispatchers in the map data, get the dispatched items.
     """
     dispatcher_item_map:dict[str, str] = dict()
-    for site_id, site_def in data.items():
-        factories = site_def.get("factories", dict())
-        for factory_id, factory_def in factories.items():
-            dispatchers = factory_def.get("dispatchers", dict())
-            for dispatcher_id, dispatcher_def in dispatchers.items():
-                key = f"{site_id};{factory_id};{dispatcher_id}"
-                dispatcher_item_map[key] = dispatcher_def["dispatched_item"]
+    for site in map_data.sites.values():
+        for factory in site.factories.values():
+            for dispatcher in factory.dispatchers.values():
+                key = f"{site.site_id};{factory.factory_id};{dispatcher.dispatcher_id}"
+                dispatcher_item_map[key] = dispatcher.supplied_item_name
     return dispatcher_item_map
 
 #---------------------------------------------------------------------------------------------------
 
 def visualize_factory_on_a_grid(
-        data:dict[str, Any], site_id:str, factory_id:str, game_data:GameData
+        map_data:mmapd.MapData, site_id:str, factory_id:str, game_data:GameData
     ) -> tuple[int, int, str, str]|None:
     """
     Generate a SVG diagram of the requested site and factory as a grid of connected factory nodes.
 
     Parameters
     ----------
-    data : dict[str, Any]
+    map_data : MapData
         The data structure generated by the factory management website.
 
     site_id : str
@@ -2167,6 +2097,9 @@ def visualize_factory_on_a_grid(
 
     factory_id : str
         The factory to visualize.
+
+    game_data : GameData
+        The game data containing item and recipe information for enriching the visualization.
 
     Returns
     -------
@@ -2179,21 +2112,20 @@ def visualize_factory_on_a_grid(
 
         or None when the factory has no nodes on the grid.
     """
-    dispatcher_item_map = extract_all_dispatched_items(data)
+    dispatcher_item_map = extract_all_dispatched_items(map_data)
 
-    sd = SiteData(data, site_id, factory_id)
+    site_data = map_data.sites[site_id]
+    factory_data = site_data.factories[factory_id]
 
-    if sd.is_empty:
+    if factory_data.is_empty:
         return None
 
     #
     # Build terminal trees
     #
 
-    # Build list of components that are inputs.
-    is_input = set([from_ids for kv in sd.dispatchers.items() for from_ids in kv[1]["from_ids"]])
-    is_input |= set([i for c in sd.crafters.items() for ii in c[1]["inputs"] for i in ii["from_ids"]])
-    is_input |= set([i for c in sd.storage.items() for ii in c[1]["inputs"] for i in ii["from_ids"]])
+    terminal_map_nodes = list(factory_data.get_terminal_nodes())
+    terminal_map_nodes.sort(key=lambda n:n.get_node_id())
 
     terminals:list[FactoryNode] = []
     nodes:list[FactoryNode] = []
@@ -2201,12 +2133,12 @@ def visualize_factory_on_a_grid(
     def find_node(id:str) -> FactoryNode|None:
         return next((n for n in nodes if n.id == id), None)
 
-    def add_node_func(
+    def add_node(
+            item_name:str,
             terminal_idx:int,
             current_id:str,
             input_type:NodeType,
-            input_id:str,
-            input_def:dict[str, Any],
+            input_mapnode:mmapd.MapNode,
             depth:int) -> None:
         # 1. Find current node
         # 2. Find input node
@@ -2215,49 +2147,71 @@ def visualize_factory_on_a_grid(
         current_node = find_node(current_id)
         if current_node is None:
             raise ValueError(f"Current node '{current_id}' not found.")
-        input_node = find_node(input_id)
+        input_node = find_node(input_mapnode.get_node_id())
         if input_node is None:
-            input_node = FactoryNode(
-                input_type, input_id, input_def, depth, terminal_idx)
+            input_node = FactoryNode(input_type, input_mapnode, depth, terminal_idx)
             nodes.append(input_node)
         else:
             input_node.add_depth(depth)
             input_node.add_terminal_idx(terminal_idx)
 
-        current_node.add_child(input_node)
+        current_node.add_child(item_name, input_node)
 
     # Sort terminals in alphabetic order within their type so that the displayed grid will show
     # them as such.
 
-    definitions = list(sd.dispatchers.items())
-    definitions.sort(key=lambda t:t[0])
-    for k,v in definitions:
+    def walk_inputs(
+            terminal_idx:int, node:mmapd.MapSingleSupplyNode, item_name:str, depth:int) -> None:
+
+        for n in node.get_suppliers(item_name):
+            if isinstance(n, mmapd.MapCrafterNode):
+                add_node(
+                    item_name, terminal_idx, node.get_node_id(), NodeType.Crafter, n, depth)
+                for r in n.get_recipe_items():
+                    walk_inputs(terminal_idx, n, r.recipe_item_name, depth + 1)
+            elif isinstance(n, mmapd.MapSingleStorageNode):
+                add_node(
+                    item_name, terminal_idx, node.get_node_id(), NodeType.Storage, n, depth)
+                walk_inputs(terminal_idx, n, n.supplied_item_name, depth + 1)
+            elif isinstance(n, mmapd.MapResourceNode):
+                add_node(
+                    item_name, terminal_idx, node.get_node_id(), NodeType.Resource, n, depth)
+            elif isinstance(n, mmapd.MapSupplyConnector):
+                print(f"Connector: {item_name}, {terminal_idx}, {node.get_node_id()}, {n.get_node_id()}, {depth}")
+                add_node(
+                    item_name, terminal_idx, node.get_node_id(), NodeType.Receiver,cast(mmapd.MapNode, n.get_owner()), depth)
+            elif isinstance(n, mmapd.MapReceiverNode):
+                print(f"{item_name}, {terminal_idx}, {node.get_node_id()}, {n.get_node_id()}, {depth}")
+                add_node(
+                    item_name, terminal_idx, node.get_node_id(), NodeType.Receiver, n, depth)
+
+
+    definitions = [n for n in terminal_map_nodes if isinstance(n, mmapd.MapDispatcherNode)]
+    for n in definitions:
         #print(f"\n\nWalking dispatcher {k}:")
         terminal_idx = len(terminals)
-        node = FactoryNode(NodeType.Dispatcher, k, v, 0, terminal_idx)
+        node = FactoryNode(NodeType.Dispatcher, n, 0, terminal_idx)
         terminals.append(node)
         nodes.append(node)
-        sd.walk_inputs(terminal_idx, k, [v], add_node_func)
+        walk_inputs(terminal_idx, n, n.supplied_item_name, 1)
 
-    definitions = [(k,v) for k,v in sd.crafters.items() if k not in is_input]
-    definitions.sort(key=lambda t:t[0])
-    for k,v in definitions:
+    definitions = [n for n in terminal_map_nodes if isinstance(n, mmapd.MapCrafterNode)]
+    for n in definitions:
         #print(f"\n\nWalking crafter {k}:")
         terminal_idx = len(terminals)
-        node = FactoryNode(NodeType.Crafter, k, v, 0, terminal_idx)
+        node = FactoryNode(NodeType.Crafter, n, 0, terminal_idx)
         terminals.append(node)
         nodes.append(node)
-        sd.walk_inputs(terminal_idx,k, v["inputs"], add_node_func)
+        walk_inputs(terminal_idx, n, n.supplied_item_name, 1)
 
-    definitions = [(k,v) for k,v in sd.storage.items() if k not in is_input]
-    definitions.sort(key=lambda t:t[0])
-    for k,v in definitions:
+    definitions = [n for n in terminal_map_nodes if isinstance(n, mmapd.MapSingleStorageNode)]
+    for n in definitions:
         #print(f"\n\nWalking storage {k}:")
         terminal_idx = len(terminals)
-        node = FactoryNode(NodeType.Storage, k, v, 0, terminal_idx)
+        node = FactoryNode(NodeType.Storage, n, 0, terminal_idx)
         terminals.append(node)
         nodes.append(node)
-        sd.walk_inputs(terminal_idx, k, v["inputs"], add_node_func)
+        walk_inputs(terminal_idx, n, n.supplied_item_name, 1)
 
     for n in nodes:
         n.finalize()
@@ -2429,12 +2383,11 @@ body {
 #---------------------------------------------------------------------------------------------------
 
 def main():
-    with open(f"{os.path.dirname(__file__)}/pins_data.json") as f:
-        data = json.load(f)
-
     game_data = load_game_data()
 
-    viz = visualize_factory_on_a_grid(data, "starter", "inductor", game_data)
+    map_data = mmapd.load_map_data(game_data)
+
+    viz = visualize_factory_on_a_grid(map_data, "starter", "inductor", game_data)
 
     __write_html(viz[2], viz[3])
 

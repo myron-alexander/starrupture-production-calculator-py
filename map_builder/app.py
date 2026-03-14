@@ -10,8 +10,10 @@ import copy
 from contextlib import contextmanager
 from threading import RLock
 from datetime import datetime
+from typing import Any
 from visualizer import visualize_factory_on_a_grid
 from application_data import *
+import map_data as mmapd
 
 #---------------------------------------------------------------------------------------------------
 
@@ -143,7 +145,7 @@ def _load_pins_from_file():
             return json.load(f)
     return {}
 
-def load_pins():
+def load_pins() -> dict[str,Any]:
     """Load pins from synchronized in-memory cache."""
     global PINS_CACHE
 
@@ -561,7 +563,12 @@ def update_dispatcher(pin_id, factory_id, dispatcher_id):
 def visualize_factory(pin_id, factory_id):
     """Generate a SVG visualization of factory nodes."""
     pins = load_pins()
-    svg_data = visualize_factory_on_a_grid(pins, pin_id, factory_id)
+
+    if game_data is None:
+        raise ValueError("Game data not loaded")
+
+    map_data = mmapd.MapData().set_map_data(pins, game_data)
+    svg_data = visualize_factory_on_a_grid(map_data, pin_id, factory_id, game_data)
     if svg_data is None:
         return jsonify(error="Factory is empty"), 404
     else:
@@ -575,6 +582,9 @@ def render_visualize_factory(pin_id, factory_id):
     """Generate a SVG visualization of factory nodes."""
     pins = load_pins()
 
+    if game_data is None:
+        raise ValueError("Game data not loaded")
+
     site = pins.get(pin_id)
     if site is None:
         return jsonify({'error': 'Pin not found'}), 404
@@ -584,7 +594,8 @@ def render_visualize_factory(pin_id, factory_id):
 
     purpose = factory.get("purpose", "No purpose set")
 
-    svg_data = visualize_factory_on_a_grid(pins, pin_id, factory_id, game_data) # type: ignore
+    map_data = mmapd.MapData().set_map_data(pins, game_data)
+    svg_data = visualize_factory_on_a_grid(map_data, pin_id, factory_id, game_data)
 
     html_styles = """
 body {
