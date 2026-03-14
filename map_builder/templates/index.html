@@ -223,6 +223,30 @@
         </div>
     </div>
 
+    <!-- Modal for Target Source Selection -->
+    <div id="selectTargetSourcesModal" class="modal selector-modal">
+        <div class="resource-selector-modal-content">
+            <span class="close" data-modal="selectTargetSourcesModal">&times;</span>
+            <h2>Select Sources</h2>
+            <table id="targetSourcesSelectionTable" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #333; position: sticky; top: -2em;">
+                        <th style="border: 1px solid #555; padding: 10px; text-align: center; width: 40px;">
+                            <input type="checkbox" id="selectAllTargetSourcesCheckbox">
+                        </th>
+                        <th style="border: 1px solid #555; padding: 10px; text-align: left;">Crafter/Storage ID</th>
+                        <th style="border: 1px solid #555; padding: 10px; text-align: left;">Item Name</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button id="selectTargetSourcesBtn" class="btn btn-primary">Select</button>
+                <button id="cancelTargetSourcesBtn" type="button" class="btn btn-secondary" data-modal="selectTargetSourcesModal">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <div id="resourceNodeModal" class="modal">
         <div class="modal-content">
             <span class="close" data-modal="resourceNodeModal">&times;</span>
@@ -400,6 +424,34 @@
                 <button id="saveStorageBtn" class="btn btn-primary">Save</button>
                 <button id="duplicateStorageBtn" type="button" class="btn btn-secondary" style="display:none;">Duplicate</button>
                 <button id="deleteStorageBtn" type="button" class="btn btn-danger" style="display:none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="targetModal" class="modal">
+        <div class="modal-content">
+            <span class="close" data-modal="targetModal">&times;</span>
+            <h2 id="targetModalTitle">Add Target</h2>
+            <div class="form-group">
+                <label for="targetId">Target ID:</label>
+                <input type="text" id="targetId" placeholder="Unique identifier">
+            </div>
+            <div class="form-group">
+                <label for="targetRateIpm">Target Rate (items/min):</label>
+                <input type="number" id="targetRateIpm" min="1" value="120">
+            </div>
+            <div class="form-group">
+                <label for="targetAmount">Target Amount:</label>
+                <input type="number" id="targetAmount" min="0" value="0">
+            </div>
+            <div class="form-group">
+                <label>From IDs:</label>
+                <div id="targetFromIdsBadges" class="from-ids-badges"></div>
+                <button id="targetSelectSourcesBtn" class="btn btn-secondary" type="button">Select Sources</button>
+            </div>
+            <div class="modal-buttons">
+                <button id="saveTargetBtn" class="btn btn-primary">Save</button>
+                <button id="deleteTargetBtn" type="button" class="btn btn-danger" style="display:none;">Delete</button>
             </div>
         </div>
     </div>

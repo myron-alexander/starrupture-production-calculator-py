@@ -380,7 +380,7 @@ sites:
 
             # Optional amount of an item to reach. For calculating the time necessary to reach
             # the goal based on the actual production rate.
-            target_amount: 1
+            target_amount: 0
 
             # The list of suppliers that must meet the target. The id must be from either a
             # crafter or storage within the factory.

@@ -130,6 +130,23 @@ const saveStorageBtn = document.getElementById('saveStorageBtn');
 const duplicateStorageBtn = document.getElementById('duplicateStorageBtn');
 const deleteStorageBtn = document.getElementById('deleteStorageBtn');
 
+// Target Modal Elements
+const targetModal = document.getElementById('targetModal');
+const targetModalTitle = document.getElementById('targetModalTitle');
+const targetId = document.getElementById('targetId');
+const targetRateIpm = document.getElementById('targetRateIpm');
+const targetAmount = document.getElementById('targetAmount');
+const targetFromIdsBadges = document.getElementById('targetFromIdsBadges');
+const targetSelectSourcesBtn = document.getElementById('targetSelectSourcesBtn');
+const saveTargetBtn = document.getElementById('saveTargetBtn');
+const deleteTargetBtn = document.getElementById('deleteTargetBtn');
+
+// Target Source Selector Modal Elements
+const selectTargetSourcesModal = document.getElementById('selectTargetSourcesModal');
+const targetSourcesSelectionTable = document.getElementById('targetSourcesSelectionTable');
+const selectAllTargetSourcesCheckbox = document.getElementById('selectAllTargetSourcesCheckbox');
+const selectTargetSourcesBtn = document.getElementById('selectTargetSourcesBtn');
+
 // Non-Production Building Modal Elements
 const nonProdBuildingModal = document.getElementById('nonProdBuildingModal');
 const nonProdBuildingModalTitle = document.getElementById('nonProdBuildingModalTitle');
@@ -150,6 +167,7 @@ let selectedCoreId = null;
 let editingBuildingIndex = null;
 let editingCrafterId = null;
 let editingStorageId = null;
+let editingTargetId = null;
 
 // Grid configuration
 const GRID_ORIGIN_X = 350;  // Pixel X coordinate of grid origin
@@ -356,6 +374,24 @@ function attachEventListeners() {
         selectStorageSourcesBtn.addEventListener('click', handleSelectStorageSources);
     }
 
+    // Target Modal controls
+    document.querySelectorAll('[data-modal="targetModal"]').forEach(el => {
+        el.addEventListener('click', closeTargetModal);
+    });
+    document.querySelectorAll('[data-modal="selectTargetSourcesModal"]').forEach(el => {
+        el.addEventListener('click', closeSelectTargetSourcesModal);
+    });
+    targetSelectSourcesBtn.addEventListener('click', openSelectTargetSourcesModal);
+    saveTargetBtn.addEventListener('click', handleSaveTarget);
+    deleteTargetBtn.addEventListener('click', handleDeleteTarget);
+
+    if (selectAllTargetSourcesCheckbox) {
+        selectAllTargetSourcesCheckbox.addEventListener('change', handleSelectAllTargetSources);
+    }
+    if (selectTargetSourcesBtn) {
+        selectTargetSourcesBtn.addEventListener('click', handleSelectTargetSources);
+    }
+
     // Non-Production Building Modal controls
     document.querySelectorAll('[data-modal="nonProdBuildingModal"]').forEach(el => {
         el.addEventListener('click', closeNonProdBuildingModal);
@@ -392,6 +428,9 @@ function attachEventListeners() {
         if (event.target === storageModal) {
             closeStorageModal();
         }
+        if (event.target === targetModal) {
+            closeTargetModal();
+        }
         if (event.target === nonProdBuildingModal) {
             closeNonProdBuildingModal();
         }
@@ -411,6 +450,8 @@ function attachEventListeners() {
                 closeSelectDispatcherSourcesModal();
             } else if (selectReceiverDispatcherModal.classList.contains('show')) {
                 closeSelectReceiverDispatcherModal();
+            } else if (selectTargetSourcesModal.classList.contains('show')) {
+                closeSelectTargetSourcesModal();
             } else if (addPinModal.classList.contains('show')) {
                 closeAddPinModal();
             } else if (editModal.classList.contains('show')) {
@@ -429,6 +470,8 @@ function attachEventListeners() {
                 closeCrafterModal();
             } else if (storageModal.classList.contains('show')) {
                 closeStorageModal();
+            } else if (targetModal.classList.contains('show')) {
+                closeTargetModal();
             } else if (nonProdBuildingModal.classList.contains('show')) {
                 closeNonProdBuildingModal();
             }
@@ -720,6 +763,8 @@ function renderPinsList() {
                     openAddCrafterModal(id, factoryId);
                 } else if (sectionHeader.includes('Storage') && factoryId) {
                     openAddStorageModal(id, factoryId);
+                } else if (sectionHeader.includes('Targets') && factoryId) {
+                    openAddTargetModal(id, factoryId);
                 } else if (sectionHeader.includes('Non-Production Buildings') && coreId) {
                     openAddNonProdBuildingModal(id, coreId);
                 }
@@ -745,6 +790,8 @@ function renderPinsList() {
                     openEditCrafterModal(id, factoryId, itemId);
                 } else if (sectionHeader.includes('Storage') && factoryId) {
                     openEditStorageModal(id, factoryId, itemId);
+                } else if (sectionHeader.includes('Targets') && factoryId) {
+                    openEditTargetModal(id, factoryId, itemId);
                 } else if (sectionHeader.includes('Non-Production Buildings') && coreId && buildingIndex !== undefined) {
                     openEditNonProdBuildingModal(id, coreId, parseInt(buildingIndex));
                 }
@@ -936,6 +983,40 @@ function renderDispatchersTree(dispatchers, factoryId) {
     return html;
 }
 
+function renderTargetsTree(targets, factoryId) {
+    const targetIds = Object.keys(targets).sort();
+    let html = `
+        <div class="tree-section" style="margin-left: 20px; margin-top: 10px;">
+            <div class="tree-section-header">Targets (${targetIds.length})</div>
+    `;
+
+    if (targetIds.length === 0) {
+        html += `
+            <div class="tree-block add-button" data-factory-id="${factoryId}">
+                + Add Target
+            </div>
+        `;
+    } else {
+        targetIds.forEach(targetIdValue => {
+            const target = targets[targetIdValue];
+            html += `
+                <div class="tree-block" data-item-id="${targetIdValue}" data-factory-id="${factoryId}">
+                    <div class="tree-block-label">${targetIdValue}</div>
+                    ${renderItemDetails('Targets', target)}
+                </div>
+            `;
+        });
+        html += `
+            <div class="tree-block add-button" data-factory-id="${factoryId}">
+                + Add Target
+            </div>
+        `;
+    }
+
+    html += '</div>';
+    return html;
+}
+
 function renderNonProdBuildingsTree(buildings, coreId) {
     const buildingsArray = Array.isArray(buildings) ? buildings : [];
     let html = `
@@ -1019,6 +1100,11 @@ function renderItemDetails(sectionType, item, itemId = null, parentPinId = null)
         } else {
             html += renderDispatchersTree({}, itemId);
         }
+        if (item.targets && Object.keys(item.targets).length > 0) {
+            html += renderTargetsTree(item.targets, itemId);
+        } else {
+            html += renderTargetsTree({}, itemId);
+        }
         html += '</div>';
         return html;
     } else if (sectionType === 'Receivers') {
@@ -1074,6 +1160,16 @@ function renderItemDetails(sectionType, item, itemId = null, parentPinId = null)
             <div class="tree-block-value">Item: ${storedItem}</div>
             ${item.num_stacks ? `<div class="tree-block-value">Stacks: ${item.num_stacks}</div>` : ''}
             ${item.core_id ? `<div class="tree-block-value">Core: ${item.core_id}</div>` : ''}
+        `;
+    } else if (sectionType === 'Targets') {
+        const fromIds = Array.isArray(item.from_ids) ? item.from_ids.join(', ') : 'None';
+        const amountLabel = Number.isFinite(item.target_amount)
+            ? item.target_amount
+            : (item.target_amount || 0);
+        return `
+            <div class="tree-block-value">Rate: ${item.target_rate_ipm || 0} ipm</div>
+            <div class="tree-block-value">Amount: ${amountLabel}</div>
+            <div class="tree-block-value">From: ${fromIds || 'None'}</div>
         `;
     }
     return '';
@@ -1485,6 +1581,7 @@ function getFactoryIdConflicts(factory, candidateId, exclude = null) {
     checkMap(machines.storage, 'storage');
     checkMap(factory.receivers, 'receiver');
     checkMap(factory.dispatchers, 'dispatcher');
+    checkMap(factory.targets, 'target');
 
     return conflicts;
 }
@@ -1560,6 +1657,15 @@ function removeFromIdsReference(deletedId, pinId = null, factoryId = null) {
                     dispatcher.from_ids = normalizeAndFilter(dispatcher.from_ids);
                 }
             }
+
+            // Remove from targets
+            const targets = factory.targets || {};
+            console.log('Targets found:', Object.keys(targets));
+            for (const target of Object.values(targets)) {
+                if (target.from_ids) {
+                    target.from_ids = normalizeAndFilter(target.from_ids);
+                }
+            }
         }
     } else if (pinId) {
         // Clean up all factories in the pin (for site-level deletions)
@@ -1602,6 +1708,15 @@ function removeFromIdsReference(deletedId, pinId = null, factoryId = null) {
                 for (const [dispatcherId, dispatcher] of Object.entries(dispatchers)) {
                     if (dispatcher.from_ids) {
                         dispatcher.from_ids = normalizeAndFilter(dispatcher.from_ids);
+                    }
+                }
+
+                // Remove from targets
+                const targets = factory.targets || {};
+                console.log(`    Targets found: ${Object.keys(targets)}`);
+                for (const target of Object.values(targets)) {
+                    if (target.from_ids) {
+                        target.from_ids = normalizeAndFilter(target.from_ids);
                     }
                 }
             }
@@ -1969,7 +2084,8 @@ async function handleSaveFactory() {
         default_core: selectedCoreId,
         machines: existingFactory && existingFactory.machines ? existingFactory.machines : {},
         dispatchers: existingFactory && existingFactory.dispatchers ? existingFactory.dispatchers : {},
-        receivers: existingFactory && existingFactory.receivers ? existingFactory.receivers : {}
+        receivers: existingFactory && existingFactory.receivers ? existingFactory.receivers : {},
+        targets: existingFactory && existingFactory.targets ? existingFactory.targets : {}
     };
 
     if (!pins[selectedPinId].factories) {
@@ -2820,6 +2936,17 @@ async function handleSaveCrafter() {
                 }
             }
         }
+
+        // Update targets
+        const targets = factory.targets || {};
+        for (const target of Object.values(targets)) {
+            if (target.from_ids && Array.isArray(target.from_ids)) {
+                const index = target.from_ids.indexOf(editingCrafterId);
+                if (index !== -1) {
+                    target.from_ids[index] = machineId;
+                }
+            }
+        }
     }
 
     pins[selectedPinId].factories[selectedFactoryId].machines.crafters[machineId] = crafterData;
@@ -3221,6 +3348,17 @@ async function handleSaveStorage() {
                 }
             }
         }
+
+        // Update targets
+        const targets = factory.targets || {};
+        for (const target of Object.values(targets)) {
+            if (target.from_ids && Array.isArray(target.from_ids)) {
+                const index = target.from_ids.indexOf(editingStorageId);
+                if (index !== -1) {
+                    target.from_ids[index] = machineId;
+                }
+            }
+        }
     }
 
     pins[selectedPinId].factories[selectedFactoryId].machines.storage[machineId] = storageData;
@@ -3274,6 +3412,293 @@ async function handleDeleteStorage() {
     } catch (error) {
         console.error('Error deleting storage:', error);
         alert('Error deleting storage');
+    }
+}
+
+// Target Modal Functions
+function setTargetFromIdsBadges(fromIds) {
+    targetFromIdsBadges.innerHTML = '';
+    const ids = Array.isArray(fromIds)
+        ? fromIds
+        : (fromIds ? fromIds.split(/,\s*/) : []);
+
+    ids.forEach(id => {
+        const trimmedId = (id || '').trim();
+        if (!trimmedId) return;
+        const badge = document.createElement('span');
+        badge.className = 'from-id-badge';
+        badge.textContent = trimmedId;
+        targetFromIdsBadges.appendChild(badge);
+    });
+}
+
+function buildTargetSourcesList() {
+    const sources = [];
+    const factory = pins[selectedPinId]?.factories?.[selectedFactoryId];
+    if (!factory) return sources;
+
+    const crafters = factory.machines?.crafters || {};
+    for (const [crafterId, crafter] of Object.entries(crafters)) {
+        sources.push({
+            fromId: crafterId,
+            itemName: (crafter.crafted_item || '').trim(),
+            type: 'crafter'
+        });
+    }
+
+    const storage = factory.machines?.storage || {};
+    for (const [storageId, storageNode] of Object.entries(storage)) {
+        sources.push({
+            fromId: storageId,
+            itemName: (storageNode.stored_item || '').trim() || '*',
+            type: 'storage'
+        });
+    }
+
+    sources.sort((a, b) => {
+        const idCmp = a.fromId.localeCompare(b.fromId);
+        if (idCmp !== 0) return idCmp;
+        return a.itemName.localeCompare(b.itemName);
+    });
+
+    return sources;
+}
+
+function populateTargetSourcesTable() {
+    const tbody = targetSourcesSelectionTable.querySelector('tbody');
+    tbody.innerHTML = '';
+
+    const selectedIds = new Set(
+        Array.from(targetFromIdsBadges.querySelectorAll('.from-id-badge'))
+            .map(badge => badge.textContent.trim())
+            .filter(id => id)
+    );
+
+    const sources = buildTargetSourcesList();
+    sources.forEach(source => {
+        const row = document.createElement('tr');
+        row.style.borderBottom = '1px solid #555';
+        row.style.cursor = 'pointer';
+
+        row.addEventListener('mouseenter', () => {
+            row.style.backgroundColor = '#404040';
+        });
+        row.addEventListener('mouseleave', () => {
+            row.style.backgroundColor = '';
+        });
+        row.addEventListener('click', () => {
+            const checkbox = row.querySelector('input[type="checkbox"]');
+            if (!checkbox) return;
+            checkbox.checked = !checkbox.checked;
+        });
+
+        const checkedAttr = selectedIds.has(source.fromId) ? 'checked' : '';
+        row.innerHTML = `
+            <td style="border: 1px solid #555; padding: 10px; text-align: center; width: 40px;">
+                <input type="checkbox" class="target-source-checkbox" value="${source.fromId}" ${checkedAttr}>
+            </td>
+            <td style="border: 1px solid #555; padding: 10px;">${source.fromId}</td>
+            <td style="border: 1px solid #555; padding: 10px;">${source.itemName || '-'}</td>
+        `;
+
+        const checkbox = row.querySelector('input[type="checkbox"]');
+        if (checkbox) {
+            checkbox.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+        }
+
+        tbody.appendChild(row);
+    });
+
+    if (selectAllTargetSourcesCheckbox) {
+        selectAllTargetSourcesCheckbox.checked = false;
+    }
+}
+
+function openSelectTargetSourcesModal() {
+    populateTargetSourcesTable();
+    selectTargetSourcesModal.classList.add('show');
+}
+
+function closeSelectTargetSourcesModal() {
+    selectTargetSourcesModal.classList.remove('show');
+}
+
+function handleSelectAllTargetSources(event) {
+    const checked = !!event.target.checked;
+    targetSourcesSelectionTable
+        .querySelectorAll('tbody .target-source-checkbox')
+        .forEach(checkbox => {
+            checkbox.checked = checked;
+        });
+}
+
+function handleSelectTargetSources() {
+    const selectedIds = Array.from(
+        targetSourcesSelectionTable.querySelectorAll('tbody .target-source-checkbox:checked')
+    )
+        .map(checkbox => checkbox.value.trim())
+        .filter(id => id);
+
+    setTargetFromIdsBadges(selectedIds);
+    closeSelectTargetSourcesModal();
+}
+
+function openAddTargetModal(pinId, factoryId) {
+    selectedPinId = pinId;
+    selectedFactoryId = factoryId;
+    editingTargetId = null;
+    targetModalTitle.textContent = 'Add Target';
+    targetId.value = '';
+    targetId.disabled = false;
+    targetRateIpm.value = '120';
+    targetAmount.value = '0';
+    setTargetFromIdsBadges([]);
+    deleteTargetBtn.style.display = 'none';
+    targetModal.classList.add('show');
+    openSelectTargetSourcesModal();
+    targetId.focus();
+}
+
+function openEditTargetModal(pinId, factoryId, targetIdValue) {
+    selectedPinId = pinId;
+    selectedFactoryId = factoryId;
+    editingTargetId = targetIdValue;
+    const target = pins[pinId].factories[factoryId].targets[targetIdValue];
+
+    targetModalTitle.textContent = 'Edit Target';
+    targetId.value = targetIdValue;
+    targetId.disabled = false;
+    targetRateIpm.value = target.target_rate_ipm || 120;
+    targetAmount.value = (target.target_amount !== undefined && target.target_amount !== null)
+        ? target.target_amount
+        : 0;
+    setTargetFromIdsBadges(target.from_ids || []);
+    deleteTargetBtn.style.display = 'block';
+    targetModal.classList.add('show');
+}
+
+function closeTargetModal() {
+    targetModal.classList.remove('show');
+    editingTargetId = null;
+    selectedFactoryId = null;
+}
+
+async function handleSaveTarget() {
+    if (!selectedPinId || !selectedFactoryId) return;
+
+    const targetIdValue = targetId.value.trim();
+    if (!targetIdValue) {
+        alert('Please enter a target ID');
+        return;
+    }
+
+    const rate = parseInt(targetRateIpm.value, 10);
+    if (isNaN(rate) || rate < 1) {
+        alert('Please enter a valid positive target rate');
+        return;
+    }
+
+    const amountRaw = targetAmount.value.trim();
+    const amount = amountRaw === '' ? 0 : parseInt(amountRaw, 10);
+    if (isNaN(amount) || amount < 0) {
+        alert('Please enter a valid non-negative target amount');
+        return;
+    }
+
+    if (!pins[selectedPinId].factories[selectedFactoryId].targets) {
+        pins[selectedPinId].factories[selectedFactoryId].targets = {};
+    }
+
+    if (!editingTargetId && pins[selectedPinId].factories[selectedFactoryId].targets[targetIdValue]) {
+        alert('A target with this ID already exists');
+        return;
+    }
+
+    const pin = pins[selectedPinId];
+    if (pin.resource_nodes && pin.resource_nodes[targetIdValue]) {
+        alert('This ID is already used by a resource node in this site');
+        return;
+    }
+
+    const factory = pin.factories[selectedFactoryId];
+    const exclude = (editingTargetId && editingTargetId === targetIdValue)
+        ? { type: 'target', id: editingTargetId }
+        : null;
+    const conflicts = getFactoryIdConflicts(factory, targetIdValue, exclude);
+    if (conflicts.length > 0) {
+        alert(`This ID is already used by ${conflicts.join(', ')} in this factory`);
+        return;
+    }
+
+    const fromIds = Array.from(targetFromIdsBadges.querySelectorAll('.from-id-badge'))
+        .map(badge => badge.textContent.trim())
+        .filter(id => id);
+
+    if (fromIds.length === 0) {
+        alert('Please select at least one source (crafter or storage)');
+        return;
+    }
+
+    const targetData = {
+        target_rate_ipm: rate,
+        target_amount: amount,
+        from_ids: fromIds
+    };
+
+    if (editingTargetId && editingTargetId !== targetIdValue) {
+        delete pins[selectedPinId].factories[selectedFactoryId].targets[editingTargetId];
+    }
+
+    pins[selectedPinId].factories[selectedFactoryId].targets[targetIdValue] = targetData;
+
+    try {
+        const response = await fetch(`/api/pins/${selectedPinId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ factories: pins[selectedPinId].factories })
+        });
+
+        if (response.ok) {
+            const updatedPin = await response.json();
+            pins[selectedPinId] = updatedPin;
+            renderPins();
+            renderPinsList();
+            closeTargetModal();
+        }
+    } catch (error) {
+        console.error('Error saving target:', error);
+        alert('Error saving target');
+    }
+}
+
+async function handleDeleteTarget() {
+    if (!selectedPinId || !selectedFactoryId || !editingTargetId) return;
+
+    delete pins[selectedPinId].factories[selectedFactoryId].targets[editingTargetId];
+
+    try {
+        const response = await fetch(`/api/pins/${selectedPinId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ factories: pins[selectedPinId].factories })
+        });
+
+        if (response.ok) {
+            const updatedPin = await response.json();
+            pins[selectedPinId] = updatedPin;
+            renderPins();
+            renderPinsList();
+            closeTargetModal();
+        }
+    } catch (error) {
+        console.error('Error deleting target:', error);
+        alert('Error deleting target');
     }
 }
 
