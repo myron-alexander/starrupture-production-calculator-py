@@ -150,6 +150,29 @@ class MapFactory(MapNode):
 
     #---------------------------------------------------------------------------
 
+    def get_terminal_nodes(self) -> tuple[MapNode, ...]:
+        """
+        Get the terminal nodes of this factory. Terminal nodes are nodes that are not inputs
+        to any other nodes in the factory. 
+        """
+        # Build list of components that are inputs.
+        is_input = set()
+        for v in self.dispatchers.values():
+            is_input |= set(v.get_all_supplier_node_ids())
+        for v in self.crafters.values():
+            is_input |= set(v.get_all_supplier_node_ids())
+        for v in self.storages.values():
+            is_input |= set(v.get_all_supplier_node_ids())
+        
+        # Dispatchers are always terminal within the factory.
+        terminals = [v for v in self.dispatchers.values()]
+        terminals += [v for v in self.crafters.values() if v.get_node_id() not in is_input]
+        terminals += [v for v in self.storages.values() if v.get_node_id() not in is_input]
+
+        return tuple(terminals)
+
+    #---------------------------------------------------------------------------
+
     def add_crafter(self, crafter:"MapCrafterNode") -> None:
         assert crafter.crafter_id not in self.crafters, \
             f"Crafter with ID '{crafter.crafter_id}' already exists in factory '{self.factory_id}'"
@@ -240,6 +263,12 @@ class MapSingleSupplyNode(ABC):
     #---------------------------------------------------------------------------
 
     @abstractmethod
+    def get_node_id(self) -> str:
+        pass
+
+    #---------------------------------------------------------------------------
+
+    @abstractmethod
     def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
         """
         Get this node's suppliers of items. The request_item_name parameter is used to determine
@@ -265,6 +294,14 @@ class MapSupplyConnector(MapSingleSupplyNode, MapNode):
                 f"Owner of MapSupplyConnector must be a MapNode, got {type(owner).__name__}")
         self.owner = owner
         self.suppliers:list[MapSingleSupplyNode] = []
+
+    #---------------------------------------------------------------------------
+
+    def get_owner(self) -> "MapMultiSupplyNode":
+        """
+        Gets the supply node.
+        """
+        return self.owner
 
     #---------------------------------------------------------------------------
 
@@ -463,6 +500,19 @@ class MapCrafterNode(MapNode, MapFactoryNode, MapProductionSupplyNode):
 
     #---------------------------------------------------------------------------
 
+    def get_all_supplier_node_ids(self) -> set[str]:
+        """
+        Get the set of all supplier node IDs that are supplying items to this crafter.
+        This was added for finding terminal nodes.
+        """
+        supplier_node_ids = set()
+        for recipe_item in self.recipe:
+            for supplier in recipe_item.suppliers:
+                supplier_node_ids.add(supplier.get_node_id())
+        return supplier_node_ids
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 # There is a multi-item storage building in the game. Will add support for that later when I
@@ -481,6 +531,9 @@ class MapSingleStorageNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
                  storage_id:str,
                  stored_item_name:str,
                  building_id:str) -> None:
+
+        if "*" == stored_item_name:
+            raise ValueError("MapSingleStorageNode does not support multi-item storage")
 
         MapNode.__init__(self, MapNode.id_for_factory_node(site_id, factory_id, storage_id))
         MapFactoryNode.__init__(self, site_id, factory_id)
@@ -513,6 +566,18 @@ class MapSingleStorageNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
         if request_item_name != self.supplied_item_name:
             return tuple()
         return tuple(self.suppliers)
+
+    #---------------------------------------------------------------------------
+
+    def get_all_supplier_node_ids(self) -> set[str]:
+        """
+        Get the set of all supplier node IDs that are supplying items to this crafter.
+        This was added for finding terminal nodes.
+        """
+        supplier_node_ids = set()
+        for supplier in self.suppliers:
+            supplier_node_ids.add(supplier.get_node_id())
+        return supplier_node_ids
 
     #---------------------------------------------------------------------------
 
@@ -564,6 +629,18 @@ class MapDispatcherNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
         if request_item_name != self.supplied_item_name:
             return tuple()
         return tuple(self.suppliers)
+
+    #---------------------------------------------------------------------------
+
+    def get_all_supplier_node_ids(self) -> set[str]:
+        """
+        Get the set of all supplier node IDs that are supplying items to this crafter.
+        This was added for finding terminal nodes.
+        """
+        supplier_node_ids = set()
+        for supplier in self.suppliers:
+            supplier_node_ids.add(supplier.get_node_id())
+        return supplier_node_ids
 
     #---------------------------------------------------------------------------
 
