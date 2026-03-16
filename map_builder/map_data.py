@@ -24,6 +24,10 @@ __all__ = [
 
 #---------------------------------------------------------------------------------------------------
 
+debug_mode = False
+
+#---------------------------------------------------------------------------------------------------
+
 from abc import ABC, abstractmethod
 import json
 from typing import Any, cast
@@ -1216,7 +1220,7 @@ class MapData:
         whether a node is using a receiver in its supply chain.
         """
         def walk_node(input:MapSingleSupplyNode) -> bool:
-            print(f"walk_node: {input.get_global_id()}")
+            #print(f"walk_node: {input.get_global_id()}")
             if isinstance(input, MapSupplyConnector) \
                     and isinstance(input.get_owner(), MapReceiverNode):
                 return True
@@ -1228,16 +1232,18 @@ class MapData:
 
         terminals = [node for node in self.map_nodes if node.is_terminal]
 
-        for terminal in terminals:
-            print(f"Terminal node: {terminal.global_id} ({type(terminal).__name__})")
+        #for terminal in terminals:
+        #    print(f"Terminal node: {terminal.global_id} ({type(terminal).__name__})")
 
         for terminal in terminals:
             if isinstance(terminal, MapSingleSupplyNode):
                 walk_node(terminal)
             else:
-                print(
-                    f"Terminal node '{terminal.global_id}' is not a MapSingleSupplyNode but"
-                    f" '{type(terminal)}'. Skipping uses_receiver flag population for this node.")
+                if debug_mode:
+                    print(
+                        f"Terminal node '{terminal.global_id}' is not a MapSingleSupplyNode but"
+                        f" '{type(terminal)}'. Skipping uses_receiver flag population for this"
+                         " node.")
 
     #---------------------------------------------------------------------------
 
@@ -1339,6 +1345,9 @@ def load_map_data(game_data:GameData, file_path:str = 'pins_data.json') -> MapDa
 #---------------------------------------------------------------------------------------------------
 
 def main():
+    global debug_mode
+    debug_mode = True
+
     game_data = load_game_data()
     #with open('pins_data.json', 'r', encoding='utf-8') as f:
     #    map_dict_data = json.load(f)
