@@ -8,6 +8,7 @@ Missing:
    to blocks.
 2. Taking into consideration transport rate limits.
 4. Support for multi-type storage.
+5. Utilization is the difference between the supplied rate and the maximum production rate.
 
 Done:
 3. Loading targets from map data and calculating the production rates for all the targets.
@@ -133,6 +134,10 @@ class Ledger(ABC):
             The approved request rate which will be less than or equal to request_ipm.
         """
         pass
+
+    #---------------------------------------------------------------------------
+
+    
 
     #---------------------------------------------------------------------------
 
@@ -612,7 +617,7 @@ class ReceiverItemLedger(SingleItemLedger):
     #---------------------------------------------------------------------------
 
     def get_owner_id(self) -> str:
-        return self._owner.get_id()
+        return self._owner.get_global_id()
 
     #---------------------------------------------------------------------------
 
@@ -626,7 +631,7 @@ class ReceiverItemLedger(SingleItemLedger):
             raise ValueError(
                 f"Requested item '{request_item}' does not match the supplied item"
                 f" '{self._connector.supplied_item_name}' for this ledger of receiver node"
-                f" '{self._owner.get_id()}'.")
+                f" '{self._owner.get_global_id()}'.")
 
         idx, existing_request = next(
             (r for r in enumerate(self._approved_pull_requests) if r[1].request_node == requestor)
@@ -700,7 +705,7 @@ class ReceiverLedger(MultiItemLedger):
     #---------------------------------------------------------------------------
 
     def get_owner_id(self) -> str:
-        return self._owner.get_id()
+        return self._owner.get_global_id()
 
     #---------------------------------------------------------------------------
 
@@ -709,7 +714,7 @@ class ReceiverLedger(MultiItemLedger):
         if ledger is None:
             raise ValueError(
                 f"Requested item '{request_item}' is not supplied by receiver node"
-                f" '{self._owner.get_id()}'.")
+                f" '{self._owner.get_global_id()}'.")
         return ledger.request_supplies(requestor, request_item, request_ipm)
 
     #---------------------------------------------------------------------------
@@ -891,10 +896,6 @@ def main():
 
     calculate_production_capacity(map_data)
 
-    print()
-    print()
-    print()
-    spike_calc_factory_resource_usage2("test-site", "factory", map_data)
     print()
     print()
     print()
