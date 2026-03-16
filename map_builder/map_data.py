@@ -39,6 +39,9 @@ class MapNode(ABC):
         self.global_id = global_node_id
         self.ledger:Any = None
         self.graph:Any = None
+        # A node is assumed to be terminal until it is added as a supplier to another node.
+        self._is_terminal = True
+        self._uses_receiver = False
 
     #--------------------------------------------------------------------------
 
@@ -47,6 +50,44 @@ class MapNode(ABC):
         Get the ID of this node this is globally unique.
         """
         return self.global_id
+
+    #--------------------------------------------------------------------------
+
+    @property
+    def is_terminal(self) -> bool:
+        """
+        Get whether this node is a terminal node. Terminal nodes are nodes that are not inputs to
+        any other nodes in the factory. This is used for determining which nodes to start from when
+        calculating production.
+        """
+        return self._is_terminal
+
+    #--------------------------------------------------------------------------
+
+    def flag_not_terminal(self) -> None:
+        """
+        When this node is added as a supplier to another node, it is no longer a terminal node.
+        """
+        self._is_terminal = False
+
+    #--------------------------------------------------------------------------
+
+    @property
+    def uses_receiver(self) -> bool:
+        """
+        Get whether this node uses a receiver. This is used when calculating max available
+        capacity.
+        """
+        return self._uses_receiver
+
+    #--------------------------------------------------------------------------
+
+    def flag_uses_receiver(self, uses_receiver:bool) -> None:
+        """
+        Sets the node's uses_receiver property. If this property is already true, it remains true
+        regardless of parameter value.
+        """
+        self._uses_receiver |= uses_receiver
 
     #--------------------------------------------------------------------------
 
@@ -269,10 +310,16 @@ class MapSingleSupplyNode(ABC):
     #---------------------------------------------------------------------------
 
     @abstractmethod
-    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+    def get_suppliers(self, request_item_name:str|None = None) -> tuple["MapSingleSupplyNode", ...]:
         """
         Get this node's suppliers of items. The request_item_name parameter is used to determine
         which suppliers to return in the case of a multi-item supplier.
+
+        Parameters
+        ----------
+        request_item_name : str | None, optional
+            The name of the item being requested. This is used to determine which suppliers to
+            return in the case of a multi-item supplier. If None, then all suppliers are returned.
         """
         pass
 
@@ -323,8 +370,8 @@ class MapSupplyConnector(MapSingleSupplyNode, MapNode):
 
     #---------------------------------------------------------------------------
 
-    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
-        if request_item_name != self.supplied_item_name:
+    def get_suppliers(self, request_item_name:str|None = None) -> tuple["MapSingleSupplyNode", ...]:
+        if request_item_name is not None and request_item_name != self.supplied_item_name:
             return tuple()
         return tuple(self.suppliers)
 
@@ -362,7 +409,23 @@ class MapMultiSupplyNode:
 
     #---------------------------------------------------------------------------
 
-    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+    def get_suppliers(self, request_item_name:str|None = None) -> tuple["MapSingleSupplyNode", ...]:
+        """
+        Get this node's suppliers of items. The request_item_name parameter is used to determine
+        which suppliers to return.
+
+        Parameters
+        ----------
+        request_item_name : str | None, optional
+            The name of the item being requested. This is used to determine which suppliers to
+            return. If None, then all suppliers of all items are returned.
+        """
+        if request_item_name is None:
+            # If no item name is provided, return all suppliers for all items.
+            suppliers = []
+            for connector in self._supplied_items.values():
+                suppliers.extend(connector.get_suppliers())
+            return tuple(suppliers)
         connector = self._supplied_items.get(request_item_name)
         if connector:
             return connector.get_suppliers(request_item_name)
@@ -407,7 +470,7 @@ class MapResourceNode(MapNode, MapSiteNode, MapProductionSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
+    def get_suppliers(self, request_item_name:str|None = None) -> tuple["MapSingleSupplyNode", ...]:
         return tuple()
 
     #---------------------------------------------------------------------------
@@ -436,8 +499,18 @@ class RecipeItem:
 
     #---------------------------------------------------------------------------
 
-    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
-        if request_item_name != self.recipe_item_name:
+    def get_suppliers(self, request_item_name:str|None = None) -> tuple["MapSingleSupplyNode", ...]:
+        """
+        Get this recipe item's suppliers. The request_item_name parameter is used to
+        check if this recipe item is the one requested, and if it doesn't match the recipe
+        item name, then an empty tuple is returned.
+
+        Parameters
+        ----------
+        request_item_name : str | None, optional
+            The name of the item being requested. If None, then all suppliers are returned.
+        """
+        if request_item_name is not None and request_item_name != self.recipe_item_name:
             return tuple()
         return tuple(self.suppliers)
 
@@ -470,6 +543,7 @@ class MapCrafterNode(MapNode, MapFactoryNode, MapProductionSupplyNode):
     #---------------------------------------------------------------------------
 
     def add_recipe_item_supplier(self, recipe_item_name:str, supplier:MapSingleSupplyNode) -> None:
+        cast(MapNode, supplier).flag_not_terminal()
         for recipe_item in self.recipe:
             if recipe_item.recipe_item_name == recipe_item_name:
                 recipe_item.add_supplier(supplier)
@@ -492,10 +566,33 @@ class MapCrafterNode(MapNode, MapFactoryNode, MapProductionSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
-        for recipe_item in self.recipe:
-            if recipe_item.recipe_item_name == request_item_name:
-                return recipe_item.get_suppliers(request_item_name)
+    def get_suppliers(self, request_item_name:str|None = None) -> tuple["MapSingleSupplyNode", ...]:
+        """
+        Get the suppliers for the given recipe item name. If the request_item_name is None, then all
+        suppliers for all recipe items are returned. If the request_item_name does not match any of
+        the recipe item names, then an empty tuple is returned.
+
+        Parameters
+        ----------
+        request_item_name : str | None, optional
+            The name of the recipe item being requested. This is used to determine which suppliers to
+            return. If None, then all suppliers for all recipe items are returned. The
+            crafted item name may not be used and will raise an error if passed in.
+        """
+        if request_item_name is None:
+            suppliers = []
+            for recipe_item in self.recipe:
+                suppliers.extend(recipe_item.get_suppliers())
+            return tuple(suppliers)
+        else:
+            if request_item_name == self.supplied_item_name:
+                raise ValueError(
+                    "For a crafter, the suppliers will never supply the crafted item itself, so"
+                    " the requested item must be one of the recipe items. Call get_recipe_items()"
+                    " to get the recipe items.")
+            for recipe_item in self.recipe:
+                if recipe_item.recipe_item_name == request_item_name:
+                    return recipe_item.get_suppliers()
         return tuple()
 
     #---------------------------------------------------------------------------
@@ -548,6 +645,7 @@ class MapSingleStorageNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
         assert supplier.supplied_item_name == self.supplied_item_name, \
             f"Supplier item name '{supplier.supplied_item_name}' does not match" \
             f" storage item name '{self.supplied_item_name}'"
+        cast(MapNode, supplier).flag_not_terminal()
         self.suppliers.append(supplier)
 
     #---------------------------------------------------------------------------
@@ -562,8 +660,8 @@ class MapSingleStorageNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
-        if request_item_name != self.supplied_item_name:
+    def get_suppliers(self, request_item_name:str|None = None) -> tuple["MapSingleSupplyNode", ...]:
+        if request_item_name is not None and request_item_name != self.supplied_item_name:
             return tuple()
         return tuple(self.suppliers)
 
@@ -611,7 +709,16 @@ class MapDispatcherNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
         assert supplier.supplied_item_name == self.supplied_item_name, \
             f"Supplier item name '{supplier.supplied_item_name}' does not match" \
             f" dispatcher item name '{self.supplied_item_name}'"
+        cast(MapNode, supplier).flag_not_terminal()
         self.suppliers.append(supplier)
+
+    #---------------------------------------------------------------------------
+
+    def flag_not_terminal(self) -> None:
+        print(
+            f"Dispatcher {self.global_id} remains terminal as dispatchers are always terminal"
+             " within the factory.")
+        return
 
     #---------------------------------------------------------------------------
 
@@ -625,8 +732,8 @@ class MapDispatcherNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_suppliers(self, request_item_name:str) -> tuple["MapSingleSupplyNode", ...]:
-        if request_item_name != self.supplied_item_name:
+    def get_suppliers(self, request_item_name:str|None = None) -> tuple["MapSingleSupplyNode", ...]:
+        if request_item_name is not None and request_item_name != self.supplied_item_name:
             return tuple()
         return tuple(self.suppliers)
 
@@ -665,6 +772,8 @@ class MapReceiverNode(MapNode, MapFactoryNode, MapMultiSupplyNode):
     #---------------------------------------------------------------------------
 
     def add_dispatcher(self, dispatcher:MapDispatcherNode) -> None:
+        # Dispatchers are always terminal within the factory, so we don't need to flag them as not
+        # terminal here.
         connector = self.add_supplied_item(dispatcher.supplied_item_name)
         connector.add_supplier(dispatcher)
 
@@ -722,6 +831,8 @@ class MapTargetNode(MapNode, MapFactoryNode):
                  " does not match existing"
                 f" supplier item name '{self.suppliers[0].supplied_item_name}' for target node"
                 f" '{self.global_id}'. All suppliers for a target node must supply the same item.")
+        # Target nodes are not part of the production chain and are only used to represent demand,
+        # so they do not affect terminal status of their suppliers.
         self.suppliers.append(supplier)
 
     #---------------------------------------------------------------------------
@@ -1099,6 +1210,37 @@ class MapData:
 
     #---------------------------------------------------------------------------
 
+    def populate_uses_receiver_flags(self) -> None:
+        """
+        Populate the uses_receiver flag for all nodes in the map data. This is used to determine
+        whether a node is using a receiver in its supply chain.
+        """
+        def walk_node(input:MapSingleSupplyNode) -> bool:
+            print(f"walk_node: {input.get_global_id()}")
+            if isinstance(input, MapSupplyConnector) \
+                    and isinstance(input.get_owner(), MapReceiverNode):
+                return True
+            uses_receiver = False
+            for supplier in input.get_suppliers():
+                uses_receiver |= walk_node(supplier)
+            cast(MapNode,input).flag_uses_receiver(uses_receiver)
+            return uses_receiver
+
+        terminals = [node for node in self.map_nodes if node.is_terminal]
+
+        for terminal in terminals:
+            print(f"Terminal node: {terminal.global_id} ({type(terminal).__name__})")
+
+        for terminal in terminals:
+            if isinstance(terminal, MapSingleSupplyNode):
+                walk_node(terminal)
+            else:
+                print(
+                    f"Terminal node '{terminal.global_id}' is not a MapSingleSupplyNode but"
+                    f" '{type(terminal)}'. Skipping uses_receiver flag population for this node.")
+
+    #---------------------------------------------------------------------------
+
     def debug_dump_nodes(self) -> None:
         for site in self.sites.values():
             print("-" * 40)
@@ -1113,6 +1255,8 @@ class MapData:
                 print(f"item name         : {resource_node.supplied_item_name}")
                 print(f"variant           : {resource_node.variant}")
                 print(f"max production ipm: {resource_node.max_production_ipm}")
+                print(f"is terminal       : {resource_node.is_terminal}")
+                print(f"uses receiver     : {resource_node.uses_receiver}")
 
             for factory in site.factories.values():
                 for crafter in factory.crafters.values():
@@ -1121,6 +1265,8 @@ class MapData:
                     print(f"crafter id        : {crafter.crafter_id}")
                     print(f"crafted item name : {crafter.supplied_item_name}")
                     print(f"max production ipm: {crafter.max_production_ipm}")
+                    print(f"is terminal       : {crafter.is_terminal}")
+                    print(f"uses receiver     : {crafter.uses_receiver}")
                     for recipe_item in crafter.recipe:
                         print(f"  - {recipe_item.recipe_item_name:<20}:"
                               f" {recipe_item.required_ipm} ipm")
@@ -1133,25 +1279,31 @@ class MapData:
                     print(f"storage id      : {storage.storage_id}")
                     print(f"stored item name: {storage.supplied_item_name}")
                     print(f"building id     : {storage.building_id}")
+                    print(f"is terminal     : {storage.is_terminal}")
+                    print(f"uses receiver   : {storage.uses_receiver}")
                     for supplier in storage.suppliers:
                         print(f"  from supplier: {supplier.get_global_id()}")
 
-                for dispatched_item in factory.dispatchers.values():
+                for dispatcher in factory.dispatchers.values():
                     print("-" * 40)
-                    print(f"factory id       : {dispatched_item.factory_id}")
-                    print(f"dispatcher id    : {dispatched_item.dispatcher_id}")
-                    print(f"dispatched item  : {dispatched_item.supplied_item_name}")
-                    print(f"building id      : {dispatched_item.building_id}")
-                    print(f"output rate limit: {dispatched_item.output_rate_limit_ipm} ipm")
-                    print(f"input rate limit : {dispatched_item.input_rate_limit_ipm} ipm")
-                    for supplier in dispatched_item.suppliers:
+                    print(f"factory id       : {dispatcher.factory_id}")
+                    print(f"dispatcher id    : {dispatcher.dispatcher_id}")
+                    print(f"dispatched item  : {dispatcher.supplied_item_name}")
+                    print(f"building id      : {dispatcher.building_id}")
+                    print(f"output rate limit: {dispatcher.output_rate_limit_ipm} ipm")
+                    print(f"input rate limit : {dispatcher.input_rate_limit_ipm} ipm")
+                    print(f"is terminal      : {dispatcher.is_terminal}")
+                    print(f"uses receiver    : {dispatcher.uses_receiver}")
+                    for supplier in dispatcher.suppliers:
                         print(f"  from supplier: {supplier.get_global_id()}")
 
                 for receiver in factory.receivers.values():
                     print("-" * 40)
-                    print(f"factory id : {receiver.factory_id}")
-                    print(f"receiver id: {receiver.receiver_id}")
-                    print(f"building id: {receiver.building_id}")
+                    print(f"factory id   : {receiver.factory_id}")
+                    print(f"receiver id  : {receiver.receiver_id}")
+                    print(f"building id  : {receiver.building_id}")
+                    print(f"is terminal  : {receiver.is_terminal}")
+                    print(f"uses receiver: {receiver.uses_receiver}")
                     print( "dispatched items:")
                     for dispatched_item in receiver.supplied_items:
                         print(f"  - {dispatched_item.supplied_item_name} from dispatcher(s):")
@@ -1198,6 +1350,7 @@ def main():
     #map_data.sites["test-site"].factories["factory"].add_target(target_node)
     #target_node.add_supplier(map_data.get_supplier_node("glass", "test-site", "s-glass-1", "factory"))
 
+    map_data.populate_uses_receiver_flags()
     print()
     print()
     print()
