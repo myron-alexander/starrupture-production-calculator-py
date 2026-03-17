@@ -1323,6 +1323,9 @@ class MapData:
                 print(f"max production ipm: {resource_node.max_production_ipm}")
                 print(f"is terminal       : {resource_node.is_terminal}")
                 print(f"uses receiver     : {resource_node.uses_receiver}")
+                print( "consumers:")
+                for consumer in resource_node.get_consumers():
+                    print(f"  - {consumer.get_global_id()}")
 
             for factory in site.factories.values():
                 for crafter in factory.crafters.values():
@@ -1333,11 +1336,15 @@ class MapData:
                     print(f"max production ipm: {crafter.max_production_ipm}")
                     print(f"is terminal       : {crafter.is_terminal}")
                     print(f"uses receiver     : {crafter.uses_receiver}")
+                    print( "recipe:")
                     for recipe_item in crafter.recipe:
                         print(f"  - {recipe_item.recipe_item_name:<20}:"
                               f" {recipe_item.required_ipm} ipm")
                         for supplier in recipe_item.suppliers:
-                            print(f"    from supplier: {supplier.get_global_id()}")
+                            print(f"      - {supplier.get_global_id()}")
+                    print( "consumers:")
+                    for consumer in crafter.get_consumers():
+                        print(f"  - {consumer.get_global_id()}")
 
                 for storage in factory.storages.values():
                     print("-" * 40)
@@ -1347,8 +1354,12 @@ class MapData:
                     print(f"building id     : {storage.building_id}")
                     print(f"is terminal     : {storage.is_terminal}")
                     print(f"uses receiver   : {storage.uses_receiver}")
+                    print( "suppliers:")
                     for supplier in storage.suppliers:
-                        print(f"  from supplier: {supplier.get_global_id()}")
+                        print(f"  - {supplier.get_global_id()}")
+                    print( "consumers:")
+                    for consumer in storage.get_consumers():
+                        print(f"  - {consumer.get_global_id()}")
 
                 for dispatcher in factory.dispatchers.values():
                     print("-" * 40)
@@ -1360,8 +1371,12 @@ class MapData:
                     print(f"input rate limit : {dispatcher.input_rate_limit_ipm} ipm")
                     print(f"is terminal      : {dispatcher.is_terminal}")
                     print(f"uses receiver    : {dispatcher.uses_receiver}")
+                    print( "suppliers:")
                     for supplier in dispatcher.suppliers:
-                        print(f"  from supplier: {supplier.get_global_id()}")
+                        print(f"  - {supplier.get_global_id()}")
+                    print( "consumers:")
+                    for consumer in dispatcher.get_consumers():
+                        print(f"  - {consumer.get_global_id()}")
 
                 for receiver in factory.receivers.values():
                     print("-" * 40)
@@ -1375,6 +1390,9 @@ class MapData:
                         print(f"  - {dispatched_item.supplied_item_name} from dispatcher(s):")
                         for supplier in dispatched_item.suppliers:
                             print(f"    - {supplier.get_global_id()}")
+                    print( "consumers:")
+                    for consumer in receiver.get_consumers():
+                        print(f"  - {consumer.get_global_id()}")
 
                 for target in factory.targets.values():
                     print("-" * 40)
