@@ -317,6 +317,7 @@ class MapSingleSupplyNode(MapNode):
 
     def __init__(self, supplied_item_name:str) -> None:
         self.supplied_item_name = supplied_item_name
+        self._consumers:list[MapConsumerNode] = []
 
     #---------------------------------------------------------------------------
 
@@ -333,6 +334,19 @@ class MapSingleSupplyNode(MapNode):
             return in the case of a multi-item supplier. If None, then all suppliers are returned.
         """
         pass
+
+    #---------------------------------------------------------------------------
+
+    def get_consumers(self) -> tuple[MapConsumerNode, ...]:
+        """
+        Get this node's consumers of items.
+        """
+        return tuple(self._consumers)
+
+    #---------------------------------------------------------------------------
+
+    def add_consumer(self, consumer:MapConsumerNode) -> None:
+        self._consumers.append(consumer)
 
     #---------------------------------------------------------------------------
 
@@ -447,6 +461,26 @@ class MapMultiSupplyNode(MapNode):
 
     #---------------------------------------------------------------------------
 
+    def get_consumers(self, supplied_item_name:str|None = None) -> tuple[MapConsumerNode, ...]:
+        """
+        Get this node's consumers of items. When supplied_item_name is provided, only consumers
+        that consume the specified item are returned.
+        """
+        if supplied_item_name is not None:
+            return self.get_item_connector(supplied_item_name).get_consumers()
+        else:
+            consumers = []
+            for connector in self._supplied_items.values():
+                consumers.extend(connector.get_consumers())
+            return tuple(consumers)
+
+    #---------------------------------------------------------------------------
+
+    def add_consumer(self, consumer:MapConsumerNode, supplied_item_name:str) -> None:
+        self.get_item_connector(supplied_item_name).add_consumer(consumer)
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 class MapProductionSupplyNode(MapSingleSupplyNode):
@@ -527,7 +561,7 @@ class RecipeItem:
 
 #---------------------------------------------------------------------------------------------------
 
-class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode):
+class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
@@ -614,6 +648,16 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode):
 
     #---------------------------------------------------------------------------
 
+    def get_max_item_request_ipm(self, request_item_name: str) -> int:
+        for recipe_item in self.recipe:
+            if recipe_item.recipe_item_name == request_item_name:
+                return recipe_item.required_ipm
+        raise ValueError(
+            f"Requested item '{request_item_name}' is not one of the recipe items for this"
+             " crafter.")
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 # There is a multi-item storage building in the game. Will add support for that later when I
@@ -622,7 +666,7 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode):
 # TODO: Handle number of stacks.
 #       For now, since we are not implementing buffering, the number of stacks is not relevant.
 
-class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode):
+class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
@@ -678,9 +722,16 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
+    def get_max_item_request_ipm(self, request_item_name: str) -> int:
+        # TODO: Pass the request up the consumer chain to nearest consumer of this storage that
+        #       provides a defined rate.
+        return 0
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
-class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode):
+class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
@@ -745,9 +796,16 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
+    def get_max_item_request_ipm(self, request_item_name: str) -> int:
+        # TODO: Pass the request up the consumer chain to nearest consumer of this dispatcher that
+        #       provides a defined rate.
+        return 0
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
-class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode):
+class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
@@ -778,11 +836,17 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode):
 
     #---------------------------------------------------------------------------
 
+    def get_max_item_request_ipm(self, request_item_name: str) -> int:
+        # TODO: Pass the request
+        return 0
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 # MapTargetNode does not supply items and is not part of the production chain so doesn't implement
 # a *SupplyNode interface.
-class MapTargetNode(MapNode, MapFactoryNode):
+class MapTargetNode(MapFactoryNode, MapConsumerNode):
     """
     A target node represents a desired output from the factory. It is not an actual node in the
     factory but is used to represent the demand for an item that is being produced by the factory.
@@ -838,6 +902,11 @@ class MapTargetNode(MapNode, MapFactoryNode):
 
     def get_suppliers(self) -> tuple["MapSingleSupplyNode", ...]:
         return tuple(self.suppliers)
+
+    #---------------------------------------------------------------------------
+
+    def get_max_item_request_ipm(self, request_item_name: str) -> int:
+        return self.target_rate_ipm
 
     #---------------------------------------------------------------------------
 
@@ -1145,6 +1214,7 @@ class MapData:
                                 f"Dispatcher node '{dispatcher_node.global_id}' is not a"
                                  " MapDispatcherNode.")
                         node.add_dispatcher(dispatcher_node)
+                        dispatcher_node.add_consumer(node)
 
                 # NOTE: When multi-storage is implemented, it must be linked here after receivers.
 
@@ -1162,6 +1232,7 @@ class MapData:
                             supplier_node = self.get_supplier_node(
                                 recipe_item_name, site_id, from_id, factory_id)
                             node.add_recipe_item_supplier(recipe_item_name, supplier_node)
+                            supplier_node.add_consumer(node)
 
                 for storage_id, storage_values in machines.get("storage", {}).items():
                     node = self._get_node_by_id(site_id, storage_id, factory_id)
@@ -1173,6 +1244,7 @@ class MapData:
                             supplier_node = self.get_supplier_node(
                                 node.supplied_item_name, site_id, from_id, factory_id)
                             node.add_supplier(supplier_node)
+                            supplier_node.add_consumer(node)
 
                 for dispatcher_id, dispatcher_values \
                         in factory_values.get("dispatchers", {}).items():
@@ -1184,16 +1256,19 @@ class MapData:
                         supplier_node = self.get_supplier_node(
                             node.supplied_item_name, site_id, from_id, factory_id)
                         node.add_supplier(supplier_node)
+                        supplier_node.add_consumer(node)
 
                 for target_id, target_values in factory_values.get("targets", {}).items():
                     node = self._get_node_by_id(site_id, target_id, factory_id)
                     if not isinstance(node, MapTargetNode):
                         raise ValueError(f"Node with ID '{node.global_id}' is not a MapTargetNode.")
                     for from_id in target_values.get("from_ids", []):
-                        supplier_node = self._get_node_by_id(site_id, from_id, factory_id)
+                        supplier_map_node = self._get_node_by_id(site_id, from_id, factory_id)
                         # The plan is that even when multi-item storage is implemented, the
                         # target node will only allow crafter and single item storage.
-                        node.add_supplier(cast(MapSingleSupplyNode, supplier_node))
+                        supplier_node = cast(MapSingleSupplyNode, supplier_map_node)
+                        node.add_supplier(supplier_node)
+                        supplier_node.add_consumer(node)
 
         return self
 
