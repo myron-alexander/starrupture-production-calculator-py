@@ -293,23 +293,30 @@ class MapFactoryNode(MapSiteNode):
 
 #---------------------------------------------------------------------------------------------------
 
-class MapSingleSupplyNode(ABC):
+class MapConsumerNode(MapNode):
+    """
+    A node that consumes items from suppliers.
+    """
+
+    @abstractmethod
+    def get_max_item_request_ipm(self, request_item_name:str) -> int:
+        """
+        Used by a supplier to get this consumer's max request rate, as per recipe, for the supplied
+        item. This gets complicated for nodes that don't work to a recipe/defined rate so the
+        request has to be passed on up the chain to a node that has a defined rate (eg crafter or
+        target).
+        """
+
+#---------------------------------------------------------------------------------------------------
+
+class MapSingleSupplyNode(MapNode):
+    """
+    A node that supplies a single type of item.
+    """
     #---------------------------------------------------------------------------
 
     def __init__(self, supplied_item_name:str) -> None:
         self.supplied_item_name = supplied_item_name
-
-    #---------------------------------------------------------------------------
-
-    @abstractmethod
-    def get_global_id(self) -> str:
-        pass
-
-    #---------------------------------------------------------------------------
-
-    @abstractmethod
-    def get_node_id(self) -> str:
-        pass
 
     #---------------------------------------------------------------------------
 
@@ -331,7 +338,7 @@ class MapSingleSupplyNode(ABC):
 
 #---------------------------------------------------------------------------------------------------
 
-class MapSupplyConnector(MapSingleSupplyNode, MapNode):
+class MapSupplyConnector(MapSingleSupplyNode):
     """
     A supply connector is a node that connects a multi-item supplier to a consumer. It is used to
     provide access to only one of the possible items from a multi-item supplier.
@@ -383,7 +390,10 @@ class MapSupplyConnector(MapSingleSupplyNode, MapNode):
 
 #---------------------------------------------------------------------------------------------------
 
-class MapMultiSupplyNode:
+class MapMultiSupplyNode(MapNode):
+    """
+    A node that supplies more than one type of item to consumers.
+    """
     #---------------------------------------------------------------------------
 
     def __init__(self, supplied_item_names:list[str]|None) -> None:
@@ -446,7 +456,7 @@ class MapProductionSupplyNode(MapSingleSupplyNode):
 
 #---------------------------------------------------------------------------------------------------
 
-class MapResourceNode(MapNode, MapSiteNode, MapProductionSupplyNode):
+class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
     def __init__(self,
                  site_id:str,
                  resource_id:str,
@@ -461,11 +471,6 @@ class MapResourceNode(MapNode, MapSiteNode, MapProductionSupplyNode):
         self.resource_id = resource_id
         self.variant = variant
         self.building_id = building_id
-
-    #---------------------------------------------------------------------------
-
-    def get_global_id(self) -> str:
-        return MapNode.get_global_id(self)
 
     #---------------------------------------------------------------------------
 
@@ -522,7 +527,7 @@ class RecipeItem:
 
 #---------------------------------------------------------------------------------------------------
 
-class MapCrafterNode(MapNode, MapFactoryNode, MapProductionSupplyNode):
+class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode):
 
     #---------------------------------------------------------------------------
 
@@ -552,11 +557,6 @@ class MapCrafterNode(MapNode, MapFactoryNode, MapProductionSupplyNode):
             if recipe_item.recipe_item_name == recipe_item_name:
                 recipe_item.add_supplier(supplier)
                 break
-
-    #---------------------------------------------------------------------------
-
-    def get_global_id(self) -> str:
-        return MapNode.get_global_id(self)
 
     #---------------------------------------------------------------------------
 
@@ -622,7 +622,7 @@ class MapCrafterNode(MapNode, MapFactoryNode, MapProductionSupplyNode):
 # TODO: Handle number of stacks.
 #       For now, since we are not implementing buffering, the number of stacks is not relevant.
 
-class MapSingleStorageNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
+class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
@@ -654,11 +654,6 @@ class MapSingleStorageNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_global_id(self) -> str:
-        return MapNode.get_global_id(self)
-
-    #---------------------------------------------------------------------------
-
     def get_node_id(self) -> str:
         return self.storage_id
 
@@ -685,7 +680,7 @@ class MapSingleStorageNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
 #---------------------------------------------------------------------------------------------------
 
-class MapDispatcherNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
+class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
@@ -726,11 +721,6 @@ class MapDispatcherNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
     #---------------------------------------------------------------------------
 
-    def get_global_id(self) -> str:
-        return MapNode.get_global_id(self)
-
-    #---------------------------------------------------------------------------
-
     def get_node_id(self) -> str:
         return self.dispatcher_id
 
@@ -757,7 +747,7 @@ class MapDispatcherNode(MapNode, MapFactoryNode, MapSingleSupplyNode):
 
 #---------------------------------------------------------------------------------------------------
 
-class MapReceiverNode(MapNode, MapFactoryNode, MapMultiSupplyNode):
+class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode):
 
     #---------------------------------------------------------------------------
 
@@ -780,11 +770,6 @@ class MapReceiverNode(MapNode, MapFactoryNode, MapMultiSupplyNode):
         # terminal here.
         connector = self.add_supplied_item(dispatcher.supplied_item_name)
         connector.add_supplier(dispatcher)
-
-    #---------------------------------------------------------------------------
-
-    def get_global_id(self) -> str:
-        return MapNode.get_global_id(self)
 
     #---------------------------------------------------------------------------
 
