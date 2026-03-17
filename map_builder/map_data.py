@@ -299,12 +299,25 @@ class MapConsumerNode(MapNode):
     """
 
     @abstractmethod
-    def get_max_item_request_ipm(self, request_item_name:str) -> int:
+    def get_max_recipe_item_request_ipm(self, request_item_name:str) -> list[tuple[MapNode, int]]:
         """
         Used by a supplier to get this consumer's max request rate, as per recipe, for the supplied
         item. This gets complicated for nodes that don't work to a recipe/defined rate so the
         request has to be passed on up the chain to a node that has a defined rate (eg crafter or
         target).
+
+        Parameters
+        ----------
+        request_item_name : str
+            The name of the item being requested. This is used to determine which recipe item is
+            being requested when the consumer has a recipe with multiple items.
+
+        Returns
+        -------
+        list[tuple[str, int]]
+            A list of consumers and their requested IPM for the requested item. The list is
+            intended for pass-through nodes to return the requesting consumers so that the
+            total request IPM is calculated from the source values and also only once per consumer.
         """
 
 #---------------------------------------------------------------------------------------------------
@@ -518,6 +531,24 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
 
     #---------------------------------------------------------------------------
 
+    def get_max_game_definition_requested_ipm(self) -> int:
+        """
+        Get the total requested IPM by consumers when the consumers are requesting at the game
+        defined rate.
+        """
+        total_request_ipm = 0
+        consumer_requests:list[tuple[MapNode,int]] = []
+        for consumer in self.get_consumers():
+            consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
+        visited_consumers = set()
+        for consumer, request_ipm in consumer_requests:
+            if consumer.get_global_id() not in visited_consumers:
+                total_request_ipm += request_ipm
+                visited_consumers.add(consumer.get_global_id())
+        return total_request_ipm
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 class RecipeItem:
@@ -648,13 +679,31 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
-    def get_max_item_request_ipm(self, request_item_name: str) -> int:
+    def get_max_recipe_item_request_ipm(self, request_item_name: str) -> list[tuple[MapNode, int]]:
         for recipe_item in self.recipe:
             if recipe_item.recipe_item_name == request_item_name:
-                return recipe_item.required_ipm
+                return [(self, recipe_item.required_ipm)]
         raise ValueError(
             f"Requested item '{request_item_name}' is not one of the recipe items for this"
              " crafter.")
+
+    #---------------------------------------------------------------------------
+
+    def get_max_game_definition_requested_ipm(self) -> int:
+        """
+        Get the total requested IPM by consumers when the consumers are requesting at the game
+        defined rate.
+        """
+        total_request_ipm = 0
+        consumer_requests:list[tuple[MapNode,int]] = []
+        for consumer in self.get_consumers():
+            consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
+        visited_consumers = set()
+        for consumer, request_ipm in consumer_requests:
+            if consumer.get_global_id() not in visited_consumers:
+                total_request_ipm += request_ipm
+                visited_consumers.add(consumer.get_global_id())
+        return total_request_ipm
 
     #---------------------------------------------------------------------------
 
@@ -722,10 +771,34 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
 
     #---------------------------------------------------------------------------
 
-    def get_max_item_request_ipm(self, request_item_name: str) -> int:
-        # TODO: Pass the request up the consumer chain to nearest consumer of this storage that
-        #       provides a defined rate.
-        return 0
+    def get_max_recipe_item_request_ipm(self, request_item_name: str) -> list[tuple[MapNode, int]]:
+        if request_item_name != self.supplied_item_name:
+            raise ValueError(
+                f"Requested item '{request_item_name}' does not match stored item"
+                 f" '{self.supplied_item_name}' for this storage.")
+        # TODO: This should take into consideration the transport rate limits.
+        consumer_requests:list[tuple[MapNode,int]] = []
+        for consumer in self.get_consumers():
+            consumer_requests += consumer.get_max_recipe_item_request_ipm(request_item_name)
+        return consumer_requests
+
+    #---------------------------------------------------------------------------
+
+    def get_max_game_definition_requested_ipm(self) -> int:
+        """
+        Get the total requested IPM by consumers when the consumers are requesting at the game
+        defined rate.
+        """
+        total_request_ipm = 0
+        consumer_requests:list[tuple[MapNode,int]] = []
+        for consumer in self.get_consumers():
+            consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
+        visited_consumers = set()
+        for consumer, request_ipm in consumer_requests:
+            if consumer.get_global_id() not in visited_consumers:
+                total_request_ipm += request_ipm
+                visited_consumers.add(consumer.get_global_id())
+        return total_request_ipm
 
     #---------------------------------------------------------------------------
 
@@ -764,6 +837,14 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
+    def add_consumer(self, consumer:MapConsumerNode) -> None:
+        if self._consumers is not None and 0 < len(self._consumers):
+            raise ValueError(
+                "A dispatcher may only have one consumer, the receiver.")
+        super().add_consumer(consumer)
+
+    #---------------------------------------------------------------------------
+
     def flag_not_terminal(self) -> None:
         print(
             f"Dispatcher {self.global_id} remains terminal as dispatchers are always terminal"
@@ -796,10 +877,34 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
-    def get_max_item_request_ipm(self, request_item_name: str) -> int:
-        # TODO: Pass the request up the consumer chain to nearest consumer of this dispatcher that
-        #       provides a defined rate.
-        return 0
+    def get_max_recipe_item_request_ipm(self, request_item_name: str) -> list[tuple[MapNode, int]]:
+        if request_item_name != self.supplied_item_name:
+            raise ValueError(
+                f"Requested item '{request_item_name}' does not match dispatched item"
+                 f" '{self.supplied_item_name}' for this dispatcher.")
+        # TODO: This should take into consideration the transport rate limits.
+        consumer_requests:list[tuple[MapNode,int]] = []
+        for consumer in self.get_consumers():
+            consumer_requests += consumer.get_max_recipe_item_request_ipm(request_item_name)
+        return consumer_requests
+
+    #---------------------------------------------------------------------------
+
+    def get_max_game_definition_requested_ipm(self) -> int:
+        """
+        Get the total requested IPM by consumers when the consumers are requesting at the game
+        defined rate.
+        """
+        total_request_ipm = 0
+        consumer_requests:list[tuple[MapNode,int]] = []
+        for consumer in self.get_consumers():
+            consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
+        visited_consumers = set()
+        for consumer, request_ipm in consumer_requests:
+            if consumer.get_global_id() not in visited_consumers:
+                total_request_ipm += request_ipm
+                visited_consumers.add(consumer.get_global_id())
+        return total_request_ipm
 
     #---------------------------------------------------------------------------
 
@@ -836,9 +941,34 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
-    def get_max_item_request_ipm(self, request_item_name: str) -> int:
-        # TODO: Pass the request
-        return 0
+    def get_max_recipe_item_request_ipm(self, request_item_name: str) -> list[tuple[MapNode, int]]:
+        # TODO: This should take into consideration the transport rate limits.
+        consumer_requests:list[tuple[MapNode,int]] = []
+        for consumer in self.get_consumers(request_item_name):
+            consumer_requests += consumer.get_max_recipe_item_request_ipm(request_item_name)
+        return consumer_requests
+
+    #---------------------------------------------------------------------------
+
+    def get_max_game_definition_requested_ipm(self) -> tuple[tuple[str,int]]:
+        """
+        Get the total requested IPM by consumers when the consumers are requesting at the game
+        defined rate.
+        """
+        rates = []
+        for connector in self.supplied_items:
+            total_request_ipm = 0
+            consumer_requests:list[tuple[MapNode,int]] = []
+            for consumer in connector.get_consumers():
+                consumer_requests \
+                    += consumer.get_max_recipe_item_request_ipm(connector.supplied_item_name)
+            visited_consumers = set()
+            for consumer, request_ipm in consumer_requests:
+                if consumer.get_global_id() not in visited_consumers:
+                    total_request_ipm += request_ipm
+                    visited_consumers.add(consumer.get_global_id())
+            rates.append((connector.supplied_item_name, total_request_ipm))
+        return tuple(rates)
 
     #---------------------------------------------------------------------------
 
@@ -905,8 +1035,11 @@ class MapTargetNode(MapFactoryNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
-    def get_max_item_request_ipm(self, request_item_name: str) -> int:
-        return self.target_rate_ipm
+    def get_max_recipe_item_request_ipm(self, request_item_name: str) -> list[tuple[MapNode, int]]:
+        """
+        A target node has no game defined recipe ipm so must always return 0.
+        """
+        return [(self, 0)]
 
     #---------------------------------------------------------------------------
 
@@ -1323,6 +1456,7 @@ class MapData:
                 print(f"max production ipm: {resource_node.max_production_ipm}")
                 print(f"is terminal       : {resource_node.is_terminal}")
                 print(f"uses receiver     : {resource_node.uses_receiver}")
+                print(f"max recipe item request ipm: {resource_node.get_max_game_definition_requested_ipm()}")
                 print( "consumers:")
                 for consumer in resource_node.get_consumers():
                     print(f"  - {consumer.get_global_id()}")
@@ -1336,6 +1470,7 @@ class MapData:
                     print(f"max production ipm: {crafter.max_production_ipm}")
                     print(f"is terminal       : {crafter.is_terminal}")
                     print(f"uses receiver     : {crafter.uses_receiver}")
+                    print(f"max recipe item request ipm: {crafter.get_max_game_definition_requested_ipm()}")
                     print( "recipe:")
                     for recipe_item in crafter.recipe:
                         print(f"  - {recipe_item.recipe_item_name:<20}:"
@@ -1354,6 +1489,7 @@ class MapData:
                     print(f"building id     : {storage.building_id}")
                     print(f"is terminal     : {storage.is_terminal}")
                     print(f"uses receiver   : {storage.uses_receiver}")
+                    print(f"max recipe item request ipm: {storage.get_max_game_definition_requested_ipm()}")
                     print( "suppliers:")
                     for supplier in storage.suppliers:
                         print(f"  - {supplier.get_global_id()}")
@@ -1371,6 +1507,7 @@ class MapData:
                     print(f"input rate limit : {dispatcher.input_rate_limit_ipm} ipm")
                     print(f"is terminal      : {dispatcher.is_terminal}")
                     print(f"uses receiver    : {dispatcher.uses_receiver}")
+                    print(f"max recipe item request ipm: {dispatcher.get_max_game_definition_requested_ipm()}")
                     print( "suppliers:")
                     for supplier in dispatcher.suppliers:
                         print(f"  - {supplier.get_global_id()}")
@@ -1385,6 +1522,7 @@ class MapData:
                     print(f"building id  : {receiver.building_id}")
                     print(f"is terminal  : {receiver.is_terminal}")
                     print(f"uses receiver: {receiver.uses_receiver}")
+                    print(f"max recipe item request ipm: {receiver.get_max_game_definition_requested_ipm()}")
                     print( "dispatched items:")
                     for dispatched_item in receiver.supplied_items:
                         print(f"  - {dispatched_item.supplied_item_name} from dispatcher(s):")
