@@ -299,7 +299,8 @@ class MapConsumerNode(MapNode):
     """
 
     @abstractmethod
-    def get_max_recipe_item_request_ipm(self, request_item_name:str) -> list[tuple[MapNode, int]]:
+    def get_max_recipe_item_request_ipm(
+            self, request_item_name:str) -> list[tuple["MapConsumerNode", int]]:
         """
         Used by a supplier to get this consumer's max request rate, as per recipe, for the supplied
         item. This gets complicated for nodes that don't work to a recipe/defined rate so the
@@ -314,7 +315,7 @@ class MapConsumerNode(MapNode):
 
         Returns
         -------
-        list[tuple[str, int]]
+        list[tuple[MapConsumerNode, int]]
             A list of consumers and their requested IPM for the requested item. The list is
             intended for pass-through nodes to return the requesting consumers so that the
             total request IPM is calculated from the source values and also only once per consumer.
@@ -537,7 +538,7 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         defined rate.
         """
         total_request_ipm = 0
-        consumer_requests:list[tuple[MapNode,int]] = []
+        consumer_requests:list[tuple[MapConsumerNode,int]] = []
         for consumer in self.get_consumers():
             consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
         visited_consumers = set()
@@ -679,7 +680,8 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
-    def get_max_recipe_item_request_ipm(self, request_item_name: str) -> list[tuple[MapNode, int]]:
+    def get_max_recipe_item_request_ipm(
+            self, request_item_name: str) -> list[tuple[MapConsumerNode, int]]:
         for recipe_item in self.recipe:
             if recipe_item.recipe_item_name == request_item_name:
                 return [(self, recipe_item.required_ipm)]
@@ -695,7 +697,7 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         defined rate.
         """
         total_request_ipm = 0
-        consumer_requests:list[tuple[MapNode,int]] = []
+        consumer_requests:list[tuple[MapConsumerNode,int]] = []
         for consumer in self.get_consumers():
             consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
         visited_consumers = set()
@@ -771,13 +773,14 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
 
     #---------------------------------------------------------------------------
 
-    def get_max_recipe_item_request_ipm(self, request_item_name: str) -> list[tuple[MapNode, int]]:
+    def get_max_recipe_item_request_ipm(
+            self, request_item_name: str) -> list[tuple[MapConsumerNode, int]]:
         if request_item_name != self.supplied_item_name:
             raise ValueError(
                 f"Requested item '{request_item_name}' does not match stored item"
                  f" '{self.supplied_item_name}' for this storage.")
         # TODO: This should take into consideration the transport rate limits.
-        consumer_requests:list[tuple[MapNode,int]] = []
+        consumer_requests:list[tuple[MapConsumerNode,int]] = []
         for consumer in self.get_consumers():
             consumer_requests += consumer.get_max_recipe_item_request_ipm(request_item_name)
         return consumer_requests
@@ -790,7 +793,7 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
         defined rate.
         """
         total_request_ipm = 0
-        consumer_requests:list[tuple[MapNode,int]] = []
+        consumer_requests:list[tuple[MapConsumerNode,int]] = []
         for consumer in self.get_consumers():
             consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
         visited_consumers = set()
@@ -877,13 +880,14 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
-    def get_max_recipe_item_request_ipm(self, request_item_name: str) -> list[tuple[MapNode, int]]:
+    def get_max_recipe_item_request_ipm(
+            self, request_item_name: str) -> list[tuple[MapConsumerNode, int]]:
         if request_item_name != self.supplied_item_name:
             raise ValueError(
                 f"Requested item '{request_item_name}' does not match dispatched item"
                  f" '{self.supplied_item_name}' for this dispatcher.")
         # TODO: This should take into consideration the transport rate limits.
-        consumer_requests:list[tuple[MapNode,int]] = []
+        consumer_requests:list[tuple[MapConsumerNode,int]] = []
         for consumer in self.get_consumers():
             consumer_requests += consumer.get_max_recipe_item_request_ipm(request_item_name)
         return consumer_requests
@@ -896,7 +900,7 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
         defined rate.
         """
         total_request_ipm = 0
-        consumer_requests:list[tuple[MapNode,int]] = []
+        consumer_requests:list[tuple[MapConsumerNode,int]] = []
         for consumer in self.get_consumers():
             consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
         visited_consumers = set()
@@ -941,9 +945,10 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
-    def get_max_recipe_item_request_ipm(self, request_item_name: str) -> list[tuple[MapNode, int]]:
+    def get_max_recipe_item_request_ipm(
+            self, request_item_name: str) -> list[tuple[MapConsumerNode, int]]:
         # TODO: This should take into consideration the transport rate limits.
-        consumer_requests:list[tuple[MapNode,int]] = []
+        consumer_requests:list[tuple[MapConsumerNode,int]] = []
         for consumer in self.get_consumers(request_item_name):
             consumer_requests += consumer.get_max_recipe_item_request_ipm(request_item_name)
         return consumer_requests
@@ -958,7 +963,7 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
         rates = []
         for connector in self.supplied_items:
             total_request_ipm = 0
-            consumer_requests:list[tuple[MapNode,int]] = []
+            consumer_requests:list[tuple[MapConsumerNode,int]] = []
             for consumer in connector.get_consumers():
                 consumer_requests \
                     += consumer.get_max_recipe_item_request_ipm(connector.supplied_item_name)
@@ -1035,7 +1040,8 @@ class MapTargetNode(MapFactoryNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
-    def get_max_recipe_item_request_ipm(self, request_item_name: str) -> list[tuple[MapNode, int]]:
+    def get_max_recipe_item_request_ipm(
+            self, request_item_name: str) -> list[tuple[MapConsumerNode, int]]:
         """
         A target node has no game defined recipe ipm so must always return 0.
         """
