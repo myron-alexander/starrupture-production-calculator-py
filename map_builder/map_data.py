@@ -578,6 +578,40 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
 
     #---------------------------------------------------------------------------
 
+    def calculate_and_set_max_suppliable_rate_ipm(self) -> None:
+        """
+        Get the max recipe item request ipm from consumers and determine at what rate this
+        resource node can supply the item if every consumer requests at the game defined rate.
+        The transport rate is not taken into consideration for this calculation.
+        """
+        consumer_requests:dict[str, tuple[MapConsumerNode,int]] = {}
+        for consumer in self.get_consumers():
+            for cr in consumer.get_max_recipe_item_request_ipm(self.supplied_item_name):
+                id = cr[0].get_global_id()
+                existing = consumer_requests.get(id, None)
+                if existing is None:
+                    consumer_requests[id] = cr
+                elif existing[1] != cr[1]:
+                    raise ValueError(
+                        f"Consumer '{id}' has multiple different requested IPM values"
+                        f" for item '{self.supplied_item_name}': {existing[1]} and {cr[1]}")
+        total_request_ipm = sum(cr[1] for cr in consumer_requests.values())
+        available_ipm = min(self.max_production_ipm, total_request_ipm)
+        low_to_high_requests = sorted(consumer_requests.values(), key=lambda cr: cr[1])
+        num_requests = len(low_to_high_requests)
+        for consumer, request_ipm in low_to_high_requests:
+            fair_ipm = available_ipm // num_requests
+            if fair_ipm < request_ipm:
+                consumer.set_max_available_rate_ipm(self, self.supplied_item_name, fair_ipm)
+                available_ipm -= fair_ipm
+            else:
+                consumer.set_max_available_rate_ipm(self, self.supplied_item_name, request_ipm)
+                available_ipm -= request_ipm
+            num_requests -= 1
+
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 class RecipeItem:
@@ -1016,6 +1050,10 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
         self.receiver_id = receiver_id
         self.building_id = building_id
         self._max_available_recipe_item_ipm:dict[str, dict[str, int]] = {}
+        """
+        A dictionary of dispatched item names mapped to a dictionary of supplier global IDs and the
+        max available IPM that the supplier can provide for that item.
+        """
 
     #---------------------------------------------------------------------------
 
@@ -1522,6 +1560,15 @@ class MapData:
                         node.add_supplier(supplier_node)
                         supplier_node.add_consumer(node)
 
+        #
+        # Set max available recipe item IPM for all nodes. This has to happen after all nodes
+        # have been linked.
+        #
+
+        for site_id, site in self.sites.items():
+            for resource_id, resource_node in site.resource_nodes.items():
+                resource_node.calculate_and_set_max_suppliable_rate_ipm()
+
         return self
 
     #---------------------------------------------------------------------------
@@ -1595,7 +1642,7 @@ class MapData:
                         print(f"  - {recipe_item.recipe_item_name:<20}:"
                               f" {recipe_item.required_ipm} ipm")
                         for supplier in recipe_item.suppliers:
-                            print(f"      - {supplier.get_global_id()}")
+                            print(f"      - {supplier.get_global_id()}  max available ipm: {crafter._max_available_recipe_item_ipm.get(recipe_item.recipe_item_name, {}).get(supplier.get_global_id(), 'N/A')}")
                     print( "consumers:")
                     for consumer in crafter.get_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -1611,7 +1658,7 @@ class MapData:
                     print(f"max recipe item request ipm: {storage.get_max_game_definition_requested_ipm()}")
                     print( "suppliers:")
                     for supplier in storage.suppliers:
-                        print(f"  - {supplier.get_global_id()}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {storage._max_available_recipe_item_ipm.get(supplier.get_global_id(), 'N/A')}")
                     print( "consumers:")
                     for consumer in storage.get_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -1629,7 +1676,7 @@ class MapData:
                     print(f"max recipe item request ipm: {dispatcher.get_max_game_definition_requested_ipm()}")
                     print( "suppliers:")
                     for supplier in dispatcher.suppliers:
-                        print(f"  - {supplier.get_global_id()}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {dispatcher._max_available_recipe_item_ipm.get(supplier.get_global_id(), 'N/A')}")
                     print( "consumers:")
                     for consumer in dispatcher.get_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -1646,7 +1693,7 @@ class MapData:
                     for dispatched_item in receiver.supplied_items:
                         print(f"  - {dispatched_item.supplied_item_name} from dispatcher(s):")
                         for supplier in dispatched_item.suppliers:
-                            print(f"    - {supplier.get_global_id()}")
+                            print(f"    - {supplier.get_global_id()}  max available ipm: {receiver._max_available_recipe_item_ipm.get(dispatched_item.supplied_item_name, {}).get(supplier.get_global_id(), 'N/A')}")
                     print( "consumers:")
                     for consumer in receiver.get_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -1660,7 +1707,7 @@ class MapData:
                     print(f"target amount  : {target.target_amount}")
                     print( "suppliers:")
                     for supplier in target.suppliers:
-                        print(f"  - {supplier.get_global_id()}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {target._max_available_recipe_item_ipm.get(supplier.get_global_id(), 'N/A')}")
 
     #---------------------------------------------------------------------------
 
