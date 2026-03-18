@@ -30,6 +30,7 @@ debug_mode = False
 
 from abc import ABC, abstractmethod
 import json
+import math
 from typing import Any, cast
 from application_data import GameData, load_game_data
 
@@ -584,31 +585,63 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         resource node can supply the item if every consumer requests at the game defined rate.
         The transport rate is not taken into consideration for this calculation.
         """
-        consumer_requests:dict[str, tuple[MapConsumerNode,int]] = {}
+        pass_through_links:dict[MapConsumerNode, set[str]] = {}
+        """
+        When the linked/direct consumer is a pass-through node, then get_max_recipe_item_request_ipm won't
+        return it but will return the consumers that are requesting through it (remote consumer).
+        Thus when the remote consumer available rate is updated, the pass-through node won't be
+        updated. This dict associates the remote consumer with the direct consumer so it can have a
+        rate set.
+        """
+        pass_through_rate:dict[str, int] = {}
+        """
+        The rate of the remote consumer.
+        """
+        remote_consumer_requests:dict[str, tuple[MapConsumerNode,int]] = {}
+        """
+        Remote consumer request rates as returned by get_max_recipe_item_request_ipm.
+        """
         for consumer in self.get_consumers():
             for cr in consumer.get_max_recipe_item_request_ipm(self.supplied_item_name):
                 id = cr[0].get_global_id()
-                existing = consumer_requests.get(id, None)
+                # If consumer is a pass-through node, then the returned list from
+                # get_max_recipe_item_request_ipm won't include it.
+                if consumer.get_global_id() != id:
+                    pass_through_links.setdefault(consumer, set()).add(id)
+                existing = remote_consumer_requests.get(id, None)
                 if existing is None:
-                    consumer_requests[id] = cr
+                    remote_consumer_requests[id] = cr
                 elif existing[1] != cr[1]:
                     raise ValueError(
                         f"Consumer '{id}' has multiple different requested IPM values"
                         f" for item '{self.supplied_item_name}': {existing[1]} and {cr[1]}")
-        total_request_ipm = sum(cr[1] for cr in consumer_requests.values())
+
+        total_request_ipm = sum(cr[1] for cr in remote_consumer_requests.values())
+
         available_ipm = min(self.max_production_ipm, total_request_ipm)
-        low_to_high_requests = sorted(consumer_requests.values(), key=lambda cr: cr[1])
+
+        low_to_high_requests = sorted(remote_consumer_requests.values(), key=lambda cr: cr[1])
         num_requests = len(low_to_high_requests)
-        for consumer, request_ipm in low_to_high_requests:
+        for remote_consumer, request_ipm in low_to_high_requests:
             fair_ipm = available_ipm // num_requests
             if fair_ipm < request_ipm:
-                consumer.set_max_available_rate_ipm(self, self.supplied_item_name, fair_ipm)
+                remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, fair_ipm)
+                pass_through_rate[remote_consumer.get_global_id()] = fair_ipm
                 available_ipm -= fair_ipm
             else:
-                consumer.set_max_available_rate_ipm(self, self.supplied_item_name, request_ipm)
+                remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, request_ipm)
+                pass_through_rate[remote_consumer.get_global_id()] = request_ipm
                 available_ipm -= request_ipm
             num_requests -= 1
 
+        # Expecting that only pass-through direct consumers will be keys in the dict.
+        for direct_consumer, remote_consumer_ids in pass_through_links.items():
+            direct_consumer_rate = sum(
+                pass_through_rate[remote_consumer_id]
+                for remote_consumer_id in remote_consumer_ids
+            )
+            direct_consumer.set_max_available_rate_ipm(
+                self, self.supplied_item_name, direct_consumer_rate)
 
     #---------------------------------------------------------------------------
 
@@ -790,6 +823,100 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
                 total_request_ipm += request_ipm
                 visited_consumers.add(consumer.get_global_id())
         return total_request_ipm
+
+    #---------------------------------------------------------------------------
+
+    def _calculate_max_production_rate_from_max_suppliers(self) -> int:
+        """
+        Calculate how much of max_production_ipm is availble to be delivered to consumers
+        based on the max available IPM from suppliers.
+        """
+        total_available_ipm_per_supplied_item:dict[str, int] = {}
+        for item_name, supplier_maxes in self._max_available_recipe_item_ipm.items():
+            total_available_ipm_per_supplied_item[item_name] = sum(supplier_maxes.values())
+        lowest_ratio:float = min(
+            total_available_ipm_per_supplied_item[r.recipe_item_name] / r.required_ipm
+            for r in self.recipe
+        )
+        # Not concerned about precision issues,
+        if lowest_ratio < 1:
+            return math.floor(self.max_production_ipm * lowest_ratio)
+        else:
+            return self.max_production_ipm
+
+    #---------------------------------------------------------------------------
+
+    def calculate_and_set_max_suppliable_rate_ipm(self) -> None:
+        """
+        Get the max recipe item request ipm from consumers and determine at what rate this
+        crafter node can supply the item if every consumer requests at the game defined rate.
+        The transport rate is not taken into consideration for this calculation.
+        """
+        adjusted_max_production_ipm = self._calculate_max_production_rate_from_max_suppliers()
+        if 0 == adjusted_max_production_ipm:
+            # If the adjusted max production IPM is 0, then there is no need to calculate the
+            # available IPM for consumers as it will be 0 regardless of the consumer requests.
+            for consumer in self.get_consumers():
+                consumer.set_max_available_rate_ipm(self, self.supplied_item_name, 0)
+            return
+
+        pass_through_links:dict[MapConsumerNode, set[str]] = {}
+        """
+        When the linked/direct consumer is a pass-through node, then get_max_recipe_item_request_ipm won't
+        return it but will return the consumers that are requesting through it (remote consumer).
+        Thus when the remote consumer available rate is updated, the pass-through node won't be
+        updated. This dict associates the remote consumer with the direct consumer so it can have a
+        rate set.
+        """
+        pass_through_rate:dict[str, int] = {}
+        """
+        The rate of the remote consumer.
+        """
+        remote_consumer_requests:dict[str, tuple[MapConsumerNode,int]] = {}
+        """
+        Remote consumer request rates as returned by get_max_recipe_item_request_ipm.
+        """
+        for consumer in self.get_consumers():
+            for cr in consumer.get_max_recipe_item_request_ipm(self.supplied_item_name):
+                id = cr[0].get_global_id()
+                # If consumer is a pass-through node, then the returned list from
+                # get_max_recipe_item_request_ipm won't include it.
+                if consumer.get_global_id() != id:
+                    pass_through_links.setdefault(consumer, set()).add(id)
+                existing = remote_consumer_requests.get(id, None)
+                if existing is None:
+                    remote_consumer_requests[id] = cr
+                elif existing[1] != cr[1]:
+                    raise ValueError(
+                        f"Consumer '{id}' has multiple different requested IPM values"
+                        f" for item '{self.supplied_item_name}': {existing[1]} and {cr[1]}")
+
+        total_request_ipm = sum(cr[1] for cr in remote_consumer_requests.values())
+
+        available_ipm = min(adjusted_max_production_ipm, total_request_ipm)
+
+        low_to_high_requests = sorted(remote_consumer_requests.values(), key=lambda cr: cr[1])
+        num_requests = len(low_to_high_requests)
+        for remote_consumer, request_ipm in low_to_high_requests:
+            fair_ipm = available_ipm // num_requests
+            if fair_ipm < request_ipm:
+                remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, fair_ipm)
+                pass_through_rate[remote_consumer.get_global_id()] = fair_ipm
+                available_ipm -= fair_ipm
+            else:
+                remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, request_ipm)
+                pass_through_rate[remote_consumer.get_global_id()] = request_ipm
+                available_ipm -= request_ipm
+            num_requests -= 1
+
+        # Expecting that only pass-through direct consumers will be keys in the dict.
+        for direct_consumer, remote_consumer_ids in pass_through_links.items():
+            direct_consumer_rate = sum(
+                pass_through_rate[remote_consumer_id]
+                for remote_consumer_id in remote_consumer_ids
+            )
+            direct_consumer.set_max_available_rate_ipm(
+                self, self.supplied_item_name, direct_consumer_rate)
 
     #---------------------------------------------------------------------------
 
@@ -1565,9 +1692,18 @@ class MapData:
         # have been linked.
         #
 
+        # TODO: Implement this by walking the graph starting with nodes that are terminal and
+        #       don't use receiver. That should populate all the pass-through nodes as well as
+        #       dispatcher so the next step is to walk the graph of terminal nodes that use
+        #       receiver and stop when reaching a node that has already been populated. 
+
+        # This implementation is for testing only.
         for site_id, site in self.sites.items():
             for resource_id, resource_node in site.resource_nodes.items():
                 resource_node.calculate_and_set_max_suppliable_rate_ipm()
+            for factory_id, factory in site.factories.items():
+                for crafter_id, crafter_node in factory.crafters.items():
+                    crafter_node.calculate_and_set_max_suppliable_rate_ipm()
 
         return self
 
