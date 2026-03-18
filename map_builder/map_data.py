@@ -321,6 +321,29 @@ class MapConsumerNode(MapNode):
             total request IPM is calculated from the source values and also only once per consumer.
         """
 
+    @abstractmethod
+    def set_max_available_rate_ipm(
+            self,
+            supplier:"MapSingleSupplyNode",
+            request_item_name:str,
+            available_rate_ipm:int) -> None:
+        """
+        Used by the supplier to inform the consumer of the max rate that it can supply the
+        requested item.
+
+        Parameters
+        ----------
+        supplier : MapSingleSupplyNode
+            The supplier that is providing the available rate information. This is used to determine
+            which supplier is providing the available rate information when the consumer has
+            multiple suppliers of the same item.
+        request_item_name : str
+            The name of the item being requested. This is used to determine which recipe item is
+            being requested when the consumer has a recipe with multiple items.
+        available_rate_ipm : int
+            The max rate in items per minute that the supplier can provide for the requested item.
+        """
+
 #---------------------------------------------------------------------------------------------------
 
 class MapSingleSupplyNode(MapNode):
@@ -370,6 +393,11 @@ class MapSupplyConnector(MapSingleSupplyNode):
     """
     A supply connector is a node that connects a multi-item supplier to a consumer. It is used to
     provide access to only one of the possible items from a multi-item supplier.
+
+    This is not a MapConsumerNode, even though it has suppliers, because it exists as a part of
+    the owner node which is the consumer that has been added to the supplier as the consumer.
+    This is done as only the owner is aware of the multiple items being supplied so only the
+    owner can provide the entire context.
     """
     def __init__(self, owner:"MapMultiSupplyNode", supplied_item_name:str) -> None:
         MapSingleSupplyNode.__init__(self, supplied_item_name)
@@ -614,6 +642,16 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
             RecipeItem(recipe_item, required_ipm) for recipe_item, _, required_ipm in craft_recipe
         )
         self.building_id = building_id
+        # Not sure if the dict should be keyed on the id or the actual MapSingleSupplyNode
+        # reference. Not 100% sure how I will be using this so to keep it simple, just using the
+        # id.
+        self._max_available_recipe_item_ipm:dict[str, dict[str, int]] = {
+            recipe_item.recipe_item_name: {} for recipe_item in self.recipe
+        }
+        """
+        A dictionary of recipe item names mapped to a dictionary of supplier global IDs and the
+        max available IPM that the supplier can provide for that recipe item.
+        """
 
     #---------------------------------------------------------------------------
 
@@ -691,6 +729,18 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
+    def set_max_available_rate_ipm(
+            self,
+            supplier:MapSingleSupplyNode,
+            request_item_name:str,
+            available_rate_ipm:int) -> None:
+        # It is assumed that the recipe items has been populated so an unknown request_item_name
+        # will result in a KeyError.
+        self._max_available_recipe_item_ipm[request_item_name][supplier.get_global_id()] \
+            = available_rate_ipm
+
+    #---------------------------------------------------------------------------
+
     def get_max_game_definition_requested_ipm(self) -> int:
         """
         Get the total requested IPM by consumers when the consumers are requesting at the game
@@ -737,6 +787,11 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
         self.storage_id = storage_id
         self.building_id = building_id
         self.suppliers:list[MapSingleSupplyNode] = []
+        self._max_available_recipe_item_ipm:dict[str,int] = {}
+        """
+        A dictionary of supplier global IDs and the max available IPM that the supplier can
+        provide.
+        """
 
     #---------------------------------------------------------------------------
 
@@ -787,6 +842,19 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
 
     #---------------------------------------------------------------------------
 
+    def set_max_available_rate_ipm(
+            self,
+            supplier: MapSingleSupplyNode,
+            request_item_name: str,
+            available_rate_ipm: int) -> None:
+        if request_item_name != self.supplied_item_name:
+            raise ValueError(
+                f"Requested item '{request_item_name}' does not match stored item"
+                 f" '{self.supplied_item_name}' for this storage.")
+        self._max_available_recipe_item_ipm[supplier.get_global_id()] = available_rate_ipm
+
+    #---------------------------------------------------------------------------
+
     def get_max_game_definition_requested_ipm(self) -> int:
         """
         Get the total requested IPM by consumers when the consumers are requesting at the game
@@ -828,6 +896,11 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
         self.input_rate_limit_ipm = input_rate_limit_ipm
         self.building_id = building_id
         self.suppliers:list[MapSingleSupplyNode] = []
+        self._max_available_recipe_item_ipm:dict[str,int] = {}
+        """
+        A dictionary of supplier global IDs and the max available IPM that the supplier can
+        provide.
+        """
 
     #---------------------------------------------------------------------------
 
@@ -894,6 +967,19 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
+    def set_max_available_rate_ipm(
+            self,
+            supplier: MapSingleSupplyNode,
+            request_item_name: str,
+            available_rate_ipm: int) -> None:
+        if request_item_name != self.supplied_item_name:
+            raise ValueError(
+                f"Requested item '{request_item_name}' does not match dispatched item"
+                 f" '{self.supplied_item_name}' for this dispatcher.")
+        self._max_available_recipe_item_ipm[supplier.get_global_id()] = available_rate_ipm
+
+    #---------------------------------------------------------------------------
+
     def get_max_game_definition_requested_ipm(self) -> int:
         """
         Get the total requested IPM by consumers when the consumers are requesting at the game
@@ -929,6 +1015,7 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
         MapMultiSupplyNode.__init__(self, None)
         self.receiver_id = receiver_id
         self.building_id = building_id
+        self._max_available_recipe_item_ipm:dict[str, dict[str, int]] = {}
 
     #---------------------------------------------------------------------------
 
@@ -977,6 +1064,18 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
+    def set_max_available_rate_ipm(
+            self,
+            supplier:MapSingleSupplyNode,
+            request_item_name:str,
+            available_rate_ipm:int) -> None:
+        # Check that the request item name is one of the supplied items for this receiver.
+        self.get_item_connector(request_item_name)
+        self._max_available_recipe_item_ipm \
+            .setdefault(request_item_name, {})[supplier.get_global_id()] = available_rate_ipm
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 # MapTargetNode does not supply items and is not part of the production chain so doesn't implement
@@ -1008,6 +1107,11 @@ class MapTargetNode(MapFactoryNode, MapConsumerNode):
         self.target_amount:int = target_amount
         """
         Optional amount of the target item to produce. When not provided, will be zero.
+        """
+        self._max_available_recipe_item_ipm:dict[str,int] = {}
+        """
+        A dictionary of supplier global IDs and the max available IPM that the supplier can
+        provide.
         """
 
     #---------------------------------------------------------------------------
@@ -1046,6 +1150,15 @@ class MapTargetNode(MapFactoryNode, MapConsumerNode):
         A target node has no game defined recipe ipm so must always return 0.
         """
         return [(self, 0)]
+
+    #---------------------------------------------------------------------------
+
+    def set_max_available_rate_ipm(
+            self,
+            supplier: MapSingleSupplyNode,
+            request_item_name: str,
+            available_rate_ipm: int) -> None:
+        self._max_available_recipe_item_ipm[supplier.get_global_id()] = available_rate_ipm
 
     #---------------------------------------------------------------------------
 
