@@ -50,6 +50,18 @@ class MapNode(ABC):
 
     #--------------------------------------------------------------------------
 
+    def __eq__(self, value: object) -> bool:
+        if isinstance(value, MapNode):
+            return self.global_id == value.global_id
+        return False
+
+    #--------------------------------------------------------------------------
+
+    def __hash__(self) -> int:
+        return hash(self.global_id)
+
+    #--------------------------------------------------------------------------
+
     def get_global_id(self) -> str:
         """
         Get the ID of this node this is globally unique.
@@ -129,6 +141,9 @@ class MapNode(ABC):
 #---------------------------------------------------------------------------------------------------
 
 class MapSite(MapNode):
+    """
+    A site on the map. A site contains resource nodes and factories.
+    """
     #---------------------------------------------------------------------------
 
     def __init__(self, site_id:str, x:int, y:int, teleporter:str, description:str) -> None:
@@ -165,6 +180,10 @@ class MapSite(MapNode):
 #---------------------------------------------------------------------------------------------------
 
 class MapFactory(MapNode):
+    """
+    A factory on the map. A factory contains crafters, storages, dispatchers, receivers, and
+    targets.
+    """
     #---------------------------------------------------------------------------
 
     def __init__(self, site:MapSite, factory_id:str) -> None:
@@ -257,6 +276,10 @@ class MapFactory(MapNode):
 #---------------------------------------------------------------------------------------------------
 
 class MapSiteNode:
+    """
+    A node that is part of a site. This is used as a base class for nodes that are part of a site
+    but are not part of a factory, such as resource nodes.
+    """
     #---------------------------------------------------------------------------
 
     def __init__(self, site_id:str) -> None:
@@ -275,6 +298,10 @@ class MapSiteNode:
 #---------------------------------------------------------------------------------------------------
 
 class MapFactoryNode(MapSiteNode):
+    """
+    A node that is part of a factory. This is used as a base class for nodes that are part of a
+    factory, such as crafters, storages, dispatchers, receivers, and targets.
+    """
     #---------------------------------------------------------------------------
 
     def __init__(self, site_id:str, factory_id:str) -> None:
@@ -533,7 +560,160 @@ class MapProductionSupplyNode(MapSingleSupplyNode):
 
 #---------------------------------------------------------------------------------------------------
 
+def round_half_up(n:float) -> int:
+    """
+    Round a number to the nearest integer, rounding halves up.
+
+    Parameters
+    ----------
+    n : float
+        The number to round.
+
+    Returns
+    -------
+    int
+        The rounded number.
+    """
+    return math.floor(n + 0.5)
+
+#---------------------------------------------------------------------------------------------------
+
+class SupplierConsumerMatrix:
+    """
+    Allows for calculating the rate delivered to each of a supplier's direct consumer taking into
+    consideration:
+
+    * A supplier delivers to multiple consumers.
+    * Only producer consumers request supplies.
+    * All other consumers are pass-through consumers in that requests from producer consumers are
+      passed through to producer suppliers and the deliveries from the suppliers pass through to
+      the producer consumers.
+    * Producer supplier and consumers are MapProductionSupplyNode instances.
+    * Not all producer consumers will request at the same rate.
+    * When a pass-through consumer is between a producer supplier and producer consumer, there may
+      be many levels as well as routes from supplier to ultimate consumer and that more than one
+      route may lead to the same producer consumer, however the rate delivered from the supplier to
+      that producer consumer is the same regardless of the route taken and the rate could be
+      fragmented across multiple routes to converge at the producer consumer with the intended rate.
+    """
+
+    # The matrix results in:
+    #   for each direct consumer, for each item supplied, ratio of available item rate.
+    #
+    # Using the ratio, when the available item rate is changed, notify each direct consumer of the
+    # new available item rate by multiplying the ratio by the new available item rate.
+
+    #---------------------------------------------------------------------------
+
+    def __init__(self) -> None:
+
+        self._requestors:dict[str, dict[MapConsumerNode, int]] = {}
+        """
+        item name -> requestor -> defined rate.
+        """
+
+        self._routes:dict[tuple[str,MapConsumerNode], list[MapConsumerNode]] = {}
+        """
+        request key -> connectors that route to requestor.
+        """
+
+        self._ratios:dict[MapConsumerNode, dict[str, float]] = {}
+        """
+        direct consumer -> item name -> ratio of available item rate to deliver to direct consumer.
+        """
+
+    #---------------------------------------------------------------------------
+
+    def add_consumer_request_ipm(
+            self,
+            connector:MapConsumerNode,
+            requested_item_name:str,
+            requestor:MapConsumerNode,
+            request_ipm:int) -> None:
+        """
+        Add a consumer's requested IPM to the matrix. This is used to calculate the ratio of the
+        available item rate that should be delivered to each direct consumer.
+
+        Parameters
+        ----------
+        connector : MapConsumerNode
+            This node's direct consumer that routes to the requestor.
+        requested_item_name:str
+            The item being requested.
+        requestor : MapConsumerNode
+            A producer consumer that is requesting the item.
+        request_ipm : int
+            The requested IPM of the consumer.
+        """
+
+        item_map = self._requestors.setdefault(requested_item_name, {})
+        existing_request_ipm = item_map.get(requestor, None)
+        if existing_request_ipm is None:
+            item_map[requestor] = request_ipm
+        elif existing_request_ipm != request_ipm:
+            raise ValueError(
+                f"Requestor '{requestor.get_global_id()}' has multiple different requested IPM"
+                f" values for item '{requested_item_name}': {existing_request_ipm} and"
+                f" {request_ipm}")
+
+        self._routes.setdefault((requested_item_name, requestor), []).append(connector)
+
+    #---------------------------------------------------------------------------
+
+    def compute_connector_ratios(self) -> None:
+        """
+        Compute the ratio of the available item rate that should be delivered to each direct
+        consumer. This must be called only after all consumer request IPM values have been added
+        to the matrix.
+        """
+
+        for item_name, requests in self._requestors.items():
+            total_request_ipm = sum(requests.values())
+            connector_ipm_totals:dict[MapConsumerNode, float] = {}
+            """
+            connector -> total adjusted IPM routed through connector.
+            """
+            for requestor, request_ipm in requests.items():
+                connectors = self._routes[(item_name, requestor)]
+                num_connectors = len(connectors)
+                proportial_rate = request_ipm / num_connectors
+                for connector in connectors:
+                    connector_ipm_totals[connector] \
+                        = connector_ipm_totals.get(connector, 0) + proportial_rate
+            for connector, ipm_total in connector_ipm_totals.items():
+                ratio = ipm_total / total_request_ipm if total_request_ipm > 0 else 0
+                self._ratios.setdefault(connector, {})[item_name] = ratio
+
+    #---------------------------------------------------------------------------
+
+    def get_ratio(self, connector:MapConsumerNode, item_name:str) -> float:
+        """
+        Get the ratio of the available item rate that should be delivered to the direct consumer
+        via the connector for the specified item.
+
+        Parameters
+        ----------
+        connector : MapConsumerNode
+            The direct consumer connector for which to get the ratio.
+        item_name : str
+            The name of the item for which to get the ratio.
+
+        Returns
+        -------
+        float
+            The ratio of the available item rate that should be delivered to the direct consumer.
+            This will be a value between 0 and 1 inclusive.
+        """
+        # It is possible that ratios have not been set if the pass-through nodes do not connect
+        # with a producer consumer.
+        return self._ratios.get(connector, {}).get(item_name, 0)
+
+    #---------------------------------------------------------------------------
+
+#---------------------------------------------------------------------------------------------------
+
 class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
+
     def __init__(self,
                  site_id:str,
                  resource_id:str,
@@ -585,29 +765,50 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         resource node can supply the item if every consumer requests at the game defined rate.
         The transport rate is not taken into consideration for this calculation.
         """
-        pass_through_links:dict[MapConsumerNode, set[str]] = {}
+
+        consumer_remote_mapping:dict[str, set[str]] = {}
         """
-        When the linked/direct consumer is a pass-through node, then get_max_recipe_item_request_ipm won't
-        return it but will return the consumers that are requesting through it (remote consumer).
-        Thus when the remote consumer available rate is updated, the pass-through node won't be
-        updated. This dict associates the remote consumer with the direct consumer so it can have a
-        rate set.
+        When a consumer is a pass-through node, the actual consumer is not attached to this node
+        so to calculate the rate delivered to a direct consumer, it is necessary to know which
+        direct consumer routes to the remote consumer.
+
+        requestor -> connector
         """
-        pass_through_rate:dict[str, int] = {}
-        """
-        The rate of the remote consumer.
-        """
+
         remote_consumer_requests:dict[str, tuple[MapConsumerNode,int]] = {}
         """
-        Remote consumer request rates as returned by get_max_recipe_item_request_ipm.
+        The same remote consumer may be returned from multiple direct consumers. Ensure that the
+        remote consumer is represented exactly once. This is only an issue for when the direct
+        consumer is a pass-through node.
+
+        requestor -> requestor
         """
+
+        remote_consumer_rate:dict[str, int] = {}
+        """
+        key = remote consumer id.
+
+        requestor -> rate
+        """
+
+        direct_consumer_rate:dict[str, int] = {}
+        """
+        key = direct consumer id.
+
+        connector -> rate
+        """
+
+        #
+        # Get the request rates from nearest production consumers. The production consumer may
+        # be directly linked to this node, or indirectly linked via one or more pass-through
+        # nodes that are direct consumers of this node.
+        #
+
         for consumer in self.get_consumers():
+            direct_consumer_rate[consumer.get_global_id()] = 0
             for cr in consumer.get_max_recipe_item_request_ipm(self.supplied_item_name):
                 id = cr[0].get_global_id()
-                # If consumer is a pass-through node, then the returned list from
-                # get_max_recipe_item_request_ipm won't include it.
-                if consumer.get_global_id() != id:
-                    pass_through_links.setdefault(consumer, set()).add(id)
+                consumer_remote_mapping.setdefault(id, set()).add(consumer.get_global_id())
                 existing = remote_consumer_requests.get(id, None)
                 if existing is None:
                     remote_consumer_requests[id] = cr
@@ -620,28 +821,102 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
 
         available_ipm = min(self.max_production_ipm, total_request_ipm)
 
+        #
+        # Calculate the rate for each of the production consumers, whether they be a direct
+        # consumer or a remote (indirect) consumer routed via pass-through node(s).
+        #
+
         low_to_high_requests = sorted(remote_consumer_requests.values(), key=lambda cr: cr[1])
         num_requests = len(low_to_high_requests)
         for remote_consumer, request_ipm in low_to_high_requests:
             fair_ipm = available_ipm // num_requests
             if fair_ipm < request_ipm:
-                remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, fair_ipm)
-                pass_through_rate[remote_consumer.get_global_id()] = fair_ipm
+                remote_consumer_rate[remote_consumer.get_global_id()] = fair_ipm
+                #remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, fair_ipm)
                 available_ipm -= fair_ipm
             else:
-                remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, request_ipm)
-                pass_through_rate[remote_consumer.get_global_id()] = request_ipm
+                remote_consumer_rate[remote_consumer.get_global_id()] = request_ipm
+                #remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, request_ipm)
                 available_ipm -= request_ipm
             num_requests -= 1
 
-        # Expecting that only pass-through direct consumers will be keys in the dict.
-        for direct_consumer, remote_consumer_ids in pass_through_links.items():
-            direct_consumer_rate = sum(
-                pass_through_rate[remote_consumer_id]
-                for remote_consumer_id in remote_consumer_ids
-            )
-            direct_consumer.set_max_available_rate_ipm(
-                self, self.supplied_item_name, direct_consumer_rate)
+        #
+        # Calculate the rate for each of the direct consumers.
+        #
+
+        # A remote consumer may be reachable through multiple direct consumers when there are
+        # pass-through nodes. The remote consumer rate is thus apportioned to those direct consumers
+        # that route to it.
+        for remote_consumer_id, rate in remote_consumer_rate.items():
+            direct_consumer_ids = consumer_remote_mapping[remote_consumer_id]
+            num_direct_consumers = len(direct_consumer_ids)
+            if 1 == num_direct_consumers:
+                # This will handle the case where a production consumer is either routed through
+                # only one of the direct consumers, or when it is the direct consumer.
+                #
+                # Case 1: where the production consumer is the direct consumer
+                #
+                # ┌───────┐    ┌────────┐
+                # │Source │    │Producer│
+                # │Node   ├───►│Consumer│
+                # └───────┘    │Node    │
+                #              └────────┘
+                #
+                # Case 2: where the production consumer is linked via one direct consumer that is
+                #         a pass-through node.
+                #
+                # ┌───────┐    ┌────────┐    ┌────────┐
+                # │Source │    │Consumer│    │Producer│
+                # │Node   ├───►│Node    ├───►│Consumer│
+                # └───────┘    └────────┘    │Node    │
+                #                            └────────┘
+                #
+                direct_consumer_rate[direct_consumer_ids.pop()] += rate
+            else:
+                # When there are multiple direct consumers routing to the same remote consumer,
+                # then at least one of the direct consumers is always a pass-through node. The
+                # rate is split evenly across the direct consumers.
+                #
+                # Case 3: where the production consumer is only linked to this node via
+                #         pass-through nodes.
+                #
+                #               ┌────────┐
+                # ┌───────┐┌───►│Consumer├─┐    ┌────────┐
+                # │Source ││    │Node    │ │    │Producer│
+                # │Node   ├┤    └────────┘ ├───►│Consumer│
+                # └───────┘│    ┌────────┐ │    │Node    │
+                #          │    │Consumer│ │    └────────┘
+                #          └───►│Node    ├─┘
+                #               └────────┘
+                #
+                # Case 4: where the production consumer is both directly linked to this node and
+                #         linked via a pass-through node.
+                #
+                #                           ┌────────┐
+                #                           │Producer│
+                # ┌───────┐                 │Consumer│
+                # │Source ├────────────────►│Node    │
+                # │Node   ├┐                └────────┘
+                # └───────┘│    ┌────────┐     ▲
+                #          │    │Consumer│     │
+                #          └───►│Node    ├─────┘
+                #               └────────┘
+                #
+                remaining_rate = rate
+                dc_rate = round_half_up(rate / num_direct_consumers)
+                for idx, direct_consumer_id in enumerate(direct_consumer_ids):
+                    if idx == num_direct_consumers - 1:
+                        dc_rate = remaining_rate
+                    direct_consumer_rate[direct_consumer_id] += dc_rate
+                    remaining_rate -= dc_rate
+
+        #
+        # Set the rates.
+        #
+
+        for consumer in self.get_consumers():
+            rate = direct_consumer_rate[consumer.get_global_id()]
+            consumer.set_max_available_rate_ipm(self, self.supplied_item_name, rate)
 
     #---------------------------------------------------------------------------
 
@@ -828,7 +1103,7 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
 
     def _calculate_max_production_rate_from_max_suppliers(self) -> int:
         """
-        Calculate how much of max_production_ipm is availble to be delivered to consumers
+        Calculate how much of max_production_ipm is available to be delivered to consumers
         based on the max available IPM from suppliers.
         """
         total_available_ipm_per_supplied_item:dict[str, int] = {}
@@ -860,29 +1135,49 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
                 consumer.set_max_available_rate_ipm(self, self.supplied_item_name, 0)
             return
 
-        pass_through_links:dict[MapConsumerNode, set[str]] = {}
+        consumer_remote_mapping:dict[str, set[str]] = {}
         """
-        When the linked/direct consumer is a pass-through node, then get_max_recipe_item_request_ipm won't
-        return it but will return the consumers that are requesting through it (remote consumer).
-        Thus when the remote consumer available rate is updated, the pass-through node won't be
-        updated. This dict associates the remote consumer with the direct consumer so it can have a
-        rate set.
+        When a consumer is a pass-through node, the actual consumer is not attached to this node
+        so to calculate the rate delivered to a direct consumer, it is necessary to know which
+        direct consumer routes to the remote consumer.
+
+        requestor -> connector
         """
-        pass_through_rate:dict[str, int] = {}
-        """
-        The rate of the remote consumer.
-        """
+
         remote_consumer_requests:dict[str, tuple[MapConsumerNode,int]] = {}
         """
-        Remote consumer request rates as returned by get_max_recipe_item_request_ipm.
+        The same remote consumer may be returned from multiple direct consumers. Ensure that the
+        remote consumer is represented exactly once. This is only an issue for when the direct
+        consumer is a pass-through node.
+
+        requestor -> requestor
         """
+
+        remote_consumer_rate:dict[str, int] = {}
+        """
+        key = remote consumer id.
+
+        requestor -> rate
+        """
+
+        direct_consumer_rate:dict[str, int] = {}
+        """
+        key = direct consumer id.
+
+        connector -> rate
+        """
+
+        #
+        # Get the request rates from nearest production consumers. The production consumer may
+        # be directly linked to this node, or indirectly linked via one or more pass-through
+        # nodes that are direct consumers of this node.
+        #
+
         for consumer in self.get_consumers():
+            direct_consumer_rate[consumer.get_global_id()] = 0
             for cr in consumer.get_max_recipe_item_request_ipm(self.supplied_item_name):
                 id = cr[0].get_global_id()
-                # If consumer is a pass-through node, then the returned list from
-                # get_max_recipe_item_request_ipm won't include it.
-                if consumer.get_global_id() != id:
-                    pass_through_links.setdefault(consumer, set()).add(id)
+                consumer_remote_mapping.setdefault(id, set()).add(consumer.get_global_id())
                 existing = remote_consumer_requests.get(id, None)
                 if existing is None:
                     remote_consumer_requests[id] = cr
@@ -895,28 +1190,102 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
 
         available_ipm = min(adjusted_max_production_ipm, total_request_ipm)
 
+        #
+        # Calculate the rate for each of the production consumers, whether they be a direct
+        # consumer or a remote (indirect) consumer routed via pass-through node(s).
+        #
+
         low_to_high_requests = sorted(remote_consumer_requests.values(), key=lambda cr: cr[1])
         num_requests = len(low_to_high_requests)
         for remote_consumer, request_ipm in low_to_high_requests:
             fair_ipm = available_ipm // num_requests
             if fair_ipm < request_ipm:
-                remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, fair_ipm)
-                pass_through_rate[remote_consumer.get_global_id()] = fair_ipm
+                remote_consumer_rate[remote_consumer.get_global_id()] = fair_ipm
+                #remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, fair_ipm)
                 available_ipm -= fair_ipm
             else:
-                remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, request_ipm)
-                pass_through_rate[remote_consumer.get_global_id()] = request_ipm
+                remote_consumer_rate[remote_consumer.get_global_id()] = request_ipm
+                #remote_consumer.set_max_available_rate_ipm(self, self.supplied_item_name, request_ipm)
                 available_ipm -= request_ipm
             num_requests -= 1
 
-        # Expecting that only pass-through direct consumers will be keys in the dict.
-        for direct_consumer, remote_consumer_ids in pass_through_links.items():
-            direct_consumer_rate = sum(
-                pass_through_rate[remote_consumer_id]
-                for remote_consumer_id in remote_consumer_ids
-            )
-            direct_consumer.set_max_available_rate_ipm(
-                self, self.supplied_item_name, direct_consumer_rate)
+        #
+        # Calculate the rate for each of the direct consumers.
+        #
+
+        # A remote consumer may be reachable through multiple direct consumers when there are
+        # pass-through nodes. The remote consumer rate is thus apportioned to those direct consumers
+        # that route to it.
+        for remote_consumer_id, rate in remote_consumer_rate.items():
+            direct_consumer_ids = consumer_remote_mapping[remote_consumer_id]
+            num_direct_consumers = len(direct_consumer_ids)
+            if 1 == num_direct_consumers:
+                # This will handle the case where a production consumer is either routed through
+                # only one of the direct consumers, or when it is the direct consumer.
+                #
+                # Case 1: where the production consumer is the direct consumer
+                #
+                # ┌───────┐    ┌────────┐
+                # │Source │    │Producer│
+                # │Node   ├───►│Consumer│
+                # └───────┘    │Node    │
+                #              └────────┘
+                #
+                # Case 2: where the production consumer is linked via one direct consumer that is
+                #         a pass-through node.
+                #
+                # ┌───────┐    ┌────────┐    ┌────────┐
+                # │Source │    │Consumer│    │Producer│
+                # │Node   ├───►│Node    ├───►│Consumer│
+                # └───────┘    └────────┘    │Node    │
+                #                            └────────┘
+                #
+                direct_consumer_rate[direct_consumer_ids.pop()] += rate
+            else:
+                # When there are multiple direct consumers routing to the same remote consumer,
+                # then at least one of the direct consumers is always a pass-through node. The
+                # rate is split evenly across the direct consumers.
+                #
+                # Case 3: where the production consumer is only linked to this node via
+                #         pass-through nodes.
+                #
+                #               ┌────────┐
+                # ┌───────┐┌───►│Consumer├─┐    ┌────────┐
+                # │Source ││    │Node    │ │    │Producer│
+                # │Node   ├┤    └────────┘ ├───►│Consumer│
+                # └───────┘│    ┌────────┐ │    │Node    │
+                #          │    │Consumer│ │    └────────┘
+                #          └───►│Node    ├─┘
+                #               └────────┘
+                #
+                # Case 4: where the production consumer is both directly linked to this node and
+                #         linked via a pass-through node.
+                #
+                #                           ┌────────┐
+                #                           │Producer│
+                # ┌───────┐                 │Consumer│
+                # │Source ├────────────────►│Node    │
+                # │Node   ├┐                └────────┘
+                # └───────┘│    ┌────────┐     ▲
+                #          │    │Consumer│     │
+                #          └───►│Node    ├─────┘
+                #               └────────┘
+                #
+                remaining_rate = rate
+                dc_rate = round_half_up(rate / num_direct_consumers)
+                for idx, direct_consumer_id in enumerate(direct_consumer_ids):
+                    if idx == num_direct_consumers - 1:
+                        dc_rate = remaining_rate
+                    direct_consumer_rate[direct_consumer_id] += dc_rate
+                    remaining_rate -= dc_rate
+
+        #
+        # Set the rates.
+        #
+
+        for consumer in self.get_consumers():
+            rate = direct_consumer_rate[consumer.get_global_id()]
+            consumer.set_max_available_rate_ipm(self, self.supplied_item_name, rate)
 
     #---------------------------------------------------------------------------
 
@@ -953,6 +1322,7 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
         A dictionary of supplier global IDs and the max available IPM that the supplier can
         provide.
         """
+        self.supplier_consumer_matrix:SupplierConsumerMatrix|None = None
 
     #---------------------------------------------------------------------------
 
@@ -996,9 +1366,15 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
                 f"Requested item '{request_item_name}' does not match stored item"
                  f" '{self.supplied_item_name}' for this storage.")
         # TODO: This should take into consideration the transport rate limits.
+        self.supplier_consumer_matrix = SupplierConsumerMatrix()
         consumer_requests:list[tuple[MapConsumerNode,int]] = []
         for consumer in self.get_consumers():
-            consumer_requests += consumer.get_max_recipe_item_request_ipm(request_item_name)
+            requests = consumer.get_max_recipe_item_request_ipm(request_item_name)
+            consumer_requests += requests
+            for cn, r in requests:
+                self.supplier_consumer_matrix.add_consumer_request_ipm(
+                    consumer, request_item_name, cn, r)
+        self.supplier_consumer_matrix.compute_connector_ratios()
         return consumer_requests
 
     #---------------------------------------------------------------------------
@@ -1008,11 +1384,23 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
             supplier: MapSingleSupplyNode,
             request_item_name: str,
             available_rate_ipm: int) -> None:
+
         if request_item_name != self.supplied_item_name:
             raise ValueError(
                 f"Requested item '{request_item_name}' does not match stored item"
                  f" '{self.supplied_item_name}' for this storage.")
+
         self._max_available_recipe_item_ipm[supplier.get_global_id()] = available_rate_ipm
+
+        max_rate_ipm = sum(self._max_available_recipe_item_ipm.values())
+        for consumer in self.get_consumers():
+            ratio = 0
+            # It is very possible that the matrix has not been initialized if the supplier
+            # production rate is zero.
+            if self.supplier_consumer_matrix is not None:
+                ratio = self.supplier_consumer_matrix.get_ratio(consumer, request_item_name)
+            consumer.set_max_available_rate_ipm(
+                self, request_item_name, math.floor(max_rate_ipm * ratio))
 
     #---------------------------------------------------------------------------
 
@@ -1695,7 +2083,7 @@ class MapData:
         # TODO: Implement this by walking the graph starting with nodes that are terminal and
         #       don't use receiver. That should populate all the pass-through nodes as well as
         #       dispatcher so the next step is to walk the graph of terminal nodes that use
-        #       receiver and stop when reaching a node that has already been populated. 
+        #       receiver and stop when reaching a node that has already been populated.
 
         # This implementation is for testing only.
         for site_id, site in self.sites.items():
