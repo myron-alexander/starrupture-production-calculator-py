@@ -382,7 +382,7 @@ class MapSingleSupplyNode(MapNode):
 
     def __init__(self, supplied_item_name:str) -> None:
         self.supplied_item_name = supplied_item_name
-        self._consumers:list[MapConsumerNode] = []
+        self._parent_consumers:list[MapConsumerNode] = []
 
     #---------------------------------------------------------------------------
 
@@ -402,16 +402,37 @@ class MapSingleSupplyNode(MapNode):
 
     #---------------------------------------------------------------------------
 
-    def get_consumers(self) -> tuple[MapConsumerNode, ...]:
+    def get_parent_consumers(self) -> tuple[MapConsumerNode, ...]:
         """
-        Get this node's consumers of items.
+        Get this node's consumers of items that are directly connected to this node.
         """
-        return tuple(self._consumers)
+        return tuple(self._parent_consumers)
 
     #---------------------------------------------------------------------------
 
-    def add_consumer(self, consumer:MapConsumerNode) -> None:
-        self._consumers.append(consumer)
+    def add_parent_consumer(self, consumer:MapConsumerNode) -> None:
+        """
+        Add a consumer that is directly connected to this node.
+        """
+        self._parent_consumers.append(consumer)
+
+    #---------------------------------------------------------------------------
+
+    def register_demand(self, consumer:MapConsumerNode, request_item_name:str, request_ipm:int) -> None:
+        """
+        Register a consumer's demand for this node's supplied item. This is used to calculate the
+        rate that this node can supply to each of its consumers.
+
+        Parameters
+        ----------
+        consumer : MapConsumerNode
+            The consumer that is requesting the item.
+        request_item_name : str
+            The name of the item being requested. This is used to determine which recipe item is
+            being requested when the consumer has a recipe with multiple items.
+        request_ipm : int
+            The requested IPM of the consumer.
+        """
 
     #---------------------------------------------------------------------------
 
@@ -531,23 +552,26 @@ class MapMultiSupplyNode(MapNode):
 
     #---------------------------------------------------------------------------
 
-    def get_consumers(self, supplied_item_name:str|None = None) -> tuple[MapConsumerNode, ...]:
+    def get_parent_consumers(self, supplied_item_name:str|None = None) -> tuple[MapConsumerNode, ...]:
         """
-        Get this node's consumers of items. When supplied_item_name is provided, only consumers
-        that consume the specified item are returned.
+        Get this node's consumers of items that are directly connected to this node. When
+        supplied_item_name is provided, only consumers that consume the specified item are returned.
         """
         if supplied_item_name is not None:
-            return self.get_item_connector(supplied_item_name).get_consumers()
+            return self.get_item_connector(supplied_item_name).get_parent_consumers()
         else:
             consumers = []
             for connector in self._supplied_items.values():
-                consumers.extend(connector.get_consumers())
+                consumers.extend(connector.get_parent_consumers())
             return tuple(consumers)
 
     #---------------------------------------------------------------------------
 
-    def add_consumer(self, consumer:MapConsumerNode, supplied_item_name:str) -> None:
-        self.get_item_connector(supplied_item_name).add_consumer(consumer)
+    def add_parent_consumer(self, consumer:MapConsumerNode, supplied_item_name:str) -> None:
+        """
+        Add a consumer of supplied item that is directly connected to this node.
+        """
+        self.get_item_connector(supplied_item_name).add_parent_consumer(consumer)
 
     #---------------------------------------------------------------------------
 
@@ -748,7 +772,7 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         """
         total_request_ipm = 0
         consumer_requests:list[tuple[MapConsumerNode,int]] = []
-        for consumer in self.get_consumers():
+        for consumer in self.get_parent_consumers():
             consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
         visited_consumers = set()
         for consumer, request_ipm in consumer_requests:
@@ -804,7 +828,7 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         # nodes that are direct consumers of this node.
         #
 
-        for consumer in self.get_consumers():
+        for consumer in self.get_parent_consumers():
             direct_consumer_rate[consumer.get_global_id()] = 0
             for cr in consumer.get_max_recipe_item_request_ipm(self.supplied_item_name):
                 id = cr[0].get_global_id()
@@ -914,7 +938,7 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         # Set the rates.
         #
 
-        for consumer in self.get_consumers():
+        for consumer in self.get_parent_consumers():
             rate = direct_consumer_rate[consumer.get_global_id()]
             consumer.set_max_available_rate_ipm(self, self.supplied_item_name, rate)
 
@@ -1090,7 +1114,7 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         """
         total_request_ipm = 0
         consumer_requests:list[tuple[MapConsumerNode,int]] = []
-        for consumer in self.get_consumers():
+        for consumer in self.get_parent_consumers():
             consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
         visited_consumers = set()
         for consumer, request_ipm in consumer_requests:
@@ -1131,7 +1155,7 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         if 0 == adjusted_max_production_ipm:
             # If the adjusted max production IPM is 0, then there is no need to calculate the
             # available IPM for consumers as it will be 0 regardless of the consumer requests.
-            for consumer in self.get_consumers():
+            for consumer in self.get_parent_consumers():
                 consumer.set_max_available_rate_ipm(self, self.supplied_item_name, 0)
             return
 
@@ -1173,7 +1197,7 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         # nodes that are direct consumers of this node.
         #
 
-        for consumer in self.get_consumers():
+        for consumer in self.get_parent_consumers():
             direct_consumer_rate[consumer.get_global_id()] = 0
             for cr in consumer.get_max_recipe_item_request_ipm(self.supplied_item_name):
                 id = cr[0].get_global_id()
@@ -1283,7 +1307,7 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         # Set the rates.
         #
 
-        for consumer in self.get_consumers():
+        for consumer in self.get_parent_consumers():
             rate = direct_consumer_rate[consumer.get_global_id()]
             consumer.set_max_available_rate_ipm(self, self.supplied_item_name, rate)
 
@@ -1368,7 +1392,7 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
         # TODO: This should take into consideration the transport rate limits.
         self.supplier_consumer_matrix = SupplierConsumerMatrix()
         consumer_requests:list[tuple[MapConsumerNode,int]] = []
-        for consumer in self.get_consumers():
+        for consumer in self.get_parent_consumers():
             requests = consumer.get_max_recipe_item_request_ipm(request_item_name)
             consumer_requests += requests
             for cn, r in requests:
@@ -1393,7 +1417,7 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
         self._max_available_recipe_item_ipm[supplier.get_global_id()] = available_rate_ipm
 
         max_rate_ipm = sum(self._max_available_recipe_item_ipm.values())
-        for consumer in self.get_consumers():
+        for consumer in self.get_parent_consumers():
             ratio = 0
             # It is very possible that the matrix has not been initialized if the supplier
             # production rate is zero.
@@ -1411,7 +1435,7 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
         """
         total_request_ipm = 0
         consumer_requests:list[tuple[MapConsumerNode,int]] = []
-        for consumer in self.get_consumers():
+        for consumer in self.get_parent_consumers():
             consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
         visited_consumers = set()
         for consumer, request_ipm in consumer_requests:
@@ -1462,11 +1486,11 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
-    def add_consumer(self, consumer:MapConsumerNode) -> None:
-        if self._consumers is not None and 0 < len(self._consumers):
+    def add_parent_consumer(self, consumer:MapConsumerNode) -> None:
+        if self._parent_consumers is not None and 0 < len(self._parent_consumers):
             raise ValueError(
                 "A dispatcher may only have one consumer, the receiver.")
-        super().add_consumer(consumer)
+        super().add_parent_consumer(consumer)
 
     #---------------------------------------------------------------------------
 
@@ -1510,7 +1534,7 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
                  f" '{self.supplied_item_name}' for this dispatcher.")
         # TODO: This should take into consideration the transport rate limits.
         consumer_requests:list[tuple[MapConsumerNode,int]] = []
-        for consumer in self.get_consumers():
+        for consumer in self.get_parent_consumers():
             consumer_requests += consumer.get_max_recipe_item_request_ipm(request_item_name)
         return consumer_requests
 
@@ -1536,7 +1560,7 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
         """
         total_request_ipm = 0
         consumer_requests:list[tuple[MapConsumerNode,int]] = []
-        for consumer in self.get_consumers():
+        for consumer in self.get_parent_consumers():
             consumer_requests += consumer.get_max_recipe_item_request_ipm(self.supplied_item_name)
         visited_consumers = set()
         for consumer, request_ipm in consumer_requests:
@@ -1589,7 +1613,7 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
             self, request_item_name: str) -> list[tuple[MapConsumerNode, int]]:
         # TODO: This should take into consideration the transport rate limits.
         consumer_requests:list[tuple[MapConsumerNode,int]] = []
-        for consumer in self.get_consumers(request_item_name):
+        for consumer in self.get_parent_consumers(request_item_name):
             consumer_requests += consumer.get_max_recipe_item_request_ipm(request_item_name)
         return consumer_requests
 
@@ -1604,7 +1628,7 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
         for connector in self.supplied_items:
             total_request_ipm = 0
             consumer_requests:list[tuple[MapConsumerNode,int]] = []
-            for consumer in connector.get_consumers():
+            for consumer in connector.get_parent_consumers():
                 consumer_requests \
                     += consumer.get_max_recipe_item_request_ipm(connector.supplied_item_name)
             visited_consumers = set()
@@ -2019,7 +2043,7 @@ class MapData:
                                 f"Dispatcher node '{dispatcher_node.global_id}' is not a"
                                  " MapDispatcherNode.")
                         node.add_dispatcher(dispatcher_node)
-                        dispatcher_node.add_consumer(node)
+                        dispatcher_node.add_parent_consumer(node)
 
                 # NOTE: When multi-storage is implemented, it must be linked here after receivers.
 
@@ -2037,7 +2061,7 @@ class MapData:
                             supplier_node = self.get_supplier_node(
                                 recipe_item_name, site_id, from_id, factory_id)
                             node.add_recipe_item_supplier(recipe_item_name, supplier_node)
-                            supplier_node.add_consumer(node)
+                            supplier_node.add_parent_consumer(node)
 
                 for storage_id, storage_values in machines.get("storage", {}).items():
                     node = self._get_node_by_id(site_id, storage_id, factory_id)
@@ -2049,7 +2073,7 @@ class MapData:
                             supplier_node = self.get_supplier_node(
                                 node.supplied_item_name, site_id, from_id, factory_id)
                             node.add_supplier(supplier_node)
-                            supplier_node.add_consumer(node)
+                            supplier_node.add_parent_consumer(node)
 
                 for dispatcher_id, dispatcher_values \
                         in factory_values.get("dispatchers", {}).items():
@@ -2061,7 +2085,7 @@ class MapData:
                         supplier_node = self.get_supplier_node(
                             node.supplied_item_name, site_id, from_id, factory_id)
                         node.add_supplier(supplier_node)
-                        supplier_node.add_consumer(node)
+                        supplier_node.add_parent_consumer(node)
 
                 for target_id, target_values in factory_values.get("targets", {}).items():
                     node = self._get_node_by_id(site_id, target_id, factory_id)
@@ -2073,7 +2097,7 @@ class MapData:
                         # target node will only allow crafter and single item storage.
                         supplier_node = cast(MapSingleSupplyNode, supplier_map_node)
                         node.add_supplier(supplier_node)
-                        supplier_node.add_consumer(node)
+                        supplier_node.add_parent_consumer(node)
 
         #
         # Set max available recipe item IPM for all nodes. This has to happen after all nodes
@@ -2148,7 +2172,7 @@ class MapData:
                 print(f"uses receiver     : {resource_node.uses_receiver}")
                 print(f"max recipe item request ipm: {resource_node.get_max_game_definition_requested_ipm()}")
                 print( "consumers:")
-                for consumer in resource_node.get_consumers():
+                for consumer in resource_node.get_parent_consumers():
                     print(f"  - {consumer.get_global_id()}")
 
             for factory in site.factories.values():
@@ -2168,7 +2192,7 @@ class MapData:
                         for supplier in recipe_item.suppliers:
                             print(f"      - {supplier.get_global_id()}  max available ipm: {crafter._max_available_recipe_item_ipm.get(recipe_item.recipe_item_name, {}).get(supplier.get_global_id(), 'N/A')}")
                     print( "consumers:")
-                    for consumer in crafter.get_consumers():
+                    for consumer in crafter.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
 
                 for storage in factory.storages.values():
@@ -2184,7 +2208,7 @@ class MapData:
                     for supplier in storage.suppliers:
                         print(f"  - {supplier.get_global_id()}  max available ipm: {storage._max_available_recipe_item_ipm.get(supplier.get_global_id(), 'N/A')}")
                     print( "consumers:")
-                    for consumer in storage.get_consumers():
+                    for consumer in storage.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
 
                 for dispatcher in factory.dispatchers.values():
@@ -2202,7 +2226,7 @@ class MapData:
                     for supplier in dispatcher.suppliers:
                         print(f"  - {supplier.get_global_id()}  max available ipm: {dispatcher._max_available_recipe_item_ipm.get(supplier.get_global_id(), 'N/A')}")
                     print( "consumers:")
-                    for consumer in dispatcher.get_consumers():
+                    for consumer in dispatcher.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
 
                 for receiver in factory.receivers.values():
@@ -2219,7 +2243,7 @@ class MapData:
                         for supplier in dispatched_item.suppliers:
                             print(f"    - {supplier.get_global_id()}  max available ipm: {receiver._max_available_recipe_item_ipm.get(dispatched_item.supplied_item_name, {}).get(supplier.get_global_id(), 'N/A')}")
                     print( "consumers:")
-                    for consumer in receiver.get_consumers():
+                    for consumer in receiver.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
 
                 for target in factory.targets.values():
