@@ -635,6 +635,20 @@ class MapSingleSupplyNode(MapNode):
 
     #---------------------------------------------------------------------------
 
+    @abstractmethod
+    def remaining_supply_ipm(self, demand_category:str) -> int:
+        """
+        Get the remaining supply rate IPM for the specified demand category after apportioning
+        supply to demand.
+
+        Parameters
+        ----------
+        demand_category : str
+            The demand category for which to get the remaining supply IPM.
+        """
+
+    #---------------------------------------------------------------------------
+
     def _get_demands(self, demand_category:str) -> list[tuple[MapConsumerNode, int]]:
         """
         Get the demands for the specified demand category.
@@ -737,6 +751,12 @@ class MapSupplyConnector(MapSingleSupplyNode):
     def total_supply_ipm(self, demand_category: str) -> int:
         return sum(
             ds.supplied_ipm for ds in self._supplier_availablity_ipm.get(demand_category, set()))
+
+    #---------------------------------------------------------------------------
+
+    def remaining_supply_ipm(self, demand_category: str) -> int:
+        return sum(
+            [supplier.remaining_supply_ipm(demand_category) for supplier in self.get_suppliers()])
 
     #---------------------------------------------------------------------------
 
@@ -1094,6 +1114,11 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
 
     def total_supply_ipm(self, demand_category: str) -> int:
         return self._supplying_rate_ipm.get(demand_category, 0)
+
+    #---------------------------------------------------------------------------
+
+    def remaining_supply_ipm(self, demand_category: str) -> int:
+        return self.max_production_ipm - self._supplying_rate_ipm.get(demand_category, 0)
 
     #---------------------------------------------------------------------------
 
@@ -1461,6 +1486,11 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
+    def remaining_supply_ipm(self, demand_category: str) -> int:
+        return self.max_production_ipm - self._supplying_rate_ipm.get(demand_category, 0)
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 # There is a multi-item storage building in the game. Will add support for that later when I
@@ -1599,6 +1629,12 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
     def total_supply_ipm(self, demand_category: str) -> int:
         return sum(
             ds.supplied_ipm for ds in self._supplier_availablity_ipm.get(demand_category, set()))
+
+    #---------------------------------------------------------------------------
+
+    def remaining_supply_ipm(self, demand_category: str) -> int:
+        return sum(
+            [supplier.remaining_supply_ipm(demand_category) for supplier in self.get_suppliers()])
 
     #---------------------------------------------------------------------------
 
@@ -1788,6 +1824,12 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
     def total_supply_ipm(self, demand_category: str) -> int:
         return sum(
             ds.supplied_ipm for ds in self._supplier_availablity_ipm.get(demand_category, set()))
+
+    #---------------------------------------------------------------------------
+
+    def remaining_supply_ipm(self, demand_category: str) -> int:
+        return sum(
+            [supplier.remaining_supply_ipm(demand_category) for supplier in self.get_suppliers()])
 
     #---------------------------------------------------------------------------
 
@@ -2496,7 +2538,7 @@ class MapData:
                         print(f"  - {recipe_item.recipe_item_name:<20}:"
                               f" {recipe_item.required_ipm} ipm")
                         for supplier in recipe_item.suppliers:
-                            print(f"      - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
+                            print(f"      - {supplier.get_global_id()}  max available ipm: {supplier.remaining_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                         print("    registered suppliers:")
                         sa = recipe_item._supplier_availablity_ipm.get(DemandCategory.GAME_DEFINITION, {})
                         for supplier, rate_ipm in sa.items():
@@ -2521,12 +2563,13 @@ class MapData:
                         for requestor, demand_ipm in demand.items():
                             print(f"    - {requestor.get_global_id()}: {demand_ipm} ipm")
                     print(f"registered supply:")
-                    registered_supply = storage._supplier_availablity_ipm.get(DemandCategory.GAME_DEFINITION, set())
-                    for ds in registered_supply:
-                        print(f"  - {ds.from_supplier.get_global_id()} -> {ds.for_consumer.get_global_id()}: {ds.supplied_ipm} ipm")
+                    for demand_category, registered_supply in storage._supplier_availablity_ipm.items():
+                        print(f"  - {demand_category}:")
+                        for ds in registered_supply:
+                            print(f"    - {ds.from_supplier.get_global_id()} -> {ds.for_consumer.get_global_id()}: {ds.supplied_ipm} ipm")
                     print( "suppliers:")
                     for supplier in storage.suppliers:
-                        print(f"  - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {supplier.remaining_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "consumers:")
                     for consumer in storage.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2550,7 +2593,7 @@ class MapData:
                             print(f"    - {requestor.get_global_id()}: {demand_ipm} ipm")
                     print( "suppliers:")
                     for supplier in dispatcher.suppliers:
-                        print(f"  - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {supplier.remaining_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "consumers:")
                     for consumer in dispatcher.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2574,7 +2617,7 @@ class MapData:
                                 print(f"        - {requestor.get_global_id()}: {demand_ipm} ipm")
                         print(f"    from dispatcher(s):")
                         for supplier in dispatched_item.suppliers:
-                            print(f"    - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
+                            print(f"    - {supplier.get_global_id()}  max available ipm: {supplier.remaining_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "consumers:")
                     for consumer in receiver.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2588,7 +2631,7 @@ class MapData:
                     print(f"target amount  : {target.target_amount}")
                     print( "suppliers:")
                     for supplier in target.suppliers:
-                        print(f"  - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {supplier.remaining_supply_ipm(DemandCategory.GAME_DEFINITION)}")
 
     #---------------------------------------------------------------------------
 
