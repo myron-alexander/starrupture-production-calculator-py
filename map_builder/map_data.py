@@ -987,6 +987,11 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         demand category -> supplied rate in items per minute.
         """
 
+        self._supplying_consumers:dict[str, list[tuple[MapConsumerNode, int]]] = {}
+        """
+        For debug purposes, track the rates assigned to each consumer for a demand category.
+        """
+
     #---------------------------------------------------------------------------
 
     def get_node_id(self) -> str:
@@ -1038,6 +1043,14 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         # fairly among the demanding consumers using a moving average. A consumer won't be supplied
         # more than their demand.
 
+        supplying_consumers_list = self._supplying_consumers.setdefault(demand_category, [])
+        # Rebuilding the list from empty every time.
+        supplying_consumers_list.clear()
+
+        # TODO: Go through every internal variable and check if calling a method using that variable
+        #       more than once would cause a problem due to inadequate initialization/resetting of
+        #       the variable.
+
         demands = self._get_demands(demand_category)
         # The requests are sorted so that consumers with lower requested rate get their demand
         # fulfilled first and the nature of the moving average means that consumers with higher
@@ -1048,9 +1061,11 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
             fair_ipm = available_ipm // num_requests
             if fair_ipm < request_ipm:
                 provided_consumer_rate[demanding_consumer.get_global_id()] = fair_ipm
+                supplying_consumers_list.append((demanding_consumer, fair_ipm))
                 available_ipm -= fair_ipm
             else:
                 provided_consumer_rate[demanding_consumer.get_global_id()] = request_ipm
+                supplying_consumers_list.append((demanding_consumer, request_ipm))
                 available_ipm -= request_ipm
             num_requests -= 1
 
@@ -2446,11 +2461,16 @@ class MapData:
                 print(f"uses receiver     : {resource_node.uses_receiver}")
                 print(f"max recipe item request ipm: {resource_node.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
                 print(f"max recipe item supply ipm : {resource_node.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
-                print(f"registered demand:")
+                print( "registered demand:")
                 for demand_category, demand in resource_node._demand.items():
                     print(f"  - {demand_category}:")
                     for requestor, demand_ipm in demand.items():
                         print(f"    - {requestor.get_global_id()}: {demand_ipm} ipm")
+                print( "registered supply:")
+                for demand_category, supply in resource_node._supplying_consumers.items():
+                    print(f"  - {demand_category}:")
+                    for consumer, rate in supply:
+                        print(f"    - {consumer.get_global_id()}: {rate} ipm")
                 print( "consumers:")
                 for consumer in resource_node.get_parent_consumers():
                     print(f"  - {consumer.get_global_id()}")
