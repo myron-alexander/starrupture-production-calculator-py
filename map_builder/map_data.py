@@ -429,7 +429,9 @@ class DemandCategory(StrEnum):
 
     GAME_DEFINITION = "game_definition"
     """
-    A demand category for when all requestors are requesting at the game defined rate.
+    A demand category for when all requestors are requesting at the game defined rate. This is used
+    to calculate available production rates purely on the availability of supply irrespective
+    of demand.
     """
 
     TARGET_RATE = "target_rate"
@@ -1383,10 +1385,19 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         supply_availability_ratio = min(
             r.get_available_rate_ratio(demand_category) for r in self.recipe)
 
+        #print(f"{demand_category}  {child_supplier.get_global_id()} {supply_availability_ratio}")
+
         production_ipm = math.floor(self.max_production_ipm * supply_availability_ratio)
 
         total_request_ipm = self.total_demand_ipm(demand_category)
-        available_ipm = min(production_ipm, total_request_ipm)
+
+        if DemandCategory.GAME_DEFINITION == demand_category:
+            # For the special case of a GAME_DEFINITION game category, registered demand is
+            # ignored and the maximum production rate for available supply is always used as the
+            # demand.
+            available_ipm = production_ipm
+        else:
+            available_ipm = min(production_ipm, total_request_ipm)
 
         self._supplying_rate_ipm[demand_category] = available_ipm
 
@@ -2434,6 +2445,7 @@ class MapData:
                 print(f"is terminal       : {resource_node.is_terminal}")
                 print(f"uses receiver     : {resource_node.uses_receiver}")
                 print(f"max recipe item request ipm: {resource_node.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
+                print(f"max recipe item supply ipm : {resource_node.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                 print(f"registered demand:")
                 for demand_category, demand in resource_node._demand.items():
                     print(f"  - {demand_category}:")
@@ -2453,6 +2465,7 @@ class MapData:
                     print(f"is terminal       : {crafter.is_terminal}")
                     print(f"uses receiver     : {crafter.uses_receiver}")
                     print(f"max recipe item request ipm: {crafter.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
+                    print(f"max recipe item supply ipm : {crafter.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print(f"registered demand:")
                     for demand_category, demand in crafter._demand.items():
                         print(f"  - {demand_category}:")
@@ -2464,6 +2477,10 @@ class MapData:
                               f" {recipe_item.required_ipm} ipm")
                         for supplier in recipe_item.suppliers:
                             print(f"      - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
+                        print("    registered suppliers:")
+                        sa = recipe_item._supplier_availablity_ipm.get(DemandCategory.GAME_DEFINITION, {})
+                        for supplier, rate_ipm in sa.items():
+                            print(f"      - {supplier.get_global_id()}: {rate_ipm} ipm")
                     print( "consumers:")
                     for consumer in crafter.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2477,11 +2494,16 @@ class MapData:
                     print(f"is terminal     : {storage.is_terminal}")
                     print(f"uses receiver   : {storage.uses_receiver}")
                     print(f"max recipe item request ipm: {storage.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
+                    print(f"max recipe item supply ipm : {storage.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print(f"registered demand:")
                     for demand_category, demand in storage._demand.items():
                         print(f"  - {demand_category}:")
                         for requestor, demand_ipm in demand.items():
                             print(f"    - {requestor.get_global_id()}: {demand_ipm} ipm")
+                    print(f"registered supply:")
+                    registered_supply = storage._supplier_availablity_ipm.get(DemandCategory.GAME_DEFINITION, set())
+                    for ds in registered_supply:
+                        print(f"  - {ds.from_supplier.get_global_id()} -> {ds.for_consumer.get_global_id()}: {ds.supplied_ipm} ipm")
                     print( "suppliers:")
                     for supplier in storage.suppliers:
                         print(f"  - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
@@ -2500,6 +2522,7 @@ class MapData:
                     print(f"is terminal      : {dispatcher.is_terminal}")
                     print(f"uses receiver    : {dispatcher.uses_receiver}")
                     print(f"max recipe item request ipm: {dispatcher.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
+                    print(f"max recipe item supply ipm : {dispatcher.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print(f"registered demand:")
                     for demand_category, demand in dispatcher._demand.items():
                         print(f"  - {demand_category}:")
@@ -2520,6 +2543,7 @@ class MapData:
                     print(f"is terminal  : {receiver.is_terminal}")
                     print(f"uses receiver: {receiver.uses_receiver}")
                     print(f"max recipe item request ipm: {receiver.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
+                    print(f"max recipe item supply ipm : {receiver.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "dispatched items:")
                     for dispatched_item in receiver.supplied_items:
                         print(f"  - {dispatched_item.supplied_item_name}")
@@ -2605,7 +2629,7 @@ def main():
         elif isinstance(node, MapSingleSupplyNode):
             for supplier in node.get_suppliers(node.supplied_item_name):
                 walk_tree(supplier, depth + 1)
-    
+
     node = map_data._get_node_by_id("simple test", "c-calcium-1", "factory")
     if isinstance(node, MapSingleSupplyNode):
         walk_tree(node)
