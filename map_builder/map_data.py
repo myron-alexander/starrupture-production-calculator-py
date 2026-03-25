@@ -772,7 +772,7 @@ class MapSupplyConnector(MapSingleSupplyNode):
         if child_supplier not in self.suppliers:
             raise ValueError(
                 f"child_supplier '{child_supplier.get_global_id()}' not registered as a direct"
-                f" supplier for this storage node '{self.get_global_id()}'.")
+                f" supplier for this supply connector '{self.get_global_id()}'.")
 
         # Register the supplies with this node for the demand category.
 
@@ -1723,7 +1723,7 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
         if child_supplier not in self.suppliers:
             raise ValueError(
                 f"child_supplier '{child_supplier.get_global_id()}' not registered as a direct"
-                f" supplier for this storage node '{self.get_global_id()}'.")
+                f" supplier for this dispatcher node '{self.get_global_id()}'.")
 
         # Register the supplies with this node for the demand category.
 
@@ -1838,19 +1838,23 @@ class MapTargetNode(MapFactoryNode, MapConsumerNode):
         MapFactoryNode.__init__(self, site_id, factory_id)
         self.target_id = target_id
         self.suppliers:list[MapSingleSupplyNode] = []
+
         self.target_rate_ipm:int = target_rate_ipm
         """
         Target production rate in items per minute. If set to zero, then target is disabled and
         shouldn't be used for production calculations.
         """
+
         self.target_amount:int = target_amount
         """
         Optional amount of the target item to produce. When not provided, will be zero.
         """
-        self._max_available_recipe_item_ipm:dict[str,int] = {}
+
+        self._supplier_availablity_ipm:dict[str, set[DemandSupply]] = {}
         """
-        A dictionary of supplier global IDs and the max available IPM that the supplier can
-        provide.
+        Registration of the max available rate of supply for this item in a demand category.
+
+        demand category -> supplies
         """
 
     #---------------------------------------------------------------------------
@@ -1883,15 +1887,6 @@ class MapTargetNode(MapFactoryNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
-    def set_max_available_rate_ipm(
-            self,
-            supplier: MapSingleSupplyNode,
-            request_item_name: str,
-            available_rate_ipm: int) -> None:
-        self._max_available_recipe_item_ipm[supplier.get_global_id()] = available_rate_ipm
-
-    #---------------------------------------------------------------------------
-
     def register_target_demand_with_suppliers(self, demand_category:str) -> None:
         """
         Register this target's demand with its suppliers based on the target production rate.
@@ -1902,6 +1897,21 @@ class MapTargetNode(MapFactoryNode, MapConsumerNode):
                 demand_category,
                 self,
                 [DemandRequest(self, supplier.supplied_item_name, self.target_rate_ipm)])
+
+    #---------------------------------------------------------------------------
+
+    def register_suppliable_rate_ipm(
+            self,
+            demand_category:str,
+            child_supplier:"MapSingleSupplyNode",
+            demand_suppliers:list[DemandSupply]) -> None:
+
+        if child_supplier not in self.suppliers:
+            raise ValueError(
+                f"child_supplier '{child_supplier.get_global_id()}' not registered as a direct"
+                f" supplier for this target node '{self.get_global_id()}'.")
+
+        self._supplier_availablity_ipm.setdefault(demand_category, set()).update(demand_suppliers)
 
     #---------------------------------------------------------------------------
 
