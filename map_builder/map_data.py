@@ -1361,7 +1361,8 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
             child_supplier:"MapSingleSupplyNode",
             demand_suppliers:list[DemandSupply]) -> None:
 
-        if demand_category not in self._demand:
+        # A terminal crafting node won't have a demand registered but can have a supply registered.
+        if not self.is_terminal and demand_category not in self._demand:
              raise ValueError(
                  "Attempting to register_suppliable_rate_ipm for demand category"
                 f" '{demand_category}' before any demand has been registered for crafter node"
@@ -2578,8 +2579,8 @@ def main():
         elif isinstance(node, MapSingleSupplyNode):
             for supplier in node.get_suppliers(node.supplied_item_name):
                 walk_tree(supplier, depth + 1)
-
-    node = map_data._get_node_by_id("test-site", "s-glass-1", "factory")
+    
+    node = map_data._get_node_by_id("simple test", "c-calcium-1", "factory")
     if isinstance(node, MapSingleSupplyNode):
         walk_tree(node)
 
