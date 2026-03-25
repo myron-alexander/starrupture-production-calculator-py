@@ -1311,6 +1311,11 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         demand category -> supplied rate in items per minute.
         """
 
+        self._supplying_consumers:dict[str, list[tuple[MapConsumerNode, int]]] = {}
+        """
+        For debug purposes, track the rates assigned to each consumer for a demand category.
+        """
+
     #---------------------------------------------------------------------------
 
     def add_recipe_item_supplier(self, recipe_item_name:str, supplier:MapSingleSupplyNode) -> None:
@@ -1478,7 +1483,7 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
 
         self._supplying_rate_ipm[demand_category] = available_ipm
 
-        provided_consumer_rate:dict[str, int] = {}
+        provided_consumer_rate:dict[MapConsumerNode, int] = {}
         """
         key = demanding consumer id.
 
@@ -1489,6 +1494,10 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         # fairly among the demanding consumers using a moving average. A consumer won't be supplied
         # more than their demand.
 
+        supplying_consumers_list = self._supplying_consumers.setdefault(demand_category, [])
+        # Rebuilding the list from empty every time.
+        supplying_consumers_list.clear()
+
         demands = self._get_demands(demand_category)
         # The requests are sorted so that consumers with lower requested rate get their demand
         # fulfilled first and the nature of the moving average means that consumers with higher
@@ -1498,20 +1507,34 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         for demanding_consumer, request_ipm in low_to_high_requests:
             fair_ipm = available_ipm // num_requests
             if fair_ipm < request_ipm:
-                provided_consumer_rate[demanding_consumer.get_global_id()] = fair_ipm
+                provided_consumer_rate[demanding_consumer] = fair_ipm
+                supplying_consumers_list.append((demanding_consumer, fair_ipm))
                 available_ipm -= fair_ipm
             else:
-                provided_consumer_rate[demanding_consumer.get_global_id()] = request_ipm
+                provided_consumer_rate[demanding_consumer] = request_ipm
+                supplying_consumers_list.append((demanding_consumer, request_ipm))
                 available_ipm -= request_ipm
             num_requests -= 1
 
         # Register the available rates for demanding consumers with the direct consumers.
 
+        demand_parent_counts = self._get_demand_parent_counts(demand_category)
+
+        remaining_rate_map:dict[MapConsumerNode, int] = provided_consumer_rate.copy()
+        apportioned_rate_map:dict[MapConsumerNode, int] = {
+            consumer: provided_consumer_rate[consumer] // num_parents
+            for consumer, num_parents in demand_parent_counts
+        }
+
         for parent in self.get_parent_consumers():
             supplies:list[DemandSupply] = []
             for demander in self._get_parent_demands(demand_category, parent):
-                demand_supply = DemandSupply(
-                    self, demander, provided_consumer_rate[demander.get_global_id()])
+                apportioned_rate = apportioned_rate_map[demander]
+                remaining_rate = remaining_rate_map[demander]
+                if remaining_rate < apportioned_rate:
+                    apportioned_rate = remaining_rate
+                remaining_rate_map[demander] = remaining_rate - apportioned_rate
+                demand_supply = DemandSupply(self, demander, apportioned_rate)
                 supplies.append(demand_supply)
             if supplies:
                 parent.register_suppliable_rate_ipm(demand_category, self, supplies)
