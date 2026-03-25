@@ -789,10 +789,12 @@ class MapSupplyConnector(MapSingleSupplyNode):
             child_supplier:"MapSingleSupplyNode",
             demand_suppliers:list[DemandSupply]) -> None:
 
-        if demand_category not in self._demand:
+        # A supply connector that has no consumers won't have any demand registered but can have
+        # a supply registered.
+        if self.get_parent_consumers() != () and demand_category not in self._demand:
              raise ValueError(
                  "Attempting to register_suppliable_rate_ipm for demand category"
-                f" '{demand_category}' before any demand has been registered for resource node"
+                f" '{demand_category}' before any demand has been registered for supply connector"
                 f" '{self.get_global_id()}'."
             )
 
@@ -1008,6 +1010,8 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         # registered for the resource node and this method should exit without doing anything.
         if self.get_parent_consumers() == ():
             return
+
+        print(f"{self.get_global_id()}: {[c.get_global_id() for c in self.get_parent_consumers()]}")
 
         if demand_category not in self._demand:
              raise ValueError(
@@ -1360,7 +1364,7 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         if demand_category not in self._demand:
              raise ValueError(
                  "Attempting to register_suppliable_rate_ipm for demand category"
-                f" '{demand_category}' before any demand has been registered for resource node"
+                f" '{demand_category}' before any demand has been registered for crafter node"
                 f" '{self.get_global_id()}'."
             )
 
@@ -1525,10 +1529,11 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
             child_supplier:"MapSingleSupplyNode",
             demand_suppliers:list[DemandSupply]) -> None:
 
-        if demand_category not in self._demand:
+        # A terminal storage node won't have a demand registered but can have a supply registered.
+        if not self.is_terminal and demand_category not in self._demand:
              raise ValueError(
                  "Attempting to register_suppliable_rate_ipm for demand category"
-                f" '{demand_category}' before any demand has been registered for resource node"
+                f" '{demand_category}' before any demand has been registered for storage node"
                 f" '{self.get_global_id()}'."
             )
 
@@ -1567,6 +1572,21 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
     def total_supply_ipm(self, demand_category: str) -> int:
         return sum(
             ds.supplied_ipm for ds in self._supplier_availablity_ipm.get(demand_category, set()))
+
+    #---------------------------------------------------------------------------
+
+    def register_recipe_demand_with_suppliers(self) -> None:
+        """
+        When a storage is terminal, call the suppliers to register game definition demand.
+        A zero is passed to each supplier as this consumer has no demand but when the supplier
+        is a crafter, it will enact the special case and register the full recipe demand with its
+        suppliers.
+        """
+        for supplier in self.suppliers:
+            supplier.register_demand_with_suppliers(
+                DemandCategory.GAME_DEFINITION,
+                self,
+                [DemandRequest(self, self.supplied_item_name, 0)])
 
     #---------------------------------------------------------------------------
 
@@ -1697,10 +1717,12 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
             child_supplier:"MapSingleSupplyNode",
             demand_suppliers:list[DemandSupply]) -> None:
 
-        if demand_category not in self._demand:
+        # A dispatcher that has not been connected to a receiver won't have a demand registered
+        # but can have a supply registered.
+        if self.has_receiver and demand_category not in self._demand:
              raise ValueError(
                  "Attempting to register_suppliable_rate_ipm for demand category"
-                f" '{demand_category}' before any demand has been registered for resource node"
+                f" '{demand_category}' before any demand has been registered for dispatcher node"
                 f" '{self.get_global_id()}'."
             )
 
@@ -1820,6 +1842,22 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
             connector_supply = connector.total_supply_ipm(demand_category)
             supply.append((connector.supplied_item_name, connector_supply))
         return tuple(supply)
+
+    #---------------------------------------------------------------------------
+
+    def register_recipe_demand_with_suppliers(self) -> None:
+        """
+        When a receiver is terminal, call the suppliers to register game definition demand.
+        A zero is passed to each supplier as this consumer has no demand but when the supplier
+        is a crafter, it will enact the special case and register the full recipe demand with its
+        suppliers.
+        """
+        for connector in self.supplied_items:
+            for supplier in connector.get_suppliers():
+                supplier.register_demand_with_suppliers(
+                    DemandCategory.GAME_DEFINITION,
+                    self,
+                    [DemandRequest(self, connector.supplied_item_name, 0)])
 
     #---------------------------------------------------------------------------
 
@@ -2311,7 +2349,12 @@ class MapData:
             n for n in self.map_nodes if n.is_terminal and not dispatcher_with_receiver(n)
         ]
 
-        # Only terminal crafter and dispatcher nodes are invoked to set the game definition demand.
+        # Terminal crafter, dispatcher, and storage nodes are invoked to set the game
+        # definition demand as they are the only nodes that are at the end of the production
+        # chain. The receiver node is a special case when terminal otherwise any node in the
+        # production chain linked to dispatchers of that receiver won't have a demand set and
+        # would raise a validation error.
+        #
         # Terminal targets don't set the terminal state on their suppliers so they can be ignored
         # for this case. Resources don't have any suppliers so they can be ignored as well.
         # All other nodes are structural nodes (MapSiteNode, MapFactoryNode) that don't participate
@@ -2322,6 +2365,10 @@ class MapData:
             if isinstance(node, MapCrafterNode):
                 node.register_recipe_demand_with_suppliers()
             elif isinstance(node, MapDispatcherNode):
+                node.register_recipe_demand_with_suppliers()
+            elif isinstance(node, MapSingleStorageNode):
+                node.register_recipe_demand_with_suppliers()
+            elif isinstance(node, MapReceiverNode):
                 node.register_recipe_demand_with_suppliers()
 
         #
