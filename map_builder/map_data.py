@@ -694,6 +694,13 @@ class MapSupplyConnector(MapSingleSupplyNode):
         self.owner = owner
         self.suppliers:list[MapSingleSupplyNode] = []
 
+        self._supplier_availablity_ipm:dict[str, set[DemandSupply]] = {}
+        """
+        Registration of the max available rate of supply for this item in a demand category.
+
+        demand category -> supplies
+        """
+
     #---------------------------------------------------------------------------
 
     def get_owner(self) -> "MapMultiSupplyNode":
@@ -746,6 +753,51 @@ class MapSupplyConnector(MapSingleSupplyNode):
         for supplier in self.get_suppliers():
             supplier.register_demand_with_suppliers(
                 demand_category, cast(MapConsumerNode, self.owner), demands)
+
+    #---------------------------------------------------------------------------
+
+    def register_suppliable_rate_ipm(
+            self,
+            demand_category:str,
+            child_supplier:"MapSingleSupplyNode",
+            demand_suppliers:list[DemandSupply]) -> None:
+
+        if demand_category not in self._demand:
+             raise ValueError(
+                 "Attempting to register_suppliable_rate_ipm for demand category"
+                f" '{demand_category}' before any demand has been registered for resource node"
+                f" '{self.get_global_id()}'."
+            )
+
+        if child_supplier not in self.suppliers:
+            raise ValueError(
+                f"child_supplier '{child_supplier.get_global_id()}' not registered as a direct"
+                f" supplier for this storage node '{self.get_global_id()}'.")
+
+        # Register the supplies with this node for the demand category.
+
+        supplier_availability_set \
+            = self._supplier_availablity_ipm.setdefault(demand_category, set())
+
+        for ds in demand_suppliers:
+            if ds.from_supplier.supplied_item_name != self.supplied_item_name:
+                raise ValueError(
+                    f"Supplied item '{ds.from_supplier.supplied_item_name}' does not match"
+                    f" storage item '{self.supplied_item_name}'; from supplier"
+                    f" '{ds.from_supplier.get_global_id()}'.")
+            supplier_availability_set.add(ds)
+
+        # A supply connector is a pass-though node so send the DemandSupply objects on to the
+        # applicable parent consumers without alteration.
+
+        for parent in self.get_parent_consumers():
+            supplies:list[DemandSupply] = []
+            for demander in self._get_parent_demands(demand_category, parent):
+                for_demander = [
+                    ds for ds in supplier_availability_set if ds.for_consumer == demander]
+                supplies.extend(for_demander)
+            if supplies:
+                parent.register_suppliable_rate_ipm(demand_category, self, supplies)
 
     #---------------------------------------------------------------------------
 
@@ -1452,7 +1504,7 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
 
         self._supplier_availablity_ipm:dict[str, set[DemandSupply]] = {}
         """
-        Registration of the max available rate of supply for this recipe item in a demand category.
+        Registration of the max available rate of supply for this item in a demand category.
 
         demand category -> supplies
         """
@@ -1581,7 +1633,7 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
 
         self._supplier_availablity_ipm:dict[str, set[DemandSupply]] = {}
         """
-        Registration of the max available rate of supply for this recipe item in a demand category.
+        Registration of the max available rate of supply for this item in a demand category.
 
         demand category -> supplies
         """
@@ -1717,11 +1769,6 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
         MapMultiSupplyNode.__init__(self, None)
         self.receiver_id = receiver_id
         self.building_id = building_id
-        self._max_available_recipe_item_ipm:dict[str, dict[str, int]] = {}
-        """
-        A dictionary of dispatched item names mapped to a dictionary of supplier global IDs and the
-        max available IPM that the supplier can provide for that item.
-        """
 
     #---------------------------------------------------------------------------
 
@@ -1738,40 +1785,6 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
-    def get_max_game_definition_requested_ipm(self) -> tuple[tuple[str,int]]:
-        """
-        Get the total requested IPM by consumers when the consumers are requesting at the game
-        defined rate.
-        """
-        rates = []
-        for connector in self.supplied_items:
-            total_request_ipm = 0
-            consumer_requests:list[tuple[MapConsumerNode,int]] = []
-            for consumer in connector.get_parent_consumers():
-                consumer_requests \
-                    += consumer.get_max_recipe_item_request_ipm(connector.supplied_item_name)
-            visited_consumers = set()
-            for consumer, request_ipm in consumer_requests:
-                if consumer.get_global_id() not in visited_consumers:
-                    total_request_ipm += request_ipm
-                    visited_consumers.add(consumer.get_global_id())
-            rates.append((connector.supplied_item_name, total_request_ipm))
-        return tuple(rates)
-
-    #---------------------------------------------------------------------------
-
-    def set_max_available_rate_ipm(
-            self,
-            supplier:MapSingleSupplyNode,
-            request_item_name:str,
-            available_rate_ipm:int) -> None:
-        # Check that the request item name is one of the supplied items for this receiver.
-        self.get_item_connector(request_item_name)
-        self._max_available_recipe_item_ipm \
-            .setdefault(request_item_name, {})[supplier.get_global_id()] = available_rate_ipm
-
-    #---------------------------------------------------------------------------
-
     def register_demand_with_suppliers(
         self,
         demand_category:str,
@@ -1785,6 +1798,20 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
             if item_requestors:
                 connector.register_demand_with_suppliers(
                     demand_category, parent_consumer, item_requestors)
+
+    #---------------------------------------------------------------------------
+
+    def register_suppliable_rate_ipm(
+            self,
+            demand_category:str,
+            child_supplier:"MapSingleSupplyNode",
+            demand_suppliers:list[DemandSupply]) -> None:
+
+        for connector in self.supplied_items:
+            if connector.supplied_item_name == child_supplier.supplied_item_name:
+                connector.register_suppliable_rate_ipm(
+                    demand_category, child_supplier, demand_suppliers)
+                break
 
     #---------------------------------------------------------------------------
 
