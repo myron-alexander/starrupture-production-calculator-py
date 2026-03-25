@@ -426,8 +426,16 @@ class DemandCategory(StrEnum):
     requestors are requesting at the game defined rate vs when requestors are requesting at a target
     rate.
     """
+
     GAME_DEFINITION = "game_definition"
+    """
+    A demand category for when all requestors are requesting at the game defined rate.
+    """
+
     TARGET_RATE = "target_rate"
+    """
+    A demand category for when the requestors are requesting at a specified target rate.
+    """
 
 #---------------------------------------------------------------------------------------------------
 
@@ -598,7 +606,7 @@ class MapSingleSupplyNode(MapNode):
 
     #---------------------------------------------------------------------------
 
-    def _total_demand_ipm(self, demand_category:str) -> int:
+    def total_demand_ipm(self, demand_category:str) -> int:
         """
         Get the total demand IPM for the specified demand category.
 
@@ -609,6 +617,19 @@ class MapSingleSupplyNode(MapNode):
         """
         category_map = self._demand.get(demand_category, {})
         return sum(category_map.values())
+
+    #---------------------------------------------------------------------------
+
+    @abstractmethod
+    def total_supply_ipm(self, demand_category:str) -> int:
+        """
+        Get the total supply IPM for the specified demand category.
+
+        Parameters
+        ----------
+        demand_category : str
+            The demand category for which to get the total supply IPM.
+        """
 
     #---------------------------------------------------------------------------
 
@@ -708,6 +729,12 @@ class MapSupplyConnector(MapSingleSupplyNode):
         Gets the supply node.
         """
         return self.owner
+
+    #---------------------------------------------------------------------------
+
+    def total_supply_ipm(self, demand_category: str) -> int:
+        return sum(
+            ds.supplied_ipm for ds in self._supplier_availablity_ipm.get(demand_category, set()))
 
     #---------------------------------------------------------------------------
 
@@ -915,137 +942,20 @@ def round_half_up(n:float) -> int:
 
 #---------------------------------------------------------------------------------------------------
 
-class SupplierConsumerMatrix:
-    """
-    Allows for calculating the rate delivered to each of a supplier's direct consumer taking into
-    consideration:
-
-    * A supplier delivers to multiple consumers.
-    * Only producer consumers request supplies.
-    * All other consumers are pass-through consumers in that requests from producer consumers are
-      passed through to producer suppliers and the deliveries from the suppliers pass through to
-      the producer consumers.
-    * Producer supplier and consumers are MapProductionSupplyNode instances.
-    * Not all producer consumers will request at the same rate.
-    * When a pass-through consumer is between a producer supplier and producer consumer, there may
-      be many levels as well as routes from supplier to ultimate consumer and that more than one
-      route may lead to the same producer consumer, however the rate delivered from the supplier to
-      that producer consumer is the same regardless of the route taken and the rate could be
-      fragmented across multiple routes to converge at the producer consumer with the intended rate.
-    """
-
-    # The matrix results in:
-    #   for each direct consumer, for each item supplied, ratio of available item rate.
-    #
-    # Using the ratio, when the available item rate is changed, notify each direct consumer of the
-    # new available item rate by multiplying the ratio by the new available item rate.
-
-    #---------------------------------------------------------------------------
-
-    def __init__(self) -> None:
-
-        self._requestors:dict[str, dict[MapConsumerNode, int]] = {}
-        """
-        item name -> requestor -> defined rate.
-        """
-
-        self._routes:dict[tuple[str,MapConsumerNode], list[MapConsumerNode]] = {}
-        """
-        request key -> connectors that route to requestor.
-        """
-
-        self._ratios:dict[MapConsumerNode, dict[str, float]] = {}
-        """
-        direct consumer -> item name -> ratio of available item rate to deliver to direct consumer.
-        """
-
-    #---------------------------------------------------------------------------
-
-    def add_consumer_request_ipm(
-            self,
-            connector:MapConsumerNode,
-            requested_item_name:str,
-            requestor:MapConsumerNode,
-            request_ipm:int) -> None:
-        """
-        Add a consumer's requested IPM to the matrix. This is used to calculate the ratio of the
-        available item rate that should be delivered to each direct consumer.
-
-        Parameters
-        ----------
-        connector : MapConsumerNode
-            This node's direct consumer that routes to the requestor.
-        requested_item_name:str
-            The item being requested.
-        requestor : MapConsumerNode
-            A producer consumer that is requesting the item.
-        request_ipm : int
-            The requested IPM of the consumer.
-        """
-
-        item_map = self._requestors.setdefault(requested_item_name, {})
-        existing_request_ipm = item_map.get(requestor, None)
-        if existing_request_ipm is None:
-            item_map[requestor] = request_ipm
-        elif existing_request_ipm != request_ipm:
-            raise ValueError(
-                f"Requestor '{requestor.get_global_id()}' has multiple different requested IPM"
-                f" values for item '{requested_item_name}': {existing_request_ipm} and"
-                f" {request_ipm}")
-
-        self._routes.setdefault((requested_item_name, requestor), []).append(connector)
-
-    #---------------------------------------------------------------------------
-
-    def compute_connector_ratios(self) -> None:
-        """
-        Compute the ratio of the available item rate that should be delivered to each direct
-        consumer. This must be called only after all consumer request IPM values have been added
-        to the matrix.
-        """
-
-        for item_name, requests in self._requestors.items():
-            total_request_ipm = sum(requests.values())
-            connector_ipm_totals:dict[MapConsumerNode, float] = {}
-            """
-            connector -> total adjusted IPM routed through connector.
-            """
-            for requestor, request_ipm in requests.items():
-                connectors = self._routes[(item_name, requestor)]
-                num_connectors = len(connectors)
-                proportial_rate = request_ipm / num_connectors
-                for connector in connectors:
-                    connector_ipm_totals[connector] \
-                        = connector_ipm_totals.get(connector, 0) + proportial_rate
-            for connector, ipm_total in connector_ipm_totals.items():
-                ratio = ipm_total / total_request_ipm if total_request_ipm > 0 else 0
-                self._ratios.setdefault(connector, {})[item_name] = ratio
-
-    #---------------------------------------------------------------------------
-
-    def get_ratio(self, connector:MapConsumerNode, item_name:str) -> float:
-        """
-        Get the ratio of the available item rate that should be delivered to the direct consumer
-        via the connector for the specified item.
-
-        Parameters
-        ----------
-        connector : MapConsumerNode
-            The direct consumer connector for which to get the ratio.
-        item_name : str
-            The name of the item for which to get the ratio.
-
-        Returns
-        -------
-        float
-            The ratio of the available item rate that should be delivered to the direct consumer.
-            This will be a value between 0 and 1 inclusive.
-        """
-        # It is possible that ratios have not been set if the pass-through nodes do not connect
-        # with a producer consumer.
-        return self._ratios.get(connector, {}).get(item_name, 0)
-
-    #---------------------------------------------------------------------------
+"""
+* A supplier delivers to multiple consumers.
+* Only producer consumers request supplies.
+* All other consumers are pass-through consumers in that requests from producer consumers are
+  passed through to producer suppliers and the deliveries from the suppliers pass through to
+  the producer consumers.
+* Producer supplier and consumers are MapProductionSupplyNode instances.
+* Not all producer consumers will request at the same rate.
+* When a pass-through consumer is between a producer supplier and producer consumer, there may
+  be many levels as well as routes from supplier to ultimate consumer and that more than one
+  route may lead to the same producer consumer, however the rate delivered from the supplier to
+  that producer consumer is the same regardless of the route taken and the rate could be
+  fragmented across multiple routes to converge at the producer consumer with the intended rate.
+"""
 
 #---------------------------------------------------------------------------------------------------
 
@@ -1065,6 +975,13 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         self.resource_id = resource_id
         self.variant = variant
         self.building_id = building_id
+
+        self._supplying_rate_ipm:dict[str, int] = {}
+        """
+        The rate in items per minute that this resource node is supplying for a demand category.
+
+        demand category -> supplied rate in items per minute.
+        """
 
     #---------------------------------------------------------------------------
 
@@ -1087,6 +1004,11 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         via register_demand_with_suppliers() for the demand_category.
         """
 
+        # When a resource node is not connected to the production chain, then no demand will be
+        # registered for the resource node and this method should exit without doing anything.
+        if self.get_parent_consumers() == ():
+            return
+
         if demand_category not in self._demand:
              raise ValueError(
                  "Attempting to calculate max suppliable rate for demand category"
@@ -1094,8 +1016,10 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
                 f" '{self.get_global_id()}'."
             )
 
-        total_request_ipm = self._total_demand_ipm(demand_category)
+        total_request_ipm = self.total_demand_ipm(demand_category)
         available_ipm = min(self.max_production_ipm, total_request_ipm)
+
+        self._supplying_rate_ipm[demand_category] = available_ipm
 
         provided_consumer_rate:dict[str, int] = {}
         """
@@ -1144,6 +1068,11 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
             requestors: list[DemandRequest]) -> None:
 
         self._register_demand_ipm(demand_category, parent_consumer, requestors)
+
+    #---------------------------------------------------------------------------
+
+    def total_supply_ipm(self, demand_category: str) -> int:
+        return self._supplying_rate_ipm.get(demand_category, 0)
 
     #---------------------------------------------------------------------------
 
@@ -1292,6 +1221,13 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         )
         self.building_id = building_id
 
+        self._supplying_rate_ipm:dict[str, int] = {}
+        """
+        The rate in items per minute that this resource node is supplying for a demand category.
+
+        demand category -> supplied rate in items per minute.
+        """
+
     #---------------------------------------------------------------------------
 
     def add_recipe_item_supplier(self, recipe_item_name:str, supplier:MapSingleSupplyNode) -> None:
@@ -1361,6 +1297,7 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
         """
         Register this consumer's demand with its suppliers based on the recipe. This should be
         called after the suppliers have been added and the recipe items have been populated.
+        This method is called when the node is terminal.
         """
         for recipe_item in self.recipe:
             for supplier in recipe_item.suppliers:
@@ -1379,10 +1316,23 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
 
         self._register_demand_ipm(demand_category, parent_consumer, requestors)
 
+        # Handle the special case where the demand category is game definition. In that case,
+        # the full amount must always be requested from the suppliers.
+
+        if demand_category == DemandCategory.GAME_DEFINITION:
+            for recipe_item in self.recipe:
+                for supplier in recipe_item.suppliers:
+                    supplier.register_demand_with_suppliers(
+                        demand_category,
+                        self,
+                        [DemandRequest(
+                            self, recipe_item.recipe_item_name, recipe_item.required_ipm)])
+            return
+
         # Only demand from the suppliers a rate that is necessary to meet the demand of the
         # consumers.
 
-        total_demand_ipm = self._total_demand_ipm(demand_category)
+        total_demand_ipm = self.total_demand_ipm(demand_category)
         request_ratio:float = 1.0
         if total_demand_ipm < self.max_production_ipm:
             request_ratio = total_demand_ipm / self.max_production_ipm
@@ -1430,8 +1380,10 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
 
         production_ipm = math.floor(self.max_production_ipm * supply_availability_ratio)
 
-        total_request_ipm = self._total_demand_ipm(demand_category)
+        total_request_ipm = self.total_demand_ipm(demand_category)
         available_ipm = min(production_ipm, total_request_ipm)
+
+        self._supplying_rate_ipm[demand_category] = available_ipm
 
         provided_consumer_rate:dict[str, int] = {}
         """
@@ -1470,6 +1422,11 @@ class MapCrafterNode(MapFactoryNode, MapProductionSupplyNode, MapConsumerNode):
                 supplies.append(demand_supply)
             if supplies:
                 parent.register_suppliable_rate_ipm(demand_category, self, supplies)
+
+    #---------------------------------------------------------------------------
+
+    def total_supply_ipm(self, demand_category: str) -> int:
+        return self._supplying_rate_ipm.get(demand_category, 0)
 
     #---------------------------------------------------------------------------
 
@@ -1607,6 +1564,12 @@ class MapSingleStorageNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode)
 
     #---------------------------------------------------------------------------
 
+    def total_supply_ipm(self, demand_category: str) -> int:
+        return sum(
+            ds.supplied_ipm for ds in self._supplier_availablity_ipm.get(demand_category, set()))
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
@@ -1665,6 +1628,12 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
+    @property
+    def has_receiver(self) -> bool:
+        return self._parent_consumers is not None and len(self._parent_consumers) > 0
+
+    #---------------------------------------------------------------------------
+
     def get_node_id(self) -> str:
         return self.dispatcher_id
 
@@ -1686,6 +1655,21 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
         for supplier in self.suppliers:
             supplier_node_ids.add(supplier.get_node_id())
         return supplier_node_ids
+
+    #---------------------------------------------------------------------------
+
+    def register_recipe_demand_with_suppliers(self) -> None:
+        """
+        When a dispatcher is terminal, call the suppliers to register game definition demand.
+        A zero is passed to each supplier as this consumer has no demand but when the supplier
+        is a crafter, it will enact the special case and register the full recipe demand with its
+        suppliers.
+        """
+        for supplier in self.suppliers:
+            supplier.register_demand_with_suppliers(
+                DemandCategory.GAME_DEFINITION,
+                self,
+                [DemandRequest(self, self.supplied_item_name, 0)])
 
     #---------------------------------------------------------------------------
 
@@ -1752,6 +1736,12 @@ class MapDispatcherNode(MapFactoryNode, MapSingleSupplyNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
+    def total_supply_ipm(self, demand_category: str) -> int:
+        return sum(
+            ds.supplied_ipm for ds in self._supplier_availablity_ipm.get(demand_category, set()))
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
@@ -1812,6 +1802,24 @@ class MapReceiverNode(MapFactoryNode, MapMultiSupplyNode, MapConsumerNode):
                 connector.register_suppliable_rate_ipm(
                     demand_category, child_supplier, demand_suppliers)
                 break
+
+    #---------------------------------------------------------------------------
+
+    def total_demand_ipm(self, demand_category:str) -> tuple[tuple[str, int], ...]:
+        demand:list[tuple[str, int]] = []
+        for connector in self.supplied_items:
+            connector_demand = connector.total_demand_ipm(demand_category)
+            demand.append((connector.supplied_item_name, connector_demand))
+        return tuple(demand)
+
+    #---------------------------------------------------------------------------
+
+    def total_supply_ipm(self, demand_category: str) -> tuple[tuple[str, int], ...]:
+        supply:list[tuple[str, int]] = []
+        for connector in self.supplied_items:
+            connector_supply = connector.total_supply_ipm(demand_category)
+            supply.append((connector.supplied_item_name, connector_supply))
+        return tuple(supply)
 
     #---------------------------------------------------------------------------
 
@@ -1915,14 +1923,29 @@ class MapTargetNode(MapFactoryNode, MapConsumerNode):
 
     #---------------------------------------------------------------------------
 
+    def total_supply_ipm(self, demand_category: str) -> int:
+        return sum(
+            ds.supplied_ipm for ds in self._supplier_availablity_ipm.get(demand_category, set()))
+
+    #---------------------------------------------------------------------------
+
 #---------------------------------------------------------------------------------------------------
 
 class MapData:
     #---------------------------------------------------------------------------
 
     def __init__(self) -> None:
+
         self.sites:dict[str,MapSite] = {}
+        """
+        All sites in the map, keyed by site ID.
+        """
+
         self.map_nodes:list[MapNode] = []
+        """
+        All nodes in the map. This includes sites, factories, and all types of nodes within sites
+        and factories.
+        """
 
     #---------------------------------------------------------------------------
 
@@ -2280,18 +2303,34 @@ class MapData:
         # have been linked.
         #
 
-        # TODO: Implement this by walking the graph starting with nodes that are terminal and
-        #       don't use receiver. That should populate all the pass-through nodes as well as
-        #       dispatcher so the next step is to walk the graph of terminal nodes that use
-        #       receiver and stop when reaching a node that has already been populated.
+        def dispatcher_with_receiver(n:MapNode) -> bool:
+            return isinstance(n, MapDispatcherNode) and cast(MapDispatcherNode, n).has_receiver
 
-        # This implementation is for testing only.
-        for site_id, site in self.sites.items():
-            for resource_id, resource_node in site.resource_nodes.items():
-                resource_node.calculate_and_set_max_suppliable_rate_ipm()
-            for factory_id, factory in site.factories.items():
-                for crafter_id, crafter_node in factory.crafters.items():
-                    crafter_node.calculate_and_set_max_suppliable_rate_ipm()
+        # Nodes that are globally terminal.
+        terminal_nodes = [
+            n for n in self.map_nodes if n.is_terminal and not dispatcher_with_receiver(n)
+        ]
+
+        # Only terminal crafter and dispatcher nodes are invoked to set the game definition demand.
+        # Terminal targets don't set the terminal state on their suppliers so they can be ignored
+        # for this case. Resources don't have any suppliers so they can be ignored as well.
+        # All other nodes are structural nodes (MapSiteNode, MapFactoryNode) that don't participate
+        # in the production chain, or pass-through nodes that will have their max available recipe
+        # item IPM set when they are walked through as suppliers of the terminal crafter and
+        # dispatcher nodes.
+        for node in terminal_nodes:
+            if isinstance(node, MapCrafterNode):
+                node.register_recipe_demand_with_suppliers()
+            elif isinstance(node, MapDispatcherNode):
+                node.register_recipe_demand_with_suppliers()
+
+        #
+        # Set max available supply rates for all nodes.
+        #
+
+        resource_nodes = [n for n in self.map_nodes if isinstance(n, MapResourceNode)]
+        for node in resource_nodes:
+            node.calculate_and_set_max_suppliable_rate_ipm(DemandCategory.GAME_DEFINITION)
 
         return self
 
@@ -2346,7 +2385,7 @@ class MapData:
                 print(f"max production ipm: {resource_node.max_production_ipm}")
                 print(f"is terminal       : {resource_node.is_terminal}")
                 print(f"uses receiver     : {resource_node.uses_receiver}")
-                print(f"max recipe item request ipm: {resource_node.get_max_game_definition_requested_ipm()}")
+                print(f"max recipe item request ipm: {resource_node.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
                 print( "consumers:")
                 for consumer in resource_node.get_parent_consumers():
                     print(f"  - {consumer.get_global_id()}")
@@ -2360,13 +2399,13 @@ class MapData:
                     print(f"max production ipm: {crafter.max_production_ipm}")
                     print(f"is terminal       : {crafter.is_terminal}")
                     print(f"uses receiver     : {crafter.uses_receiver}")
-                    print(f"max recipe item request ipm: {crafter.get_max_game_definition_requested_ipm()}")
+                    print(f"max recipe item request ipm: {crafter.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "recipe:")
                     for recipe_item in crafter.recipe:
                         print(f"  - {recipe_item.recipe_item_name:<20}:"
                               f" {recipe_item.required_ipm} ipm")
                         for supplier in recipe_item.suppliers:
-                            print(f"      - {supplier.get_global_id()}  max available ipm: {crafter._max_available_recipe_item_ipm.get(recipe_item.recipe_item_name, {}).get(supplier.get_global_id(), 'N/A')}")
+                            print(f"      - {supplier.get_global_id()}  max available ipm: {crafter.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "consumers:")
                     for consumer in crafter.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2379,10 +2418,10 @@ class MapData:
                     print(f"building id     : {storage.building_id}")
                     print(f"is terminal     : {storage.is_terminal}")
                     print(f"uses receiver   : {storage.uses_receiver}")
-                    print(f"max recipe item request ipm: {storage.get_max_game_definition_requested_ipm()}")
+                    print(f"max recipe item request ipm: {storage.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "suppliers:")
                     for supplier in storage.suppliers:
-                        print(f"  - {supplier.get_global_id()}  max available ipm: {storage._max_available_recipe_item_ipm.get(supplier.get_global_id(), 'N/A')}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {storage.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "consumers:")
                     for consumer in storage.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2397,10 +2436,10 @@ class MapData:
                     print(f"input rate limit : {dispatcher.input_rate_limit_ipm} ipm")
                     print(f"is terminal      : {dispatcher.is_terminal}")
                     print(f"uses receiver    : {dispatcher.uses_receiver}")
-                    print(f"max recipe item request ipm: {dispatcher.get_max_game_definition_requested_ipm()}")
+                    print(f"max recipe item request ipm: {dispatcher.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "suppliers:")
                     for supplier in dispatcher.suppliers:
-                        print(f"  - {supplier.get_global_id()}  max available ipm: {dispatcher._max_available_recipe_item_ipm.get(supplier.get_global_id(), 'N/A')}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {dispatcher.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "consumers:")
                     for consumer in dispatcher.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2412,12 +2451,12 @@ class MapData:
                     print(f"building id  : {receiver.building_id}")
                     print(f"is terminal  : {receiver.is_terminal}")
                     print(f"uses receiver: {receiver.uses_receiver}")
-                    print(f"max recipe item request ipm: {receiver.get_max_game_definition_requested_ipm()}")
+                    print(f"max recipe item request ipm: {receiver.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "dispatched items:")
                     for dispatched_item in receiver.supplied_items:
                         print(f"  - {dispatched_item.supplied_item_name} from dispatcher(s):")
                         for supplier in dispatched_item.suppliers:
-                            print(f"    - {supplier.get_global_id()}  max available ipm: {receiver._max_available_recipe_item_ipm.get(dispatched_item.supplied_item_name, {}).get(supplier.get_global_id(), 'N/A')}")
+                            print(f"    - {supplier.get_global_id()}  max available ipm: {receiver.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "consumers:")
                     for consumer in receiver.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2431,7 +2470,7 @@ class MapData:
                     print(f"target amount  : {target.target_amount}")
                     print( "suppliers:")
                     for supplier in target.suppliers:
-                        print(f"  - {supplier.get_global_id()}  max available ipm: {target._max_available_recipe_item_ipm.get(supplier.get_global_id(), 'N/A')}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {target.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
 
     #---------------------------------------------------------------------------
 
