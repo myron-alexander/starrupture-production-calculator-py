@@ -486,7 +486,7 @@ class MapSingleSupplyNode(MapNode):
 
         self._parent_consumers:list[MapConsumerNode] = []
 
-        self._demand_parent:dict[str, dict[MapConsumerNode,set[MapConsumerNode]]] = {}
+        self._parent_demand_map:dict[str, dict[MapConsumerNode, set[MapConsumerNode]]] = {}
         """
         Links the demand consumer to the parent consumer so that the amount of demand can be
         apportioned to the parent.
@@ -494,6 +494,15 @@ class MapSingleSupplyNode(MapNode):
         demand category
             -> parent consumer
                 -> list of demand consumers that are linked to the parent consumer.
+        """
+
+        self._demand_parentage:dict[str, dict[MapConsumerNode, set[MapConsumerNode]]] = {}
+        """
+        Parent consumers linked to demand consumers for a demand category. Used for apportioning
+        demand to parent consumers. This is the inverse of _demand_parent. This is used to count
+        the number of parents that are linked to a demand consumer.
+
+        demand category -> demand consumer -> parent consumers
         """
 
         self._demand:dict[str, dict[MapConsumerNode, int]] = {}
@@ -582,9 +591,11 @@ class MapSingleSupplyNode(MapNode):
         #
         #
 
-        parent_demand_consumers = self._demand_parent \
+        parent_demand_consumers = self._parent_demand_map \
             .setdefault(demand_category, {}) \
                 .setdefault(parent_consumer, set())
+
+        parent_count_map = self._demand_parentage.setdefault(demand_category, {})
 
         category_map = self._demand.setdefault(demand_category, {})
 
@@ -595,6 +606,7 @@ class MapSingleSupplyNode(MapNode):
                     f" item name '{self.supplied_item_name}' for demand category '{demand_category}'"
                     f" from consumer '{request.consumer.get_global_id()}'")
             parent_demand_consumers.add(request.consumer)
+            parent_count_map.setdefault(request.consumer, set()).add(parent_consumer)
             existing_request_ipm = category_map.get(request.consumer, None)
             category_map[request.consumer] = request.request_ipm
             if existing_request_ipm is not None and existing_request_ipm != request.request_ipm:
@@ -671,7 +683,20 @@ class MapSingleSupplyNode(MapNode):
         Get the demand consumers that are linked to the parent consumer for the specified demand
         category.
         """
-        return tuple(self._demand_parent.get(demand_category, {}).get(parent_consumer, set()))
+        return tuple(self._parent_demand_map.get(demand_category, {}).get(parent_consumer, set()))
+
+    #---------------------------------------------------------------------------
+
+    def _get_demand_parent_counts(self, demand_category:str) -> tuple[tuple[MapConsumerNode, int], ...]:
+        """
+        Get the parent consumer counts for the demand consumers for the specified demand category.
+        This is used to apportion demand to parent consumers when there are multiple parent
+        consumers linked to a demand consumer.
+
+        Returns a tuple of ((demand consumer, parent count), ...).
+        """
+        category_map = self._demand_parentage.get(demand_category, {})
+        return tuple((consumer, len(parents)) for consumer, parents in category_map.items())
 
     #---------------------------------------------------------------------------
 
@@ -1052,7 +1077,7 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
 
         self._supplying_rate_ipm[demand_category] = available_ipm
 
-        provided_consumer_rate:dict[str, int] = {}
+        provided_consumer_rate:dict[MapConsumerNode, int] = {}
         """
         key = demanding consumer id.
 
@@ -1080,22 +1105,34 @@ class MapResourceNode(MapSiteNode, MapProductionSupplyNode):
         for demanding_consumer, request_ipm in low_to_high_requests:
             fair_ipm = available_ipm // num_requests
             if fair_ipm < request_ipm:
-                provided_consumer_rate[demanding_consumer.get_global_id()] = fair_ipm
+                provided_consumer_rate[demanding_consumer] = fair_ipm
                 supplying_consumers_list.append((demanding_consumer, fair_ipm))
                 available_ipm -= fair_ipm
             else:
-                provided_consumer_rate[demanding_consumer.get_global_id()] = request_ipm
+                provided_consumer_rate[demanding_consumer] = request_ipm
                 supplying_consumers_list.append((demanding_consumer, request_ipm))
                 available_ipm -= request_ipm
             num_requests -= 1
 
         # Register the available rates for demanding consumers with the direct consumers.
 
+        demand_parent_counts = self._get_demand_parent_counts(demand_category)
+
+        remaining_rate_map:dict[MapConsumerNode, int] = provided_consumer_rate.copy()
+        apportioned_rate_map:dict[MapConsumerNode, int] = {
+            consumer: provided_consumer_rate[consumer] // num_parents
+            for consumer, num_parents in demand_parent_counts
+        }
+
         for parent in self.get_parent_consumers():
             supplies:list[DemandSupply] = []
             for demander in self._get_parent_demands(demand_category, parent):
-                demand_supply = DemandSupply(
-                    self, demander, provided_consumer_rate[demander.get_global_id()])
+                apportioned_rate = apportioned_rate_map[demander]
+                remaining_rate = remaining_rate_map[demander]
+                if remaining_rate < apportioned_rate:
+                    apportioned_rate = remaining_rate
+                remaining_rate_map[demander] = remaining_rate - apportioned_rate
+                demand_supply = DemandSupply(self, demander, apportioned_rate)
                 supplies.append(demand_supply)
             if supplies:
                 parent.register_suppliable_rate_ipm(demand_category, self, supplies)
