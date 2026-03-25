@@ -19,6 +19,7 @@ map_builder/*_redux.py
 
 # Copied files
 *?([0-9])*
+*.orig
 
 
 
