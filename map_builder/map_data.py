@@ -2434,6 +2434,11 @@ class MapData:
                 print(f"is terminal       : {resource_node.is_terminal}")
                 print(f"uses receiver     : {resource_node.uses_receiver}")
                 print(f"max recipe item request ipm: {resource_node.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
+                print(f"registered demand:")
+                for demand_category, demand in resource_node._demand.items():
+                    print(f"  - {demand_category}:")
+                    for requestor, demand_ipm in demand.items():
+                        print(f"    - {requestor.get_global_id()}: {demand_ipm} ipm")
                 print( "consumers:")
                 for consumer in resource_node.get_parent_consumers():
                     print(f"  - {consumer.get_global_id()}")
@@ -2448,12 +2453,17 @@ class MapData:
                     print(f"is terminal       : {crafter.is_terminal}")
                     print(f"uses receiver     : {crafter.uses_receiver}")
                     print(f"max recipe item request ipm: {crafter.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
+                    print(f"registered demand:")
+                    for demand_category, demand in crafter._demand.items():
+                        print(f"  - {demand_category}:")
+                        for requestor, demand_ipm in demand.items():
+                            print(f"    - {requestor.get_global_id()}: {demand_ipm} ipm")
                     print( "recipe:")
                     for recipe_item in crafter.recipe:
                         print(f"  - {recipe_item.recipe_item_name:<20}:"
                               f" {recipe_item.required_ipm} ipm")
                         for supplier in recipe_item.suppliers:
-                            print(f"      - {supplier.get_global_id()}  max available ipm: {crafter.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
+                            print(f"      - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "consumers:")
                     for consumer in crafter.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2467,9 +2477,14 @@ class MapData:
                     print(f"is terminal     : {storage.is_terminal}")
                     print(f"uses receiver   : {storage.uses_receiver}")
                     print(f"max recipe item request ipm: {storage.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
+                    print(f"registered demand:")
+                    for demand_category, demand in storage._demand.items():
+                        print(f"  - {demand_category}:")
+                        for requestor, demand_ipm in demand.items():
+                            print(f"    - {requestor.get_global_id()}: {demand_ipm} ipm")
                     print( "suppliers:")
                     for supplier in storage.suppliers:
-                        print(f"  - {supplier.get_global_id()}  max available ipm: {storage.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "consumers:")
                     for consumer in storage.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2485,9 +2500,14 @@ class MapData:
                     print(f"is terminal      : {dispatcher.is_terminal}")
                     print(f"uses receiver    : {dispatcher.uses_receiver}")
                     print(f"max recipe item request ipm: {dispatcher.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
+                    print(f"registered demand:")
+                    for demand_category, demand in dispatcher._demand.items():
+                        print(f"  - {demand_category}:")
+                        for requestor, demand_ipm in demand.items():
+                            print(f"    - {requestor.get_global_id()}: {demand_ipm} ipm")
                     print( "suppliers:")
                     for supplier in dispatcher.suppliers:
-                        print(f"  - {supplier.get_global_id()}  max available ipm: {dispatcher.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "consumers:")
                     for consumer in dispatcher.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2502,9 +2522,15 @@ class MapData:
                     print(f"max recipe item request ipm: {receiver.total_demand_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "dispatched items:")
                     for dispatched_item in receiver.supplied_items:
-                        print(f"  - {dispatched_item.supplied_item_name} from dispatcher(s):")
+                        print(f"  - {dispatched_item.supplied_item_name}")
+                        print(f"    registered demand:")
+                        for demand_category, demand in dispatched_item._demand.items():
+                            print(f"      - {demand_category}:")
+                            for requestor, demand_ipm in demand.items():
+                                print(f"        - {requestor.get_global_id()}: {demand_ipm} ipm")
+                        print(f"    from dispatcher(s):")
                         for supplier in dispatched_item.suppliers:
-                            print(f"    - {supplier.get_global_id()}  max available ipm: {receiver.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
+                            print(f"    - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
                     print( "consumers:")
                     for consumer in receiver.get_parent_consumers():
                         print(f"  - {consumer.get_global_id()}")
@@ -2518,7 +2544,7 @@ class MapData:
                     print(f"target amount  : {target.target_amount}")
                     print( "suppliers:")
                     for supplier in target.suppliers:
-                        print(f"  - {supplier.get_global_id()}  max available ipm: {target.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
+                        print(f"  - {supplier.get_global_id()}  max available ipm: {supplier.total_supply_ipm(DemandCategory.GAME_DEFINITION)}")
 
     #---------------------------------------------------------------------------
 
